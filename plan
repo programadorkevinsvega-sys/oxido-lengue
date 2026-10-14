@@ -1,0 +1,1310 @@
+# PROMPT MAESTRO PARA CODEX — ÓXIDO
+## Diseño, implementación, validación y evolución de un lenguaje de programación basado en Rust
+
+Actúa como arquitecto de compiladores, ingeniero de lenguajes de programación, especialista en Rust, diseñador de herramientas para desarrolladores y responsable de calidad de software.
+
+Tu misión es construir **Óxido**, un lenguaje de programación bilingüe español/inglés cuya sintaxis alternativa se traduzca a Rust estándar y cuya compilación final se realice mediante Cargo, `rustc` y las herramientas oficiales del ecosistema Rust.
+
+No quiero únicamente una propuesta, un prototipo visual, un documento de arquitectura ni una colección de archivos de ejemplo. Quiero construir un proyecto real, ejecutable, verificable, documentado, reproducible y ampliable, que pueda evolucionar desde una herramienta educativa hasta una plataforma de desarrollo utilizada por profesionales, universidades y empresas.
+
+Debes trabajar sobre el repositorio real que tengas disponible. Primero inspecciona su estado y sus instrucciones; después determina qué existe, qué funciona, qué falta y cuál es la siguiente implementación correcta.
+
+---
+
+# 1. Visión y objetivo de Óxido
+
+Óxido debe permitir escribir programas utilizando palabras clave en español o inglés, con dos estilos de bloques claramente diferenciados:
+
+1. Sintaxis por indentación, inspirada en la legibilidad de Python.
+2. Sintaxis con llaves, familiar para quienes ya utilizan Rust.
+
+Ambos estilos deben compartir una misma semántica y una representación interna común. El programador elige explícitamente el estilo permitido; no se mezclan libremente los dos mecanismos de delimitación de bloques dentro de un mismo archivo.
+
+Óxido no debe convertirse innecesariamente en un lenguaje con un sistema de tipos, un runtime, un gestor de paquetes o un ecosistema completamente independientes.
+
+La estrategia principal es:
+
+**Código `.ox` → frontend de Óxido → representación interna → generación de Rust estándar → Cargo y `rustc` → ejecutable o biblioteca.**
+
+El compilador y todas las herramientas centrales de Óxido deben implementarse en Rust.
+
+Python no debe utilizarse para implementar el compilador, el parser, el lexer, el servidor de lenguaje ni la infraestructura central. Los scripts auxiliares también deben priorizar Rust, salvo que exista una justificación técnica concreta y aprobada para otra tecnología.
+
+## Objetivos principales
+
+- Facilitar el aprendizaje de programación en español.
+- Mantener la posibilidad de escribir código utilizando palabras clave inglesas.
+- Permitir ambos estilos de bloques sin ambigüedad.
+- Reutilizar el compilador, el sistema de tipos y las bibliotecas de Rust.
+- Integrarse con Cargo, crates.io y proyectos reales.
+- Proporcionar una experiencia profesional en Visual Studio Code.
+- Construir un laboratorio de pruebas automatizado desde las primeras fases.
+- Ofrecer herramientas educativas para aprender programación y posteriormente Rust.
+- Establecer una base verificable para el uso profesional, universitario y empresarial.
+- Mantener el proyecto modular, seguro, mantenible y preparado para evolucionar.
+
+No prometas compatibilidad completa con Rust antes de haberla implementado y verificado.
+
+---
+
+# 2. Reglas técnicas obligatorias
+
+Estas reglas son requisitos del proyecto.
+
+## 2.1. Lenguajes y herramientas
+
+- Implementar el compilador, lexer, parser, AST, traductor, CLI, diagnósticos y servidor LSP en Rust.
+- Usar Cargo como gestor de dependencias y herramienta de compilación.
+- Usar `rustc` como compilador final del código generado.
+- Priorizar bibliotecas existentes, mantenidas y apropiadas del ecosistema Rust.
+- Utilizar una edición de Rust explícita y documentada, configurable de manera controlada.
+- Implementar la extensión de VS Code con las tecnologías que requiera el ecosistema del editor, separándola del núcleo del compilador.
+- No introducir Python como dependencia obligatoria de desarrollo o ejecución.
+
+## 2.2. Prohibiciones
+
+No acepto como implementación final:
+
+- Mocks, fakes, repositorios simulados o proveedores falsos.
+- Datos de demostración presentados como datos reales.
+- Funciones vacías que aparenten estar terminadas.
+- Placeholders, TODO o `unimplemented!()` en funcionalidades declaradas completas.
+- Traducciones globales de texto que modifiquen indiscriminadamente el código.
+- Reemplazos de palabras mediante expresiones regulares como sustituto del parser.
+- Un borrow checker propio que intente reemplazar al de Rust.
+- Un sistema de tipos paralelo que duplique innecesariamente la semántica de Rust.
+- Supresión de errores para conseguir que una prueba pase.
+- Desactivación de comprobaciones de tipos, lint o seguridad para ocultar defectos.
+- Implementaciones temporales que se declaren definitivas.
+- Pruebas que siempre pasen porque no ejercitan la funcionalidad real.
+- Resultados de pruebas, benchmarks o compatibilidad inventados.
+- Declarar una característica compatible únicamente porque un ejemplo trivial compila.
+
+Los tests pueden emplear datos aislados y servidores de prueba cuando corresponda, pero deben verificar comportamiento real. Nunca deben confundirse los entornos de prueba con una implementación simulada del producto.
+
+## 2.3. Arquitectura y organización
+
+Adopta DDD y Clean Architecture donde sean apropiados, sin introducir capas artificiales en el compilador.
+
+Utiliza un monorepo modular que permita desarrollar y probar independientemente sus componentes.
+
+Ningún archivo de código fuente debería superar 200 líneas como objetivo de arquitectura. Si un archivo excede ese límite, divide las responsabilidades en módulos coherentes. No fragmentes el código de forma artificial para cumplir el límite.
+
+Cada módulo debe tener responsabilidades claras, dependencias explícitas y pruebas correspondientes.
+
+## 2.4. Calidad y seguridad
+
+Cada cambio debe pasar por los controles pertinentes:
+
+- Formato.
+- Lints.
+- Compilación.
+- Pruebas unitarias.
+- Pruebas de integración.
+- Pruebas de regresión.
+- Análisis de dependencias y vulnerabilidades.
+- Verificación de documentación.
+- Comprobaciones de reproducibilidad.
+
+No desactives una comprobación existente sin una razón técnica documentada y una alternativa adecuada.
+
+---
+
+# 3. Principio fundamental: una sola semántica
+
+Óxido debe ser una sintaxis alternativa para expresar programas que terminan siendo programas Rust.
+
+No debe redefinir por su cuenta:
+
+- Ownership.
+- Borrowing.
+- Lifetimes.
+- Mutabilidad.
+- Traits.
+- Genéricos.
+- Enums.
+- Pattern matching.
+- Tipos y conversiones.
+- Errores y resultados.
+- Concurrencia.
+- Programación asíncrona.
+- Seguridad de memoria.
+- Reglas de visibilidad.
+- Semántica de macros.
+- Interoperabilidad con bibliotecas.
+
+El compilador de Óxido debe delegar en Rust todo aquello que corresponda a su sistema de tipos y a su compilador.
+
+Cuando una construcción no pueda traducirse fielmente, debe rechazarse con un diagnóstico claro. Nunca debe inventarse una traducción que cambie silenciosamente su significado.
+
+Debes mantener una matriz de compatibilidad que identifique las construcciones admitidas, las parcialmente admitidas y las pendientes.
+
+---
+
+# 4. Dos estilos de sintaxis mutuamente excluyentes
+
+Esta decisión es obligatoria y forma parte de la identidad del lenguaje.
+
+## 4.1. Modo de indentación
+
+Ejemplo conceptual:
+
+    sintaxis indentacion
+
+    funcion sumar(a: i32, b: i32) -> i32:
+        retornar a + b
+
+    funcion main():
+        dejar resultado = sumar(10, 20)
+        println!("Resultado: {}", resultado)
+
+En este modo:
+
+- Los bloques se abren con `:` en las construcciones que lo requieran.
+- La indentación delimita los bloques.
+- La dedentación cierra los bloques.
+- Debe definirse formalmente cómo se manejan tabuladores, espacios, líneas vacías y continuaciones.
+- La indentación inconsistente produce diagnósticos precisos.
+- Los puntos y coma no son obligatorios para separar instrucciones cuando la gramática pueda reconocerlas inequívocamente.
+- Deben admitirse expresiones multilínea mediante reglas explícitas.
+- No se permiten llaves como delimitadores alternativos de bloques de Óxido.
+
+La última regla no significa que se prohíba el carácter `{` en cualquier contexto. Las macros, atributos, cadenas, estructuras de datos u otras construcciones que legítimamente lo necesiten deben analizarse según su contexto y la gramática definida.
+
+## 4.2. Modo de llaves
+
+Ejemplo conceptual:
+
+    sintaxis llaves
+
+    funcion sumar(a: i32, b: i32) -> i32 {
+        retornar a + b;
+    }
+
+    funcion main() {
+        dejar resultado = sumar(10, 20);
+        println!("Resultado: {}", resultado);
+    }
+
+En este modo:
+
+- Los bloques se delimitan mediante `{}`.
+- La indentación sirve para mejorar la legibilidad, pero no determina los límites semánticos de los bloques.
+- Deben definirse las reglas de separación de instrucciones y terminadores.
+- La gramática debe conservar la compatibilidad con las construcciones de Rust que se decida admitir.
+
+El modo de llaves debe resultar familiar a los desarrolladores de Rust, pero no debe prometer compatibilidad sintáctica absoluta si existen diferencias necesarias por los alias o las decisiones formales de Óxido.
+
+## 4.3. Selección del modo
+
+El modo debe definirse mediante una configuración explícita.
+
+La configuración del proyecto será el valor predeterminado. Como diseño propuesto, el archivo `oxido.toml` puede contener:
+
+    [language]
+    syntax = "indentation"
+    edition = "2024"
+
+Los valores admitidos para `syntax` serán `indentation` y `braces`.
+
+También se debe evaluar una declaración inicial por archivo, por ejemplo:
+
+    sintaxis indentacion
+
+o:
+
+    sintaxis llaves
+
+Debes especificar cuál de estas formas será normativa, cómo interactúa con la configuración del proyecto y si se permitirá sobrescribir el modo por archivo.
+
+Reglas obligatorias:
+
+1. No debe existir detección automática del estilo.
+2. El modo debe conocerse antes de analizar el cuerpo del archivo.
+3. No se puede cambiar de modo a mitad de un archivo.
+4. Si una declaración por archivo está admitida, solo podrá aparecer en la posición establecida por la gramática.
+5. Una declaración que contradiga una política estricta del proyecto debe producir un error.
+6. No deben existir ambigüedades entre indentación y llaves como delimitadores de bloques.
+7. Ambos estilos deben compartir AST, validaciones y backend.
+8. El formateador no debe cambiar de estilo silenciosamente.
+
+Si se decide admitir archivos de estilos diferentes dentro de un mismo proyecto, cada archivo debe declarar o heredar un modo inequívoco. Si se decide que el proyecto sea estricto, todos los archivos deberán cumplir el modo configurado. Esta decisión debe documentarse y probarse antes de implementar excepciones.
+
+## 4.4. Pruebas obligatorias de los dos modos
+
+Crea pruebas que verifiquen:
+
+- Un programa válido en modo indentación.
+- El equivalente válido en modo llaves.
+- La detección de un bloque con delimitadores incompatibles.
+- El rechazo de configuraciones inválidas.
+- La coherencia entre configuración del proyecto y declaración por archivo.
+- La independencia entre formato visual y significado en modo llaves.
+- La equivalencia de comportamiento de programas equivalentes.
+- Que los bloques anidados no se confundan.
+- Que las llaves legítimas en macros y expresiones no se rechacen incorrectamente.
+
+---
+
+# 5. Bilingüismo español/inglés
+
+Óxido debe admitir palabras clave en español e inglés, incluso dentro del mismo archivo.
+
+Ejemplo:
+
+    sintaxis indentacion
+
+    funcion sumar(a: i32, b: i32) -> i32:
+        return a + b
+
+    fn main():
+        dejar resultado = sumar(10, 20)
+        println!("{}", resultado)
+
+Este programa es un ejemplo de la experiencia deseada; debe pasar por el parser real y por las reglas formales que se implementen.
+
+La gramática debe definir cómo se normalizan las palabras clave. El objetivo es que dos palabras clave equivalentes produzcan la misma representación interna, sin cambiar los identificadores de usuario ni el contenido literal.
+
+## 5.1. Reglas de los alias
+
+- Los alias españoles se escribirán sin tildes ni caracteres especiales cuando exista una alternativa razonable.
+- Las palabras clave inglesas originales deben seguir disponibles.
+- Los alias de palabras clave deben reconocerse como tokens, no mediante reemplazos indiscriminados.
+- No se traducirán identificadores definidos por el usuario.
+- No se traducirán cadenas, comentarios, documentación, nombres de crates ni rutas automáticamente.
+- Los atributos, macros y tokens que necesiten conservarse deben tratarse de forma contextual.
+- Las colisiones con nombres de variables y funciones deben resolverse mediante una política de palabras reservadas documentada.
+- Las palabras clave sensibles a mayúsculas y minúsculas deben conservar las distinciones pertinentes.
+- Cada alias debe tener pruebas positivas y negativas.
+
+No es obligatorio traducir absolutamente todas las palabras de Rust. Es preferible preservar las construcciones cuyo alias cause ambigüedad o cuya sintaxis requiera tratamiento especial.
+
+---
+
+# 6. Lista inicial de alias lingüísticos
+
+Esta es la propuesta inicial que debes formalizar, revisar contra la edición de Rust elegida y convertir en una especificación verificable.
+
+No consideres automáticamente definitiva ninguna equivalencia que tenga una traducción ambigua.
+
+## 6.1. Palabras clave estrictas
+
+| Rust | Alias de Óxido |
+|---|---|
+| `as` | `como` |
+| `async` | `asincrono` |
+| `await` | `esperar` |
+| `break` | `romper` |
+| `const` | `constante` |
+| `continue` | `continuar` |
+| `crate` | `crata` |
+| `dyn` | `dinamico` |
+| `else` | `sino` |
+| `enum` | `enumeracion` |
+| `extern` | `externo` |
+| `false` | `falso` |
+| `fn` | `funcion` |
+| `for` | `para` |
+| `if` | `si` |
+| `impl` | `implementar` |
+| `in` | `en` |
+| `let` | `dejar` |
+| `loop` | `bucle` |
+| `match` | `coincidir` |
+| `mod` | `modulo` |
+| `move` | `mover` |
+| `mut` | `mutable` |
+| `pub` | `publico` |
+| `ref` | `referencia` |
+| `return` | `retornar` |
+| `self` | `mismo` |
+| `Self` | `Mismo` |
+| `static` | `estatico` |
+| `struct` | `estructura` |
+| `super` | `superior` |
+| `trait` | `rasgo` |
+| `true` | `verdadero` |
+| `type` | `tipo` |
+| `unsafe` | `inseguro` |
+| `use` | `usar` |
+| `where` | `donde` |
+| `while` | `mientras` |
+
+El token `_` debe conservarse sin traducción.
+
+Importante: revisa especialmente alias como `crata`, `dinamico`, `mismo`, `Mismo`, `tipo` y `en`. Si una traducción resulta confusa o entra en conflicto con una construcción de Rust, documenta la alternativa recomendada antes de modificar la especificación.
+
+Los alias no deben cambiar la semántica ni habilitar construcciones de Rust que el lenguaje reserve para otros propósitos.
+
+## 6.2. Palabras reservadas de Rust
+
+Mantén un inventario independiente de las palabras reservadas de la versión de Rust seleccionada.
+
+Como propuestas iniciales:
+
+| Rust | Alias propuesto |
+|---|---|
+| `abstract` | `abstracto` |
+| `become` | `convertirse` |
+| `box` | `caja` |
+| `do` | `hacer` |
+| `final` | `final` |
+| `gen` | `generar` |
+| `macro` | `macro` |
+| `override` | `sobrescribir` |
+| `priv` | `privado` |
+| `try` | `intentar` |
+| `typeof` | `tipo_de` |
+| `unsized` | `sin_tamano` |
+| `virtual` | `virtual` |
+| `yield` | `ceder` |
+
+Esta tabla es una propuesta de vocabulario, no una autorización para implementar funciones inexistentes.
+
+Las palabras reservadas deben seguir reservadas si así corresponde en la edición elegida. Su alias no debe habilitarlas por accidente.
+
+Verifica qué palabras se reservan en cada edición de Rust y cómo afecta eso a los identificadores y al código generado.
+
+## 6.3. Palabras contextuales
+
+Conserva inicialmente las formas originales cuando su sintaxis sea especial o contextual, incluyendo:
+
+- `'static`
+- `macro_rules`
+- `raw`
+- `safe`
+- `union`
+
+La lista debe revisarse contra la referencia oficial de Rust y actualizarse conforme a la edición y al alcance de compatibilidad de Óxido.
+
+## 6.4. Alias opcionales para macros
+
+Evalúa alias opcionales para macros de uso habitual:
+
+| Macro de Rust | Alias propuesto |
+|---|---|
+| `println!` | `imprimir!` |
+| `print!` | `imprimir_sin_salto!` |
+| `eprintln!` | `imprimir_error!` |
+| `eprint!` | `imprimir_error_sin_salto!` |
+| `format!` | `formatear!` |
+| `vec!` | `vector!` |
+| `panic!` | `entrar_en_panico!` |
+| `assert!` | `afirmar!` |
+| `assert_eq!` | `afirmar_igual!` |
+| `assert_ne!` | `afirmar_distinto!` |
+| `debug_assert!` | `afirmar_debug!` |
+| `dbg!` | `depurar!` |
+| `todo!` | `pendiente!` |
+| `unimplemented!` | `sin_implementar!` |
+
+Estos alias son opcionales y deben implementarse solo si pueden traducirse correctamente a macros reales de Rust.
+
+No traduzcas indiscriminadamente las macros existentes. Protege sus delimitadores, tokens, argumentos y expansiones. Los nombres originales deben seguir disponibles.
+
+Conserva inicialmente nombres habituales de la biblioteca estándar y del ecosistema, como `Ok`, `Err`, `Some`, `None`, `drop`, `clone`, `unwrap`, `expect`, `map`, `filter` y `collect`.
+
+No traduzcas automáticamente nombres de funciones, métodos, tipos o bibliotecas de terceros.
+
+---
+
+# 7. Especificación formal de la gramática
+
+Antes de ampliar las características del lenguaje, define una gramática formal versionada.
+
+Debe describir como mínimo:
+
+- Tokens.
+- Identificadores.
+- Literales numéricos.
+- Cadenas y caracteres.
+- Comentarios.
+- Expresiones.
+- Operadores y precedencia.
+- Llamadas a funciones.
+- Declaraciones de variables.
+- Funciones.
+- Tipos y referencias.
+- Condiciones.
+- Bucles.
+- Bloques.
+- Estructuras.
+- Enumeraciones.
+- Traits e implementaciones.
+- Patrones.
+- Importaciones.
+- Genéricos.
+- Macros.
+- Atributos.
+- Programación asíncrona.
+- Declaraciones de módulos.
+- Manejo de errores.
+- Sintaxis específica de cada modo.
+
+Define con precisión los límites de compatibilidad.
+
+No intentes reproducir todo Rust de golpe mediante reglas aproximadas. Implementa una gramática incremental y prueba cada ampliación.
+
+La gramática, el parser, el formateador, el servidor LSP y el generador de código deben derivar de una especificación común, o compartir la implementación necesaria para evitar divergencias.
+
+---
+
+# 8. Arquitectura del monorepo
+
+Inspecciona el repositorio existente antes de decidir los nombres finales. Si no existe una arquitectura previa que deba conservarse, utiliza como referencia:
+
+    oxido/
+    ├── Cargo.toml
+    ├── Cargo.lock
+    ├── rust-toolchain.toml
+    ├── oxido.toml
+    ├── crates/
+    │   ├── oxido-source/
+    │   ├── oxido-diagnostics/
+    │   ├── oxido-lexer/
+    │   ├── oxido-parser/
+    │   ├── oxido-ast/
+    │   ├── oxido-formatter/
+    │   ├── oxido-translator/
+    │   ├── oxido-rust-backend/
+    │   ├── oxido-cargo/
+    │   ├── oxido-compiler/
+    │   ├── oxido-cli/
+    │   ├── oxido-lsp/
+    │   └── oxido-testkit/
+    ├── editors/
+    │   └── vscode-oxido/
+    ├── tests/
+    │   ├── fixtures/
+    │   ├── syntax/
+    │   ├── diagnostics/
+    │   ├── translation/
+    │   ├── integration/
+    │   ├── compatibility/
+    │   └── projects/
+    ├── examples/
+    ├── docs/
+    └── .github/
+        └── workflows/
+
+Esta estructura es orientativa. No crees crates vacíos únicamente para llenar carpetas.
+
+Cada crate debe tener una responsabilidad real, una interfaz coherente y pruebas. Evita dependencias circulares y separa la lógica del lenguaje de la interfaz de línea de comandos.
+
+## Responsabilidades previstas
+
+- `oxido-source`: fuentes, posiciones, rangos y gestión de archivos.
+- `oxido-diagnostics`: errores, advertencias, códigos y sugerencias.
+- `oxido-lexer`: tokenización contextual y control de indentación.
+- `oxido-parser`: análisis sintáctico según el modo seleccionado.
+- `oxido-ast`: representación interna compartida.
+- `oxido-formatter`: formato coherente con el estilo del archivo.
+- `oxido-translator`: normalización de alias y transformaciones sintácticas.
+- `oxido-rust-backend`: generación de Rust estándar.
+- `oxido-cargo`: integración real con Cargo y `rustc`.
+- `oxido-compiler`: coordinación del proceso de compilación.
+- `oxido-cli`: comandos y experiencia de terminal.
+- `oxido-lsp`: diagnósticos, navegación y autocompletado.
+- `oxido-testkit`: utilidades reales para pruebas de conformidad y regresión.
+
+No dupliques responsabilidades solo porque aparecen en esta propuesta.
+
+---
+
+# 9. Integración con Cargo y el ecosistema Rust
+
+Óxido debe permitir desarrollar proyectos reales que utilicen crates externos.
+
+Investiga e implementa una estrategia robusta para:
+
+- Configuración de proyectos.
+- Resolución de dependencias mediante Cargo.
+- Generación de código Rust.
+- Organización de módulos.
+- Gestión de archivos generados.
+- Ejecución de pruebas.
+- Compilación de bibliotecas y ejecutables.
+- Propagación de errores del compilador.
+- Configuración de perfiles de compilación.
+- Uso de dependencias locales y del registro de crates.
+- Reproducibilidad de las compilaciones.
+- Integración con CI.
+
+La salida debe ser Rust estándar y no depender de un intérprete obligatorio de Óxido.
+
+Define cómo se conserva la correspondencia entre el archivo `.ox` original y el código Rust generado para que los diagnósticos y las herramientas del editor puedan identificar correctamente el origen de los errores.
+
+No afirmes que todos los crates funcionan automáticamente. Verifica progresivamente qué construcciones y patrones de interoperabilidad son compatibles.
+
+---
+
+# 10. Interoperabilidad y características avanzadas
+
+Implementa las características por prioridad y mediante pruebas.
+
+## Nivel inicial
+
+- Variables.
+- Literales.
+- Funciones.
+- Tipos primitivos.
+- Condiciones.
+- Bucles.
+- Operadores.
+- Expresiones.
+- Tuplas y arrays.
+- Referencias.
+- Estructuras.
+- Enumeraciones.
+- Métodos.
+- Módulos.
+- Importaciones.
+- Manejo básico de errores.
+
+## Nivel intermedio
+
+- Traits.
+- Implementaciones.
+- Genéricos.
+- Lifetimes.
+- Pattern matching.
+- Closures.
+- Iteradores.
+- Colecciones.
+- Macros.
+- Atributos.
+- Pruebas.
+- Documentación del código.
+- Interoperabilidad con crates externos.
+
+## Nivel avanzado
+
+- `async` y `await`.
+- Concurrencia.
+- Tipos complejos.
+- Macros declarativas y, si se soportan, procedurales.
+- Interoperabilidad con bibliotecas complejas.
+- Construcciones `unsafe` bajo las reglas de Rust.
+- Integración con herramientas de análisis y depuración.
+- Compatibilidad con nuevas ediciones y versiones de Rust.
+
+El orden es orientativo. Cada característica debe evaluarse por sus dependencias y complejidad real.
+
+No declares un nivel terminado hasta que sus criterios de aceptación estén cumplidos.
+
+---
+
+# 11. CLI profesional
+
+Construye una interfaz de línea de comandos coherente.
+
+Como propuesta inicial, debe evaluar estos comandos:
+
+    oxido nuevo mi_proyecto
+    oxido verificar
+    oxido compilar
+    oxido ejecutar
+    oxido probar
+    oxido formato
+    oxido formato --comprobar
+    oxido diagnostico
+    oxido version
+    oxido ayuda
+
+Los nombres definitivos deben documentarse y mantenerse estables.
+
+Requisitos:
+
+- Mensajes comprensibles.
+- Códigos de salida correctos.
+- Errores identificables.
+- Rutas de archivos claras.
+- Configuración explícita.
+- Integración con Cargo.
+- Ejecución reproducible.
+- Salida apta para herramientas automatizadas.
+- Respeto por el modo de sintaxis.
+- Sin falsos resultados de éxito.
+
+La CLI no debe declarar que una compilación terminó correctamente hasta que las herramientas reales confirmen ese resultado.
+
+---
+
+# 12. Extensión profesional de Visual Studio Code
+
+La extensión de VS Code es una parte importante del producto, no un añadido decorativo.
+
+Debe permitir escribir, editar, verificar y compilar archivos `.ox`.
+
+## Funcionalidades previstas
+
+### Primera etapa
+
+- Reconocimiento de `.ox`.
+- Identificación del modo de sintaxis.
+- Resaltado de palabras clave españolas e inglesas.
+- Comentarios y cadenas correctamente delimitados.
+- Configuración de lenguaje.
+- Formato básico.
+
+### Segunda etapa
+
+- Servidor LSP implementado en Rust.
+- Diagnósticos mientras se escribe.
+- Errores y advertencias con ubicación precisa.
+- Autocompletado basado en el código analizado.
+- Información de funciones y tipos.
+- Ir a la definición.
+- Búsqueda de referencias.
+- Símbolos del documento y del proyecto.
+- Renombrado seguro cuando pueda verificarse.
+- Acciones de código.
+- Integración con el formateador.
+
+### Tercera etapa
+
+- Compilar desde el editor.
+- Ejecutar programas.
+- Ejecutar pruebas.
+- Mostrar los errores originales de `.ox`.
+- Integración con Cargo.
+- Preparación para depuración.
+- Navegación hacia dependencias cuando sea viable.
+
+La extensión debe consumir la gramática, los diagnósticos y las capacidades reales del compilador.
+
+No implementes un parser independiente en la extensión que termine reconociendo un lenguaje distinto del compilador.
+
+Los errores de código incompleto deben gestionarse de forma robusta, sin bloquear el editor.
+
+---
+
+# 13. Laboratorio de validación de Óxido
+
+Este laboratorio es obligatorio y debe comenzar desde la primera fase.
+
+No esperes a terminar el compilador para crear las pruebas.
+
+Su objetivo es demostrar continuamente qué funciona, qué falla y qué características todavía no están implementadas.
+
+## 13.1. Flujo de validación
+
+Para cada fixture de prueba:
+
+1. Leer el archivo `.ox`.
+2. Aplicar la configuración y el modo correspondiente.
+3. Ejecutar el lexer y el parser reales.
+4. Comprobar el AST o el diagnóstico esperado.
+5. Generar Rust estándar.
+6. Verificar la compilación mediante Cargo y `rustc`, cuando corresponda.
+7. Ejecutar el programa o sus pruebas.
+8. Comparar los resultados con los esperados.
+9. Registrar los errores y las regresiones.
+10. Generar un informe reproducible.
+
+No todas las pruebas deben compilar un ejecutable. Los errores léxicos, sintácticos y de configuración requieren pruebas negativas específicas.
+
+## 13.2. Categorías obligatorias
+
+- Lexer.
+- Parser.
+- AST.
+- Alias lingüísticos.
+- Modo de indentación.
+- Modo de llaves.
+- Rechazo de delimitadores incompatibles.
+- Traducción a Rust.
+- Compilación.
+- Ejecución.
+- Diagnósticos.
+- Dependencias.
+- Integración con Cargo.
+- Macros y atributos.
+- Concurrencia y `async`.
+- Interoperabilidad.
+- Formateador.
+- LSP.
+- Regresiones.
+- Seguridad.
+- Reproducibilidad.
+
+## 13.3. Fixtures y pruebas de regresión
+
+Cada error importante debe convertirse en un caso de regresión.
+
+Mantén ejemplos de programas válidos e inválidos con resultados esperados.
+
+Cuando una construcción no esté implementada, la prueba debe registrar su estado como pendiente o no soportado. No la cuentes como aprobada.
+
+Las pruebas deben comprobar tanto los éxitos como los fallos esperados.
+
+## 13.4. Equivalencia entre estilos
+
+Crea pares de programas equivalentes:
+
+- Una versión con indentación.
+- Una versión con llaves.
+
+Ambos deben producir comportamientos equivalentes bajo las mismas condiciones.
+
+La comparación debe centrarse en la semántica y los resultados, no necesariamente en que el código Rust generado sea textualmente idéntico.
+
+## 13.5. Pruebas diferenciales
+
+Cuando sea técnicamente válido, compara programas escritos directamente en Rust con sus equivalentes de Óxido.
+
+Utiliza pruebas diferenciales para detectar discrepancias de comportamiento, tipos, errores de compilación o generación de código.
+
+No compares programas que no tengan una correspondencia semántica válida.
+
+## 13.6. Generación de casos y fuzzing
+
+Incorpora progresivamente:
+
+- Casos de prueba generados automáticamente.
+- Fuzzing del lexer y del parser.
+- Entradas malformadas.
+- Archivos grandes.
+- Anidamientos profundos.
+- Unicode.
+- Comentarios y cadenas complejas.
+- Errores recuperables.
+- Casos que antes provocaron fallos.
+
+El objetivo es detectar bloqueos, pánicos, corrupción de estado y errores de análisis.
+
+## 13.7. Informes
+
+El laboratorio debe producir resultados verificables con:
+
+- Número de pruebas ejecutadas.
+- Pruebas aprobadas.
+- Pruebas fallidas.
+- Pruebas pendientes.
+- Errores de compilación.
+- Regresiones detectadas.
+- Cobertura por característica cuando exista una medición real.
+- Versión de Óxido.
+- Versión de Rust.
+- Configuración de compilación.
+- Identificador del commit.
+
+No inventes porcentajes de cobertura ni métricas.
+
+---
+
+# 14. Proyecto de referencia: API REST completa
+
+Debes usar proyectos reales para validar que Óxido permite construir software útil.
+
+Uno de los primeros proyectos de referencia será una API REST de productos con:
+
+- Endpoint de bienvenida.
+- Crear producto.
+- Listar productos.
+- Consultar producto por ID.
+- Actualizar producto.
+- Eliminar producto.
+- Serialización JSON.
+- Validación de entradas.
+- Errores HTTP adecuados.
+- Pruebas de integración.
+- Documentación de endpoints.
+
+Utiliza bibliotecas reales de Rust, como Axum, Tokio y Serde, si su compatibilidad y las versiones elegidas lo permiten.
+
+La API de referencia no debe presentarse como una funcionalidad nativa del lenguaje. Es una aplicación escrita en Óxido que utiliza el ecosistema Rust.
+
+El almacenamiento en memoria solo será aceptable para el ejemplo inicial. Para una versión de referencia empresarial, utiliza persistencia real y configuración explícita.
+
+La API debe demostrar el flujo completo:
+
+    código .ox
+        → compilador de Óxido
+        → código Rust
+        → Cargo
+        → ejecutable
+        → pruebas HTTP
+        → informe de resultados
+
+No declares este proyecto validado hasta que se pueda ejecutar de verdad desde el repositorio.
+
+Añade otros proyectos de referencia progresivamente: CLI, aplicación con base de datos, concurrencia y utilización de crates externos.
+
+---
+
+# 15. Objetivos educativos, universitarios y empresariales
+
+Óxido debe desarrollarse con una visión de adopción amplia, sin sacrificar la calidad técnica.
+
+## 15.1. Modo educativo
+
+Evalúa herramientas que permitan:
+
+- Aprender algoritmos y estructuras de datos.
+- Entender funciones, variables y condiciones.
+- Aprender tipos y mutabilidad.
+- Comprender ownership y borrowing.
+- Explicar errores de compilación.
+- Mostrar la relación entre el código `.ox` y el Rust generado.
+- Ofrecer ejemplos progresivos.
+- Preparar ejercicios verificables.
+- Facilitar la transición desde Óxido hacia Rust.
+
+Los mensajes educativos deben derivarse de errores y reglas reales. No deben inventar explicaciones para ocultar problemas.
+
+## 15.2. Modo profesional
+
+Prioriza:
+
+- Rendimiento del ejecutable final.
+- Seguridad.
+- Integración con Rust.
+- Pruebas.
+- Diagnósticos fiables.
+- Reproducibilidad.
+- Herramientas de desarrollo.
+- Compatibilidad documentada.
+- CI.
+- Estabilidad de la configuración.
+- Gestión de versiones.
+
+## 15.3. Modo universitario
+
+Prepara progresivamente:
+
+- Tutoriales.
+- Documentación técnica.
+- Ejemplos docentes.
+- Ejercicios con soluciones verificables.
+- Material en español e inglés.
+- Guías de migración a Rust.
+- Experimentos reproducibles para evaluar el aprendizaje.
+
+No afirmes que Óxido mejora el aprendizaje sin evidencia. Diseña un plan para evaluarlo mediante ejercicios, resultados medibles y retroalimentación de usuarios.
+
+## 15.4. Adopción empresarial
+
+Antes de presentar Óxido como una herramienta apta para grandes empresas, exige:
+
+- Versiones estables.
+- Política de cambios y compatibilidad.
+- Gestión de vulnerabilidades.
+- Auditoría de dependencias.
+- Documentación de limitaciones.
+- Pruebas de regresión.
+- Reproducibilidad.
+- Política de soporte.
+- Ejemplos de proyectos reales.
+- Evidencia verificable de compatibilidad.
+
+La adopción debe ser gradual, empezando por proyectos piloto. No declares que Óxido está listo para producción empresarial únicamente porque un ejemplo funciona.
+
+---
+
+# 16. Seguridad y cadena de suministro
+
+Implementa una política de seguridad para el compilador y sus herramientas.
+
+Incluye:
+
+- Gestión controlada de dependencias.
+- Revisión de vulnerabilidades.
+- Auditoría de licencias.
+- Validación de entradas.
+- Manejo seguro de archivos y rutas.
+- Prevención de escrituras fuera del directorio esperado.
+- Límites razonables para entradas excesivas.
+- Tratamiento robusto de archivos malformados.
+- Ausencia de secretos incrustados.
+- Separación de la generación de código y la ejecución de procesos.
+- Evitar ejecutar comandos construidos de forma insegura a partir de entradas del usuario.
+- Documentar los límites de seguridad del código generado y de la compilación.
+
+No afirmes que el código es seguro solo porque se traduce a Rust. La seguridad depende también de las construcciones utilizadas, las bibliotecas, la configuración y el comportamiento del programa.
+
+Las características `unsafe` deben conservar las reglas de Rust y sus riesgos.
+
+---
+
+# 17. Documentación obligatoria
+
+Mantén documentación coherente con la implementación real.
+
+Como mínimo:
+
+- `README.md`: presentación, instalación, estado actual y primeros pasos.
+- `CONTRIBUTING.md`: contribución y controles de calidad.
+- `SECURITY.md`: reporte de vulnerabilidades.
+- `CHANGELOG.md`: cambios por versión.
+- `LICENSE`: licencia seleccionada.
+- `docs/language-spec.md`: especificación del lenguaje.
+- `docs/grammar.md`: gramática formal.
+- `docs/syntax-modes.md`: modos de indentación y llaves.
+- `docs/aliases.md`: alias y palabras reservadas.
+- `docs/architecture.md`: arquitectura.
+- `docs/compiler-pipeline.md`: proceso de compilación.
+- `docs/compatibility.md`: matriz de compatibilidad con Rust.
+- `docs/testing.md`: laboratorio de validación.
+- `docs/vscode.md`: extensión y servidor LSP.
+- `docs/diagnostics.md`: códigos y mensajes de error.
+- `docs/roadmap.md`: fases y estado verificable.
+- `docs/education.md`: objetivos y herramientas educativas.
+- `docs/enterprise-readiness.md`: requisitos y limitaciones para uso empresarial.
+
+No crees documentación que afirme características inexistentes.
+
+Cada cambio relevante debe actualizar los documentos afectados.
+
+---
+
+# 18. Fases de implementación
+
+Las fases son una guía de trabajo, no una excusa para generar una gran cantidad de código sin verificar.
+
+## Fase 0. Auditoría del repositorio
+
+- Inspeccionar archivos, ramas, commits e instrucciones.
+- Identificar el estado real del proyecto.
+- Revisar dependencias y herramientas existentes.
+- Ejecutar las pruebas actuales.
+- Registrar errores preexistentes.
+- Identificar decisiones ya tomadas.
+- Elaborar una matriz de funcionalidades existentes, parciales y pendientes.
+- Proponer el plan de trabajo adaptado al repositorio.
+
+No sobrescribas trabajo válido sin necesidad.
+
+## Fase 1. Especificación
+
+- Formalizar la visión.
+- Definir los dos modos de sintaxis.
+- Definir la selección del modo.
+- Especificar los alias.
+- Revisar las palabras clave según la edición de Rust.
+- Definir identificadores y colisiones.
+- Diseñar la gramática inicial.
+- Definir los diagnósticos.
+- Definir el flujo de compilación.
+- Establecer los criterios de aceptación.
+
+## Fase 2. Infraestructura del monorepo
+
+- Configurar workspace.
+- Establecer versiones y herramientas.
+- Crear los módulos necesarios.
+- Definir interfaces internas.
+- Configurar CI.
+- Añadir controles de calidad.
+- Preparar fixtures y pruebas.
+
+## Fase 3. Lexer y fuente
+
+- Gestión de archivos y rangos.
+- Tokenización.
+- Identificadores.
+- Literales.
+- Comentarios.
+- Cadenas.
+- Alias.
+- Manejo de errores.
+- Indentación.
+- Reconocimiento de la configuración de sintaxis.
+
+## Fase 4. Parser y AST
+
+- Gramática inicial.
+- Expresiones.
+- Declaraciones.
+- Bloques.
+- Funciones.
+- Tipos.
+- Diagnósticos.
+- Recuperación ante errores.
+- Pruebas positivas y negativas.
+
+## Fase 5. Primer compilador funcional
+
+- AST a Rust.
+- Compilación real.
+- Integración con Cargo.
+- CLI mínima.
+- Programa Hola, mundo.
+- Pruebas end-to-end.
+
+Este hito debe demostrar que Óxido ya realiza una traducción real y reproducible.
+
+## Fase 6. Sintaxis de bloques y bilingüismo
+
+- Completar el modo de indentación.
+- Incorporar el modo de llaves.
+- Normalizar alias.
+- Rechazar mezclas incompatibles.
+- Resolver configuración de proyecto y archivo.
+- Comparar programas equivalentes.
+- Verificar macros y tokens especiales.
+
+## Fase 7. Lenguaje inicial completo
+
+- Variables.
+- Funciones.
+- Condiciones.
+- Bucles.
+- Estructuras.
+- Enumeraciones.
+- Referencias.
+- Módulos.
+- Importaciones.
+- Manejo de errores.
+- Colecciones y tipos comunes.
+
+El término «completo» en esta fase se refiere exclusivamente al alcance definido para el nivel inicial.
+
+## Fase 8. Integración con Rust
+
+- Cargo.
+- Dependencias reales.
+- Genéricos.
+- Traits.
+- Lifetimes.
+- Macros.
+- Atributos.
+- `async`.
+- Interoperabilidad.
+- Pruebas de conformidad.
+
+Documentar cada limitación pendiente.
+
+## Fase 9. CLI y experiencia de proyecto
+
+- Crear proyectos.
+- Verificar.
+- Compilar.
+- Ejecutar.
+- Probar.
+- Formatear.
+- Diagnosticar.
+- Generar documentación cuando corresponda.
+- Configuración reproducible.
+
+## Fase 10. Laboratorio de validación
+
+- Pruebas de regresión.
+- Pruebas diferenciales.
+- Fuzzing.
+- Proyectos de referencia.
+- Verificación de equivalencia entre estilos.
+- Informes.
+- Integración continua.
+- Auditoría de resultados.
+
+El laboratorio debe existir desde las primeras fases; esta fase consolida sus capacidades avanzadas.
+
+## Fase 11. VS Code y LSP
+
+- Extensión.
+- Resaltado.
+- Configuración.
+- Diagnósticos.
+- Autocompletado.
+- Navegación.
+- Formateador.
+- Integración con Cargo.
+- Pruebas del editor.
+- Documentación.
+
+## Fase 12. Seguridad y calidad avanzada
+
+- Auditoría de dependencias.
+- Fuzzing.
+- Pruebas con entradas malformadas.
+- Rendimiento.
+- Reproducibilidad.
+- Seguridad de procesos y rutas.
+- Verificación de licencias.
+- Corrección de regresiones.
+
+## Fase 13. Educación y documentación
+
+- Tutoriales.
+- Ejemplos progresivos.
+- Guías de Rust.
+- Material bilingüe.
+- Ejercicios.
+- Guías de instalación.
+- Documentación profesional.
+- Preparación de pilotos educativos.
+
+## Fase 14. Estabilización y lanzamiento
+
+- Congelar el alcance de la versión.
+- Ejecutar la suite completa.
+- Validar proyectos de referencia.
+- Revisar la matriz de compatibilidad.
+- Preparar changelog.
+- Verificar instalación.
+- Documentar limitaciones.
+- Crear una versión reproducible.
+- Publicar únicamente lo que esté realmente terminado.
+
+No declares una fase cerrada por haber creado los archivos previstos. Debe superar sus criterios de aceptación.
+
+---
+
+# 19. Criterios de aceptación de una fase
+
+Cada fase debe definir y verificar sus propios criterios de aceptación antes de comenzar su implementación.
+
+Como mínimo:
+
+1. El código existe y está integrado.
+2. Las interfaces son coherentes.
+3. Las pruebas relevantes se ejecutan realmente.
+4. Los resultados son correctos.
+5. Las pruebas negativas verifican los errores esperados.
+6. No se introducen regresiones conocidas sin documentar.
+7. La documentación refleja el estado real.
+8. El código respeta los controles de calidad.
+9. Las limitaciones pendientes están identificadas.
+10. El estado final puede reproducirse.
+
+Una fase no está terminada si solo compila, si solo funciona un ejemplo, si depende de mocks o si existen errores conocidos que contradicen sus criterios de aceptación.
+
+---
+
+# 20. Estimaciones y planificación
+
+No fijes fechas artificiales ni prometas una duración exacta sin conocer el estado del repositorio, la dedicación disponible y la complejidad de las características.
+
+Primero inspecciona el proyecto. Después ofrece estimaciones por fase, indicando:
+
+- Alcance.
+- Dependencias.
+- Riesgos.
+- Criterios de aceptación.
+- Incertidumbres.
+- Tareas que pueden realizarse en paralelo.
+- Tareas que requieren decisiones previas.
+
+Prioriza conseguir un MVP funcional y verificable antes de intentar la compatibilidad amplia con Rust.
+
+---
+
+# 21. Reglas de trabajo con Codex
+
+Debes trabajar de forma autónoma dentro del alcance autorizado, pero con transparencia técnica.
+
+Antes de modificar el repositorio:
+
+1. Lee las instrucciones del proyecto.
+2. Examina el estado actual.
+3. Ejecuta las pruebas relevantes.
+4. Identifica los archivos y módulos afectados.
+5. Define el cambio concreto y sus criterios de aceptación.
+
+Durante la implementación:
+
+- Sigue la arquitectura existente cuando sea válida.
+- Evita reescribir módulos completos sin necesidad.
+- Mantén los cambios enfocados.
+- Escribe pruebas junto con las funcionalidades.
+- Ejecuta verificaciones después de los cambios.
+- Corrige los errores introducidos.
+- No declares una operación exitosa si no se verificó.
+
+Si una decisión técnica importante no está especificada, busca primero la respuesta en la documentación oficial y en el propio repositorio. Si persiste una ambigüedad que pueda cambiar la arquitectura, presenta las alternativas y solicita una decisión antes de introducir una dependencia irreversible.
+
+No te detengas para preguntar por decisiones menores que puedas resolver de forma razonable y documentada.
+
+No ejecutes operaciones destructivas ni publiques versiones o artefactos externos sin la autorización necesaria.
+
+---
+
+# 22. Formato obligatorio de los informes de Codex
+
+Al terminar cada unidad de trabajo, entrega un informe con:
+
+## Estado
+
+- Fase.
+- Objetivo.
+- Estado: completada, parcial o bloqueada.
+
+## Implementación
+
+- Funcionalidades implementadas.
+- Archivos y módulos modificados.
+- Decisiones arquitectónicas relevantes.
+
+## Verificación
+
+- Comandos ejecutados.
+- Pruebas aprobadas.
+- Pruebas fallidas.
+- Resultados de compilación.
+- Proyectos reales verificados.
+
+No inventes resultados. Si una comprobación no se ejecutó, indícalo.
+
+## Pendientes
+
+- Funcionalidades sin implementar.
+- Limitaciones.
+- Errores conocidos.
+- Riesgos.
+- Dependencias externas.
+
+## Siguiente paso
+
+- Próximo objetivo.
+- Criterios de aceptación.
+- Justificación de su prioridad.
+
+No marques una fase como completada si quedan criterios de aceptación incumplidos.
+
+---
+
+# 23. Primera tarea: empezar ahora
+
+No respondas únicamente con una explicación de cómo construirías Óxido.
+
+Empieza inspeccionando el repositorio real disponible.
+
+Ejecuta las verificaciones necesarias para determinar su estado y no presupongas que ya existen módulos, archivos, pruebas o características que no hayas encontrado.
+
+Después:
+
+1. Identifica el estado real del proyecto.
+2. Resume qué está implementado y qué funciona.
+3. Identifica qué está incompleto y qué no existe.
+4. Comprueba las instrucciones, las dependencias y la estructura del monorepo.
+5. Propón o actualiza la especificación formal inicial.
+6. Define la gramática de ambos modos y la política de alias.
+7. Diseña los primeros casos del laboratorio de validación.
+8. Identifica la menor unidad de implementación que permita obtener una prueba real de extremo a extremo.
+9. Implementa esa unidad si no existen bloqueos importantes.
+10. Ejecuta las pruebas reales y presenta el informe.
+
+Si el repositorio está vacío, establece una base funcional sin crear módulos innecesarios. Si ya existe una implementación, conserva lo válido y corrige sus problemas.
+
+El primer hito técnico que debes perseguir es:
+
+**Un archivo `.ox` real, con una sintaxis definida, que se analice correctamente, genere Rust estándar, se compile con Cargo y `rustc`, se ejecute y supere una prueba automatizada reproducible.**
+
+A partir de ahí, amplía Óxido de manera incremental, verificable y documentada.
+
+---
+
+# 24. Principio final del proyecto
+
+Óxido debe construirse como un lenguaje real, no como una demostración que aparenta funcionar.
+
+La prioridad es demostrar cada capacidad mediante código ejecutable, pruebas y documentación.
+
+El proyecto debe crecer desde un núcleo pequeño y correcto hasta una herramienta de desarrollo útil para estudiantes, docentes, programadores profesionales, universidades y empresas.
+
+**La definición de terminado es: implementación real + pruebas + seguridad + arquitectura + reproducibilidad + documentación + evidencia verificable.**
+
+No declares que Óxido admite una característica hasta haber demostrado que funciona. No confundas una sintaxis propuesta con una gramática implementada, ni un ejemplo ilustrativo con una aplicación compilada y probada.
+
+Empieza por inspeccionar el repositorio y construir la primera unidad funcional real de Óxido.

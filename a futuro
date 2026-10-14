@@ -1,0 +1,61 @@
+1. Traducción visual en tiempo real: Óxido ↔ Rust
+Mientras escribes en main.ox, VS Code puede mostrar el Rust generado en otro panel. Al seleccionar una función, ambos paneles resaltan la construcción equivalente.
+Valor: permite aprender Óxido y Rust simultáneamente, y ayuda a los profesionales a auditar el código generado.
+
+Prioridad máxima
+2. Diagnósticos inteligentes en español e inglés
+No basta con traducir el mensaje de rustc. Óxido debería relacionar el error con la línea original .ox, explicar el problema y sugerir una corrección cuando pueda hacerlo con seguridad.
+Por ejemplo: explicar qué significa una referencia inválida o por qué una variable ya fue movida, sin ocultar el error real de Rust.
+
+. Modo educativo progresivo
+Un principiante puede empezar con variables, funciones y condiciones. Después, el entorno introduce tipos, referencias, ownership, borrowing y concurrencia.
+El sistema explica los conceptos y permite ejecutar ejercicios con pruebas automáticas. No elimina las reglas difíciles de Rust: ayuda a comprenderlas progresivamente.
+
+4. Certificación técnica de compatibilidad
+Cada versión de Óxido tendría una matriz verificable de características soportadas, pruebas de regresión, proyectos de referencia y versiones de Rust compatibles.
+Una característica solo aparecería como soportada cuando superara sus pruebas. Esto aportaría confianza a universidades y empresas.
+
+5. Interoperabilidad con Rust sin fronteras artificiales
+Utilizar crates de Rust, compilar con Cargo, ejecutar pruebas existentes y consumir bibliotecas sin tener que reescribir todo en Óxido.
+Esta debe ser una capacidad fundamental, no una característica premium ni un ecosistema separado.
+
+6. Formateador y migración entre estilos
+Un comando como oxido formato mantendría el estilo elegido. Una herramienta explícita de migración podría convertir bloques entre indentación y llaves, verificando que no se altere la semántica.
+No se mezclarían los estilos dentro de un archivo: la conversión sería una operación consciente y comprobada.
+
+7. Perfil empresarial
+Configuración reproducible, políticas de dependencias, auditoría de licencias, análisis de vulnerabilidades, CI y reportes de compilación.
+Óxido aprovecharía las herramientas del ecosistema Rust y agregaría verificaciones específicas de sus propias transformaciones y archivos generados.
+
+8. Playground oficial de Óxido
+Un entorno web donde escribir pequeños programas, elegir el estilo, ejecutar ejemplos y comparar el resultado con Rust.
+Sería ideal para aprender, enseñar en clase y mostrar el lenguaje sin instalar herramientas. Debería usar una infraestructura aislada y segura para ejecutar código ajeno.
+
+9. Documentación bilingüe y ejemplos ejecutables
+Documentación en español e inglés, con ejemplos que se compilen automáticamente en CI. Si un ejemplo deja de funcionar tras un cambio del compilador, la documentación no debe seguir presentándolo como válido.
+
+10. Análisis del proyecto completo
+Una herramienta que identifique qué características de Rust utiliza un proyecto, qué construcciones admite Óxido, qué limitaciones existen y qué dependencias requieren atención.
+El resultado sería un informe técnico útil para decidir si un proyecto real puede migrarse o adoptarse.
+
+2. El plus más ambicioso: Óxido como puente de aprendizaje
+Imagina que un estudiante escribe:
+sintaxis indentacionfuncion sumar(a: i32, b: i32) -> i32:    retornar a + b
+
+El entorno podría mostrar tres cosas simultáneamente:
+1. Lo que escribió el estudiante
+funcion sumar(a: i32, b: i32) -> i32:    retornar a + b
+
+2. El Rust generado
+fn sumar(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+3. La explicación
+- funcion equivale a fn.
+- : introduce un bloque en el modo de indentación.
+- retornar equivale a return.
+- i32 sigue siendo el tipo entero de 32 bits de Rust.
+
+Eso convertiría el propio proceso de compilación en una herramienta educativa. Para un desarrollador profesional, el mismo mecanismo serviría para revisar el código generado y diagnosticar problemas.
+3. Una función adicional que podría distinguirlo: contrato de compatibilidad

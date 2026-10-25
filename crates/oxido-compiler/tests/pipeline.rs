@@ -84,6 +84,25 @@ fn compiles_indented_declarative_macros_and_derive_attributes_as_rust() {
 }
 
 #[test]
+fn validates_async_await_and_runs_standard_thread_concurrency() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nasincrono funcion valor() -> i32:\n    retornar 20\nasincrono funcion respuesta() -> i32:\n    valor().esperar + 22\nfuncion main():\n    println!(\"{}\", std::thread::spawn(|| 42).join().unwrap());\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated.rust.contains("async fn valor()"));
+    assert!(generated.rust.contains("valor().await"));
+
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["42"]);
+}
+
+#[test]
 fn bilingual_block_modes_compile_to_the_same_behavior() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

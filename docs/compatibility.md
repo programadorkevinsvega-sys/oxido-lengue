@@ -21,7 +21,7 @@ Esta matriz describe el **alcance verificado**, no compatibilidad general con Ru
 | Dependencias Cargo | Declaración de crates y resolución delegada a Cargo | Parcial: crates locales por `path` canónica, dentro del proyecto, probados offline con Cargo/rustc; crates de registro/git y lockfile persistente/versionado pendientes |
 | `Result`, `Option`, `?` | Tipos estándar Rust, con aliases `Resultado`/`Opcion` y variantes incluidas en prelude | Alias de prelude inicial y operador `?` probados mediante generación; las rutas externas siguen siendo Rust |
 | Colecciones estándar | `Vector`/`Cadena`, métodos comunes y módulos `std` con aliases documentados | Alias comprobados en generación; ejemplo e2e compila y ejecuta `Vector<Cadena>`, `agregar`, `largo` y macros |
-| `async`/`await` | Alias reservados; solo se aceptan donde el Rust resultante compila | Parsing/generación posible según contexto Rust; sin runtime async propio ni matriz de ejecución |
+| `async`/`await` y concurrencia | `asincrono`/`esperar` conservan futures Rust; hilos delegados a `std::thread` | Función async con `.await` compila mediante Cargo; `std::thread::spawn` compila y ejecuta. Sin executor/runtime async ni matriz de ejecución de futures |
 | `unsafe` | Semántica Rust intacta; el compilador Óxido prohíbe `unsafe` en su propio código y ofrecerá política para rechazarlo en fuente analizada | No implementado |
 | Items Rust no listados | Braces: passthrough si Syn y rustc aceptan; indentation: rechazo salvo transformador estructural definido | No implementado |
 | Tipos/métodos españoles | Prelude inicial enumerado en [aliases](aliases.md); el resto sigue Rust | Parcial por diseño; no implica traducción de crates ni APIs de terceros |

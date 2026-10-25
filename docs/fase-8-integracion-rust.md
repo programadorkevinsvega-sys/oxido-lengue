@@ -48,11 +48,17 @@ Las definiciones `macro_rules!` se preservan como fragmentos Rust opacos y Cargo
 
 Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro, expansión propia, macros procedurales ni compatibilidad general con atributos de terceros. La lógica de la macro debe escribirse con sintaxis Rust; los atributos siguen sujetos a aceptación de Syn y rustc.
 
+## Subfase 6 — Async/await y concurrencia
+
+**Estado:** en curso; sintaxis `asincrono`/`esperar` compila mediante Cargo, y concurrencia estándar con `std::thread` tiene prueba de ejecución.
+
+La prueba contiene una función async que espera otra función async y verifica en el Rust generado `async fn` y `.await`; rustc valida ambas. Un hilo de `std::thread::spawn` se ejecuta y su salida se comprueba. Óxido no incorpora runtime async, executor, scheduler ni aliases de concurrencia: la creación/polling de futures depende de la biblioteca elegida por el proyecto y sigue sin matriz de compatibilidad.
+
 ## Límites de esta entrega
 
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
 - Las macros externas y las DSL no allowlisted permanecen opacas; los aliases de macros estándar y sus expresiones anidadas se describen en [aliases](aliases.md).
-- `async`/`await` no tiene aún matriz de ejecución; macros declarativas solo tienen el corte opaco descrito; lifetimes complejos, dependencias Cargo de registro con lockfile persistente, crates de referencia e interoperabilidad general siguen pendientes.
+- `async`/`await` solo tiene validación de compilación, sin executor ni matriz de ejecución; macros declarativas solo tienen el corte opaco descrito; lifetimes complejos, dependencias Cargo de registro con lockfile persistente, crates de referencia e interoperabilidad general siguen pendientes.
 
 La decisión arquitectónica está en [ADR 0004](adr/0004-estructura-indentada-rust.md). La aceptación global de Fase 8 requiere cerrar las subfases restantes en el [roadmap](roadmap.md), con pruebas y límites por característica.

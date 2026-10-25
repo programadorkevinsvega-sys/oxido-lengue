@@ -10,7 +10,7 @@
 6. **Validación sintáctica:** generar token stream/AST; Syn `parse_file` valida el Rust resultante con `full` + `parsing`.
 7. **Backend:** emitir Rust estándar con `proc_macro2`/`quote`; formatear estructuralmente con `prettyplease`. No interpolar input como texto.
 8. **Mapa:** asociar spans de fragmentos fuente y generado; conservar rangos de item para tokens sintéticos.
-9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias de crates.io `version` y `path` solo con autorización CLI. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`. `oxido descargar-dependencias` muestra un plan y requiere `--confirmar` para `cargo fetch --locked` y persistir el lockfile; no ejecuta build/check/run. `compilar`/`ejecutar` requieren `--confiar-dependencias` si hay dependencias. Git/URL no se admiten. Cargo puede ejecutar `build.rs` o macros procedurales al compilar.
+9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias de crates.io `version` y `path` solo con autorización CLI. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`; `compilar` y `ejecutar` aceptan `--release` para usar el perfil optimizado de Cargo. `oxido descargar-dependencias` muestra un plan y requiere `--confirmar` para `cargo fetch --locked` y persistir el lockfile; no ejecuta build/check/run. `compilar`/`ejecutar` requieren `--confiar-dependencias` si hay dependencias. Git/URL no se admiten. Cargo puede ejecutar `build.rs` o macros procedurales al compilar.
 10. **Diagnósticos:** parsear JSON, convertir spans generados a `.ox`, conservar errores externos no mapeables.
 11. **Resultado:** devolver estado/código de salida real. No ejecutar binario salvo comando explícito `ejecutar` o `probar`.
 
@@ -20,6 +20,14 @@
 - Syn detecta sintaxis Rust inválida en el archivo/token stream transformado.
 - `rustc` detecta resolución, tipos, traits, ownership, borrowing, macros/expansión y errores semánticos.
 - Cargo resuelve dependencias, perfiles, builds y procesos del proyecto.
+
+## Contrato de interoperabilidad con Rust
+
+La meta es usar bibliotecas Rust sin modificar su fuente. El frontend traduce la sintaxis y estructura propias de Óxido, y preserva las construcciones Rust admitidas para que `rustc` conserve la semántica. Una construcción no se considera compatible solo porque el parser pueda leerla: su tokenización, delimitadores, nombres y significado deben llegar intactos a Rust. Si no se puede preservar o transformar con una regla probada, se rechaza con un diagnóstico claro.
+
+Las invocaciones de macros externas y sus DSL se conservan para `rustc`; Óxido no implementa expansión propia de macros Rust. Las macros propias de Óxido solo se normalizan estructuralmente bajo pruebas de fidelidad de tokens. `async`/`await` genera Rust equivalente y usa el runtime escogido por el proyecto. `unsafe` conserva la semántica Rust; la auditoría/rechazo depende de una opción explícita del usuario.
+
+La [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md) fija este objetivo. La Fase 8 implementa y cierra las regresiones de interoperabilidad; la Fase 10 aporta herramientas comunes para ampliar pruebas y reportes, sin trasladar allí criterios pendientes de Fase 8.
 
 El parser Syn no es borrow checker ni type checker. `build.rs` y macros procedurales ejecutan código durante compilación; la CLI no sandboxa esos procesos y el usuario debe confiar el proyecto antes de resolver o compilar dependencias. El LSP debe respetar Workspace Trust antes de iniciar compilaciones.
 

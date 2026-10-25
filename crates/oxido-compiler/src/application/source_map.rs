@@ -18,6 +18,11 @@ pub struct SourceLocation {
     pub end: usize,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct SourceMapSet {
+    maps: Vec<SourceMap>,
+}
+
 impl SourceMap {
     #[must_use]
     pub fn new(mappings: Vec<SpanMapping>) -> Self {
@@ -36,11 +41,19 @@ impl SourceMap {
             .map(str::to_owned);
     }
 
+    pub fn set_source_relative_path(&mut self, path: String) {
+        self.source_file = Some(path);
+    }
+
     pub fn set_generated_file(&mut self, path: Option<&std::path::Path>) {
         self.generated_file = path
             .and_then(std::path::Path::file_name)
             .and_then(std::ffi::OsStr::to_str)
             .map(str::to_owned);
+    }
+
+    pub fn set_generated_relative_path(&mut self, path: String) {
+        self.generated_file = Some(path);
     }
 
     /// Resuelve una columna generada 1-based al fragmento fuente más específico.
@@ -63,6 +76,37 @@ impl SourceMap {
             column: mapping.source_start_column,
             start: mapping.source_start,
             end: mapping.source_end,
+        })
+    }
+}
+
+impl SourceMapSet {
+    #[must_use]
+    pub fn new(maps: Vec<SourceMap>) -> Self {
+        Self { maps }
+    }
+
+    #[must_use]
+    pub fn map_generated(
+        &self,
+        generated_file: Option<&str>,
+        line: usize,
+        column: usize,
+    ) -> Option<(Option<String>, SourceLocation)> {
+        let file = generated_file.map(|file| file.replace('\\', "/"));
+        self.maps.iter().find_map(|map| {
+            if self.maps.len() == 1 && (file.is_none() || map.generated_file.is_none()) {
+                return map
+                    .map_generated(line, column)
+                    .map(|location| (map.source_file.clone(), location));
+            }
+            let file = file.as_deref()?;
+            let expected = map.generated_file.as_deref()?.replace('\\', "/");
+            if file != expected && !file.ends_with(&format!("/{expected}")) {
+                return None;
+            }
+            map.map_generated(line, column)
+                .map(|location| (map.source_file.clone(), location))
         })
     }
 }

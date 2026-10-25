@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "sourceFile": "fuente/main.ox",
+  "generatedFile": "main.rs",
+  "mappings": [
+    {
+      "sourceStart": 16,
+      "sourceEnd": 34,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 19,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 15
+    },
+    {
+      "sourceStart": 16,
+      "sourceEnd": 34,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 19,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 15
+    },
+    {
+      "sourceStart": 35,
+      "sourceEnd": 50,
+      "sourceStartLine": 3,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 3,
+      "sourceEndColumn": 16,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 2,
+      "generatedEndColumn": 12
+    },
+    {
+      "sourceStart": 35,
+      "sourceEnd": 50,
+      "sourceStartLine": 3,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 3,
+      "sourceEndColumn": 16,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 2,
+      "generatedEndColumn": 12
+    },
+    {
+      "sourceStart": 52,
+      "sourceEnd": 100,
+      "sourceStartLine": 5,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 49,
+      "generatedStartLine": 3,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 3,
+      "generatedEndColumn": 48
+    },
+    {
+      "sourceStart": 52,
+      "sourceEnd": 100,
+      "sourceStartLine": 5,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 49,
+      "generatedStartLine": 3,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 3,
+      "generatedEndColumn": 48
+    },
+    {
+      "sourceStart": 101,
+      "sourceEnd": 137,
+      "sourceStartLine": 6,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 6,
+      "sourceEndColumn": 37,
+      "generatedStartLine": 4,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 36
+    },
+    {
+      "sourceStart": 101,
+      "sourceEnd": 137,
+      "sourceStartLine": 6,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 6,
+      "sourceEndColumn": 37,
+      "generatedStartLine": 4,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 36
+    },
+    {
+      "sourceStart": 139,
+      "sourceEnd": 289,
+      "sourceStartLine": 8,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 11,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 5,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 8,
+      "generatedEndColumn": 1
+    },
+    {
+      "sourceStart": 147,
+      "sourceEnd": 158,
+      "sourceStartLine": 8,
+      "sourceStartColumn": 9,
+      "sourceEndLine": 8,
+      "sourceEndColumn": 20,
+      "generatedStartLine": 5,
+      "generatedStartColumn": 3,
+      "generatedEndLine": 5,
+      "generatedEndColumn": 9
+    },
+    {
+      "sourceStart": 169,
+      "sourceEnd": 175,
+      "sourceStartLine": 9,
+      "sourceStartColumn": 9,
+      "sourceEndLine": 9,
+      "sourceEndColumn": 15,
+      "generatedStartLine": 6,
+      "generatedStartColumn": 8,
+      "generatedEndLine": 6,
+      "generatedEndColumn": 14
+    },
+    {
+      "sourceStart": 178,
+      "sourceEnd": 215,
+      "sourceStartLine": 9,
+      "sourceStartColumn": 18,
+      "sourceEndLine": 9,
+      "sourceEndColumn": 55,
+      "generatedStartLine": 6,
+      "generatedStartColumn": 17,
+      "generatedEndLine": 6,
+      "generatedEndColumn": 54
+    },
+    {
+      "sourceStart": 221,
+      "sourceEnd": 286,
+      "sourceStartLine": 10,
+      "sourceStartColumn": 5,
+      "sourceEndLine": 10,
+      "sourceEndColumn": 69,
+      "generatedStartLine": 7,
+      "generatedStartColumn": 4,
+      "generatedEndLine": 7,
+      "generatedEndColumn": 69
+    }
+  ]
+}

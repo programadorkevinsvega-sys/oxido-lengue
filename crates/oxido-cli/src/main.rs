@@ -37,6 +37,7 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     };
     match command {
         "analizar-rust" => analyze_rust(&args[1..]),
+        "aliases" => print_aliases(&args[1..]),
         "auditar-unsafe" => audit_unsafe(&args[1..]),
         "auditar-proyecto" => audit_project(&args[1..]),
         "exportar" => export_ox(&args[1..]),
@@ -46,6 +47,17 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         "descargar-dependencias" => fetch_dependencies(&args[1..]),
         _ => Err(usage().into()),
     }
+}
+
+fn print_aliases(args: &[OsString]) -> Result<(), String> {
+    if args != [OsStr::new("--markdown")] {
+        return Err("uso: oxido aliases --markdown".into());
+    }
+    print!(
+        "{}",
+        oxido_language::domain::syntax::render_alias_markdown()
+    );
+    Ok(())
 }
 
 fn audit_project(args: &[OsString]) -> Result<(), String> {
@@ -272,12 +284,13 @@ fn fetch_dependencies(args: &[OsString]) -> Result<(), String> {
         true => CargoAction::FetchUpdate,
         false => CargoAction::Fetch,
     };
-    let result = oxido_compiler::build_ox_in_project(
+    let result = oxido_compiler::build_ox_project_in_project(
         &source,
         settings.options,
         &settings.dependencies,
         Some(&lockfile),
         action,
+        &settings.root,
     )
     .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
     if !result.stderr.trim().is_empty() {
@@ -416,37 +429,101 @@ fn export_ox(args: &[OsString]) -> Result<(), String> {
         return Err("se esperaba --salida <archivo.rs>".into());
     }
     let (source, display_path) = load_ox(input)?;
+    let settings = project_settings(&display_path)?;
     let output_path = PathBuf::from(output);
     if output_path.extension() != Some(OsStr::new("rs")) {
         return Err("la ruta de salida debe terminar en .rs".into());
     }
     validate_output_parent(&output_path)?;
-    if fs::symlink_metadata(&output_path).is_ok() {
-        return Err("el archivo Rust de salida ya existe; elige otra ruta".into());
-    }
-    let map_path = output_path.with_extension("oxido-map.json");
-    if fs::symlink_metadata(&map_path).is_ok() {
-        return Err("el mapa de salida ya existe; elige otra ruta".into());
-    }
-
-    let options = project_options(&display_path)?;
-    let mut generated = generate_ox(&source, options)
+    let generated = generate_ox(&source, settings.options)
         .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
-    generated.source_map.set_generated_file(Some(&output_path));
-    let map_bytes = serde_json::to_vec_pretty(&generated.source_map)
-        .map_err(|error| format!("no se pudo serializar el mapa: {error}"))?;
-    write_new(&output_path, generated.rust.as_bytes())?;
-    if let Err(error) = write_new(&map_path, &map_bytes) {
-        return match fs::remove_file(&output_path) {
-            Ok(()) => Err(error),
-            Err(cleanup_error) => Err(format!(
-                "{error}; además, no se pudo retirar el Rust parcial `{}`: {cleanup_error}",
-                output_path.display()
-            )),
-        };
+    if !generated.diagnostics.is_empty() {
+        eprintln!(
+            "{}",
+            format_diagnostics(&source, &display_path, &generated.diagnostics)
+        );
     }
-    println!("Rust exportado a {}", output_path.display());
-    println!("Mapa de posiciones exportado a {}", map_path.display());
+    let resolved = oxido_compiler::application::modules::resolve_project_modules(
+        &source,
+        &generated.rust,
+        settings.options,
+        &settings.root,
+    )?;
+    let output_root = output_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let output_root = fs::canonicalize(output_root)
+        .map_err(|error| format!("no se pudo resolver el directorio de salida: {error}"))?;
+    let root_name = output_path
+        .file_name()
+        .ok_or_else(|| "el archivo de salida no tiene nombre".to_owned())?;
+    let root_destination = output_root.join(root_name);
+    let root_map_path = root_destination.with_extension("oxido-map.json");
+    let mut outputs = Vec::with_capacity(2 + resolved.modules.len() * 2);
+    let mut root_source_map = generated.source_map;
+    let root_source_relative = fs::canonicalize(&display_path)
+        .ok()
+        .and_then(|path| {
+            path.strip_prefix(&settings.root)
+                .ok()
+                .map(Path::to_path_buf)
+        })
+        .map(|path| path.to_string_lossy().into_owned());
+    if let Some(relative) = root_source_relative {
+        root_source_map.set_source_relative_path(relative);
+    }
+    root_source_map.set_generated_relative_path(root_name.to_string_lossy().into_owned());
+    outputs.push((root_destination.clone(), resolved.root_rust.into_bytes()));
+    outputs.push((
+        root_map_path.clone(),
+        serde_json::to_vec_pretty(&root_source_map)
+            .map_err(|error| format!("no se pudo serializar el mapa: {error}"))?,
+    ));
+    for module in resolved.modules {
+        validate_module_output_path(&module.path)?;
+        let destination = output_root.join(&module.path);
+        let map_path = destination.with_extension("oxido-map.json");
+        outputs.push((destination, module.rust.into_bytes()));
+        if let Some(mut source_map) = module.source_map {
+            source_map.set_generated_relative_path(module.path.to_string_lossy().into_owned());
+            outputs.push((
+                map_path,
+                serde_json::to_vec_pretty(&source_map)
+                    .map_err(|error| format!("no se pudo serializar el mapa: {error}"))?,
+            ));
+        }
+    }
+    preflight_export_outputs(&output_root, &outputs)?;
+    let mut created_directories = Vec::new();
+    let mut created_files = Vec::new();
+    for (path, contents) in &outputs {
+        let relative_parent = path
+            .parent()
+            .and_then(|parent| parent.strip_prefix(&output_root).ok())
+            .ok_or_else(|| "una salida recursiva escapa del directorio de destino".to_owned())?;
+        if let Err(error) =
+            create_output_directories(&output_root, relative_parent, &mut created_directories)
+        {
+            for directory in created_directories.iter().rev() {
+                let _ = fs::remove_dir(directory);
+            }
+            return Err(error);
+        }
+        if let Err(error) = write_new(path, contents) {
+            for created in created_files.iter().rev() {
+                let _ = fs::remove_file(created);
+            }
+            for directory in created_directories.iter().rev() {
+                let _ = fs::remove_dir(directory);
+            }
+            return Err(error);
+        }
+        created_files.push(path.clone());
+    }
+    for path in created_files {
+        println!("Rust exportado a {}", path.display());
+    }
     Ok(())
 }
 
@@ -490,31 +567,42 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         } else {
             "ejecutar"
         };
-        return Err(format!("uso: oxido {command} <archivo.ox>"));
+        return Err(format!(
+            "uso: oxido {command} <archivo.ox> [--release] [--confiar-dependencias]"
+        ));
     };
-    let trusted = match args.get(1).and_then(|argument| argument.to_str()) {
-        None => false,
-        Some("--confiar-dependencias") if args.len() == 2 => true,
-        _ => {
-            return Err(
-                "uso: oxido compilar|ejecutar <archivo.ox> [--confiar-dependencias]".into(),
-            );
+    let mut trusted = false;
+    let mut release = false;
+    for argument in &args[1..] {
+        match argument.to_str() {
+            Some("--confiar-dependencias") if !trusted => trusted = true,
+            Some("--release") if !release => release = true,
+            _ => {
+                return Err("uso: oxido compilar|ejecutar <archivo.ox> [--release] [--confiar-dependencias]".into());
+            }
         }
-    };
+    }
     let (source, display_path) = load_ox(input)?;
     let settings = project_settings(&display_path)?;
-    let action = match (action, trusted) {
-        (CargoAction::Check, true) => CargoAction::CheckTrusted,
-        (CargoAction::Run, true) => CargoAction::RunTrusted,
-        (action, _) => action,
+    let action = match (action, release, trusted) {
+        (CargoAction::Check, false, false) => CargoAction::Check,
+        (CargoAction::Check, false, true) => CargoAction::CheckTrusted,
+        (CargoAction::Check, true, false) => CargoAction::CheckRelease,
+        (CargoAction::Check, true, true) => CargoAction::CheckReleaseTrusted,
+        (CargoAction::Run, false, false) => CargoAction::Run,
+        (CargoAction::Run, false, true) => CargoAction::RunTrusted,
+        (CargoAction::Run, true, false) => CargoAction::RunRelease,
+        (CargoAction::Run, true, true) => CargoAction::RunReleaseTrusted,
+        _ => return Err("acción Cargo no válida para este comando".into()),
     };
     let lockfile = settings.root.join("Cargo.lock");
-    let result = oxido_compiler::build_ox_in_project(
+    let result = oxido_compiler::build_ox_project_in_project(
         &source,
         settings.options,
         &settings.dependencies,
         Some(&lockfile),
         action,
+        &settings.root,
     )
     .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
     for diagnostic in &result.diagnostics {
@@ -524,12 +612,26 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             .map(|code| format!("[{code}]"))
             .unwrap_or_default();
         if let Some(location) = diagnostic.source {
+            let diagnostic_path = diagnostic
+                .source_file
+                .as_deref()
+                .map(|source_file| settings.root.join(source_file))
+                .unwrap_or_else(|| display_path.clone());
+            let diagnostic_path = std::env::current_dir()
+                .ok()
+                .and_then(|current| {
+                    diagnostic_path
+                        .strip_prefix(current)
+                        .ok()
+                        .map(PathBuf::from)
+                })
+                .unwrap_or(diagnostic_path);
             eprintln!(
                 "{}{}: {}\n --> {}:{}:{}",
                 diagnostic.level,
                 code,
                 diagnostic.message,
-                display_path.display(),
+                diagnostic_path.display(),
                 location.line,
                 location.column
             );
@@ -551,7 +653,13 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 .map_or_else(|| "sin código de salida".into(), |code| code.to_string())
         ));
     }
-    if matches!(action, CargoAction::Run | CargoAction::RunTrusted) {
+    if matches!(
+        action,
+        CargoAction::Run
+            | CargoAction::RunTrusted
+            | CargoAction::RunRelease
+            | CargoAction::RunReleaseTrusted
+    ) {
         for line in result.program_output {
             println!("{line}");
         }
@@ -579,10 +687,6 @@ fn load_ox(path: &OsStr) -> Result<(SourceFile, PathBuf), String> {
         SourceFile::with_path(display_path.clone(), text),
         display_path,
     ))
-}
-
-fn project_options(source_path: &Path) -> Result<LexOptions, String> {
-    Ok(project_settings(source_path)?.options)
 }
 
 struct ProjectSettings {
@@ -654,14 +758,141 @@ fn validate_output_parent(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_module_output_path(path: &Path) -> Result<(), String> {
+    if path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path.extension() != Some(OsStr::new("rs"))
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err("la ruta Rust de un módulo generado no es válida".into());
+    }
+    Ok(())
+}
+
+fn preflight_export_outputs(
+    output_root: &Path,
+    outputs: &[(PathBuf, Vec<u8>)],
+) -> Result<(), String> {
+    let mut seen = std::collections::BTreeSet::new();
+    for (path, _) in outputs {
+        if !path.starts_with(output_root) || !seen.insert(path.clone()) {
+            return Err("la exportación produjo rutas duplicadas o fuera del destino".into());
+        }
+        match fs::symlink_metadata(path) {
+            Ok(_) => {
+                return Err(format!(
+                    "la salida ya existe; no se sobrescribe: {}",
+                    path.display()
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "no se pudo inspeccionar {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| "una ruta de salida no tiene directorio padre".to_owned())?;
+        let relative_parent = parent
+            .strip_prefix(output_root)
+            .map_err(|_| "una salida recursiva escapa del directorio de destino".to_owned())?;
+        let mut current = output_root.to_path_buf();
+        for component in relative_parent.components() {
+            let std::path::Component::Normal(component) = component else {
+                return Err("la ruta de salida contiene un componente no permitido".into());
+            };
+            current.push(component);
+            match fs::symlink_metadata(&current) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    return Err(format!(
+                        "no se exporta a través del enlace simbólico {}",
+                        current.display()
+                    ));
+                }
+                Ok(metadata) if !metadata.is_dir() => {
+                    return Err(format!(
+                        "el directorio de salida no es un directorio: {}",
+                        current.display()
+                    ));
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) => {
+                    return Err(format!(
+                        "no se pudo inspeccionar {}: {error}",
+                        current.display()
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn create_output_directories(
+    output_root: &Path,
+    relative_parent: &Path,
+    created: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let mut current = output_root.to_path_buf();
+    for component in relative_parent.components() {
+        let std::path::Component::Normal(component) = component else {
+            return Err("la ruta de salida contiene un componente no permitido".into());
+        };
+        current.push(component);
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "no se exporta a través del enlace simbólico {}",
+                    current.display()
+                ));
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(format!(
+                    "el directorio de salida no es un directorio: {}",
+                    current.display()
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::create_dir(&current)
+                    .map_err(|error| format!("no se pudo crear {}: {error}", current.display()))?;
+                created.push(current.clone());
+            }
+            Err(error) => {
+                return Err(format!(
+                    "no se pudo inspeccionar {}: {error}",
+                    current.display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn write_new(path: &Path, contents: &[u8]) -> Result<(), String> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
         .map_err(|error| format!("no se pudo crear {}: {error}", path.display()))?;
-    file.write_all(contents)
-        .map_err(|error| format!("no se pudo escribir {}: {error}", path.display()))
+    if let Err(error) = file.write_all(contents) {
+        drop(file);
+        let cleanup = fs::remove_file(path);
+        return match cleanup {
+            Ok(()) => Err(format!("no se pudo escribir {}: {error}", path.display())),
+            Err(cleanup_error) => Err(format!(
+                "no se pudo escribir {}: {error}; tampoco se pudo retirar la salida parcial: {cleanup_error}",
+                path.display()
+            )),
+        };
+    }
+    Ok(())
 }
 
 fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnostic]) -> String {
@@ -687,5 +918,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido <analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|exportar|importar|compilar|ejecutar> ..."
+    "uso: oxido <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|exportar|importar|compilar|ejecutar> ..."
 }

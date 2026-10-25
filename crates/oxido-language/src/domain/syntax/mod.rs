@@ -5,6 +5,7 @@ pub mod token;
 pub use lexer::{LexOptions, LexOutput, lex};
 pub use parser::{ParseOutput, parse};
 pub use token::{
-    SyntaxMode, Token, TokenKind, keyword_translation, macro_translation, method_translation,
-    prelude_translation, std_module_translation,
+    ATTRIBUTE_ALIASES, METHOD_ALIASES, PRELUDE_ALIASES, STD_MODULE_ALIASES, SyntaxMode, Token,
+    TokenKind, attribute_translation, keyword_translation, macro_translation, method_translation,
+    prelude_translation, render_alias_markdown, std_module_translation, type_translation,
 };

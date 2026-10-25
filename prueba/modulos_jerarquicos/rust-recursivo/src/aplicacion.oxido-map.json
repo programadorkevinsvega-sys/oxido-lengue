@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sourceFile": "fuente/aplicacion.ox",
+  "generatedFile": "aplicacion.rs",
+  "mappings": [
+    {
+      "sourceStart": 16,
+      "sourceEnd": 37,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 22,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 18
+    },
+    {
+      "sourceStart": 16,
+      "sourceEnd": 37,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 22,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 18
+    }
+  ]
+}

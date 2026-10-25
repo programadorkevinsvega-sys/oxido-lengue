@@ -1,0 +1,15 @@
+[language]
+syntax = "indentation"
+edition = "2024"
+
+[dependencies.axum]
+version = "0.8"
+features = ["json"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.tokio]
+version = "1"
+features = ["macros", "rt-multi-thread", "net", "sync"]

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sourceFile": "dominio.ox",
+  "generatedFile": "dominio.rs",
+  "mappings": [
+    {
+      "sourceStart": 16,
+      "sourceEnd": 35,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 20,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 16
+    },
+    {
+      "sourceStart": 16,
+      "sourceEnd": 35,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 20,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 16
+    }
+  ]
+}

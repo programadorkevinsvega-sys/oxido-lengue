@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "sourceFile": "fuente/aplicacion/servicios.ox",
+  "generatedFile": "aplicacion/servicios.rs",
+  "mappings": [
+    {
+      "sourceStart": 16,
+      "sourceEnd": 52,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 37,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 36
+    },
+    {
+      "sourceStart": 16,
+      "sourceEnd": 52,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 37,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 36
+    },
+    {
+      "sourceStart": 54,
+      "sourceEnd": 57,
+      "sourceStartLine": 4,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 4,
+      "sourceEndColumn": 4,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 2,
+      "generatedEndColumn": 3
+    },
+    {
+      "sourceStart": 54,
+      "sourceEnd": 131,
+      "sourceStartLine": 4,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 6,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 1
+    },
+    {
+      "sourceStart": 66,
+      "sourceEnd": 104,
+      "sourceStartLine": 4,
+      "sourceStartColumn": 13,
+      "sourceEndLine": 4,
+      "sourceEndColumn": 51,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 7,
+      "generatedEndLine": 2,
+      "generatedEndColumn": 45
+    },
+    {
+      "sourceStart": 111,
+      "sourceEnd": 129,
+      "sourceStartLine": 5,
+      "sourceStartColumn": 5,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 23,
+      "generatedStartLine": 3,
+      "generatedStartColumn": 4,
+      "generatedEndLine": 3,
+      "generatedEndColumn": 22
+    }
+  ]
+}

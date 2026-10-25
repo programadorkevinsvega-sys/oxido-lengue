@@ -58,7 +58,7 @@ En modo indentación, el `:` final solo abre un bloque después de un encabezado
 ```ebnf
 Statement        ::= LetStatement | ReturnStatement | BreakStatement
                    | ContinueStatement | ControlStatement | ExprLine ;
-LetStatement     ::= ("dejar" | "variable" | "let") ["mutable" | "mut"] RustPattern [":" RustType]
+LetStatement     ::= ("dejar" | "let") ["mutable" | "mut"] RustPattern [":" RustType]
                      "=" RustExpr [";"] ;
 ReturnStatement  ::= ("retornar" | "return") [RustExpr] [";"] ;
 BreakStatement   ::= ("romper" | "break") [RustLabel] [RustExpr] [";"] ;
@@ -74,6 +74,8 @@ ExprLine        ::= RustExpr [";"] ;
 ```
 
 `RustExpr`, `RustPattern` y `RustType` son fragmentos balanceados Rust tras normalizar keywords fuera de regiones opacas. Syn valida la categoría esperada; `rustc` valida tipos, nombres y semántica. `coincidir` admite una expresión scrutinee seguida de brazos indentados `Patron => Expresion`; un brazo también puede abrir un bloque indentado omitiendo la expresión de la misma línea. Los patrones, guardas y expresiones conservan gramática Rust.
+
+La anotación de tipo en una declaración local es opcional cuando Rust puede inferirla. `dejar total = 3 + 4` genera un `let` Rust normal; la inferencia sigue siendo estática y la resuelve `rustc`. Si el contexto no determina un tipo suficiente, el diagnóstico de Rust se conserva. Óxido no añade tipado dinámico ni inferencia propia. Las firmas de funciones y métodos siguen las reglas de Rust: los parámetros llevan tipo y los retornos se anotan cuando Rust los exige; Óxido no infiere firmas.
 
 ## 5. Reglas de salida de bloques indentados
 

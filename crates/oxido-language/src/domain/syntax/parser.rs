@@ -9,6 +9,7 @@ use crate::domain::{
     source::{SourceFile, Span},
     syntax::{LexOptions, SyntaxMode, Token, TokenKind, lex},
 };
+use std::collections::HashSet;
 
 const MAX_BLOCK_DEPTH: usize = 128;
 
@@ -127,6 +128,7 @@ impl Parser<'_> {
             }
             self.recover_to_next_item();
         }
+        self.warn_on_declared_method_aliases();
         File {
             mode: self.mode,
             attributes,
@@ -135,6 +137,61 @@ impl Parser<'_> {
                 .source
                 .span(start, self.source.text().len())
                 .unwrap_or_else(Span::empty),
+        }
+    }
+
+    fn warn_on_declared_method_aliases(&mut self) {
+        let mut warned = HashSet::new();
+        let used_as_method = self
+            .tokens
+            .iter()
+            .enumerate()
+            .skip(1)
+            .filter_map(|(index, token)| {
+                let previous = self.tokens.get(index - 1)?;
+                if self.source.slice(previous.span) != "."
+                    || !matches!(token.kind, TokenKind::Identifier { .. })
+                {
+                    return None;
+                }
+                let name = self.source.slice(token.span);
+                crate::domain::syntax::method_translation(name).map(|_| name.to_owned())
+            })
+            .collect::<HashSet<_>>();
+        for index in 0..self.tokens.len() {
+            let function_keyword = matches!(
+                self.tokens[index].kind,
+                TokenKind::Keyword {
+                    rust_keyword: "fn",
+                    ..
+                }
+            );
+            if !function_keyword || self.tokens[index].opaque {
+                continue;
+            }
+            let Some(name_token) = self.tokens.get(index + 1) else {
+                continue;
+            };
+            if name_token.opaque || !matches!(name_token.kind, TokenKind::Identifier { .. }) {
+                continue;
+            }
+            let name = self.source.slice(name_token.span);
+            let Some(rust_method) = crate::domain::syntax::method_translation(name) else {
+                continue;
+            };
+            if !used_as_method.contains(name) {
+                continue;
+            }
+            if !warned.insert(name.to_owned()) {
+                continue;
+            }
+            self.diagnostics.push(Diagnostic::warning(
+                "OX3002",
+                format!(
+                    "`{name}` está declarado en este archivo; las llamadas `.{name}()` se tratan como propias. Usa `.{rust_method}()` para el método estándar."
+                ),
+                name_token.span,
+            ));
         }
     }
 
@@ -1127,6 +1184,22 @@ impl Parser<'_> {
         }
     }
 
+    fn line_has_top_level_semicolon(&self, start: usize) -> bool {
+        let mut depth = 0usize;
+        for token in self.tokens[start..]
+            .iter()
+            .take_while(|token| !matches!(token.kind, TokenKind::Newline | TokenKind::Dedent))
+        {
+            match self.token_text(token) {
+                ";" if depth == 0 => return true,
+                "(" | "[" | "{" => depth += 1,
+                ")" | "]" | "}" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        false
+    }
+
     /// Admite items Rust simples y AST propio de struct/enum indentados.
     fn parse_indented_item(&mut self) -> Option<Item> {
         let start = self.position;
@@ -1138,6 +1211,20 @@ impl Parser<'_> {
         let token = self.current()?;
         let first = self.token_text(token);
         if first == "macro_rules" {
+            self.position = start;
+            return self.parse_passthrough_item().map(Item::RustFragment);
+        }
+        if matches!(first, "mod" | "modulo")
+            && self.tokens[item_start..]
+                .iter()
+                .take_while(|token| !matches!(token.kind, TokenKind::Newline | TokenKind::Dedent))
+                .any(|token| self.token_text(token) == ";")
+        {
+            self.position = start;
+            return self.parse_passthrough_item().map(Item::RustFragment);
+        }
+        if matches!(first, "struct" | "estructura") && self.line_has_top_level_semicolon(item_start)
+        {
             self.position = start;
             return self.parse_passthrough_item().map(Item::RustFragment);
         }
@@ -1176,15 +1263,23 @@ impl Parser<'_> {
             return None;
         }
         if aggregate_kind.is_none() {
-            let mut end = item_start;
-            while end < self.tokens.len()
-                && !matches!(
-                    self.tokens[end].kind,
-                    TokenKind::Newline | TokenKind::Dedent
-                )
-            {
-                end += 1;
+            let end = if macro_call {
+                self.macro_invocation_end(item_start)
+            } else {
+                None
             }
+            .unwrap_or_else(|| {
+                let mut line_end = item_start;
+                while line_end < self.tokens.len()
+                    && !matches!(
+                        self.tokens[line_end].kind,
+                        TokenKind::Newline | TokenKind::Dedent
+                    )
+                {
+                    line_end += 1;
+                }
+                line_end
+            });
             if end == item_start {
                 self.position = start;
                 return None;
@@ -1586,6 +1681,44 @@ impl Parser<'_> {
             }
         }
         false
+    }
+
+    fn macro_invocation_end(&self, start: usize) -> Option<usize> {
+        let mut bang = None;
+        for index in start..self.tokens.len() {
+            if matches!(
+                self.tokens[index].kind,
+                TokenKind::Newline | TokenKind::Dedent
+            ) || matches!(self.token_text(&self.tokens[index]), ";" | "{" | "}")
+            {
+                break;
+            }
+            if self.token_text(&self.tokens[index]) == "!" {
+                bang = Some(index);
+                break;
+            }
+        }
+        let mut open_index = bang?.checked_add(1)?;
+        while open_index < self.tokens.len()
+            && matches!(self.tokens[open_index].kind, TokenKind::Comment)
+        {
+            open_index += 1;
+        }
+        let (open, close) = match self.token_text(self.tokens.get(open_index)?) {
+            "(" => ("(", ")"),
+            "[" => ("[", "]"),
+            "{" => ("{", "}"),
+            _ => return None,
+        };
+        let mut end = self.skip_balanced_tokens(open_index, open, close)?;
+        if self
+            .tokens
+            .get(end)
+            .is_some_and(|token| self.token_text(token) == ";")
+        {
+            end += 1;
+        }
+        Some(end)
     }
 
     fn recover_to_next_item(&mut self) {

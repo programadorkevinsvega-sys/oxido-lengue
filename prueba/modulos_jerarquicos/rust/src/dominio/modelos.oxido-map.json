@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "sourceFile": "modelos.ox",
+  "generatedFile": "modelos.rs",
+  "mappings": [
+    {
+      "sourceStart": 16,
+      "sourceEnd": 84,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 1
+    },
+    {
+      "sourceStart": 16,
+      "sourceEnd": 84,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 1
+    },
+    {
+      "sourceStart": 86,
+      "sourceEnd": 203,
+      "sourceStartLine": 7,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 11,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 5,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 9,
+      "generatedEndColumn": 1
+    },
+    {
+      "sourceStart": 86,
+      "sourceEnd": 203,
+      "sourceStartLine": 7,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 11,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 5,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 9,
+      "generatedEndColumn": 1
+    }
+  ]
+}

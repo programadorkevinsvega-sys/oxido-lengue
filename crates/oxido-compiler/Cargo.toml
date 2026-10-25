@@ -10,6 +10,8 @@ oxido-language.workspace = true
 oxido-rust-backend.workspace = true
 oxido-cargo = { path = "../oxido-cargo" }
 serde = { version = "1", features = ["derive"] }
+syn.workspace = true
+proc-macro2 = { workspace = true, features = ["span-locations"] }
 semver.workspace = true
 serde_json.workspace = true
 toml = "0.8"

@@ -10,6 +10,7 @@
 - Si se usa un alias reservado sin escape como identificador, emitir `OX3001`: «`tipo` es palabra reservada de Óxido; usa `r#tipo` o cámbialo».
 - La forma cruda respeta restricciones de identificadores Rust; Rust no permite `r#_`, `r#crate`, `r#self`, `r#Self` ni `r#super` ([Rust Reference: Identifiers](https://doc.rust-lang.org/reference/identifiers.html#raw-identifiers)).
 
+<!-- BEGIN GENERATED ALIASES -->
 ## Keywords estrictas
 
 | Rust 2024 | Alias Óxido |
@@ -31,13 +32,14 @@
 | `if` | `si` |
 | `impl` | `implementar` |
 | `in` | `en` |
-| `let` | `dejar`, `variable` |
+| `let` | `dejar` |
 | `loop` | `bucle` |
 | `match` | `coincidir` |
 | `mod` | `modulo` |
 | `move` | `mover` |
 | `mut` | `mutable` |
 | `pub` | `publico` |
+| `main` | `principal` |
 | `ref` | `referencia` |
 | `return` | `retornar` |
 | `self` | `mismo` |
@@ -52,11 +54,8 @@
 | `use` | `usar` |
 | `where` | `donde` |
 | `while` | `mientras` |
-| `_` | `_` (sin traducción) |
 
 ## Keywords reservadas sin semántica Óxido
-
-Estas formas siguen reservadas y no se convierten en características. Su uso como sintaxis produce `OX4001` (construcción Rust reservada/no soportada); como identificador requieren `r#` cuando Rust lo permita.
 
 | Rust 2024 | Alias reservado |
 |---|---|
@@ -75,7 +74,112 @@ Estas formas siguen reservadas y no se convierten en características. Su uso co
 | `virtual` | `virtual` |
 | `yield` | `ceder` |
 
-Rust 2024 reserva `gen`; el inventario debe actualizarse al cambiar la edición objetivo ([Rust Reference: Keywords](https://doc.rust-lang.org/reference/keywords.html#reserved-keywords)).
+## Macros estándar
+
+| Óxido | Rust |
+|---|---|
+| `imprimir!` | `println!` |
+| `imprimir_sin_salto!` | `print!` |
+| `imprimir_error!` | `eprintln!` |
+| `imprimir_error_sin_salto!` | `eprint!` |
+| `formato!` | `format!` |
+| `argumentos_formato!` | `format_args!` |
+| `escribir!` | `write!` |
+| `escribir_linea!` | `writeln!` |
+| `vector!` | `vec!` |
+| `panico!` | `panic!` |
+| `afirmar!` | `assert!` |
+| `afirmar_igual!` | `assert_eq!` |
+| `afirmar_distinto!` | `assert_ne!` |
+| `afirmar_debug!` | `debug_assert!` |
+| `afirmar_igual_debug!` | `debug_assert_eq!` |
+| `afirmar_distinto_debug!` | `debug_assert_ne!` |
+| `depurar!` | `dbg!` |
+| `pendiente!` | `todo!` |
+| `sin_implementar!` | `unimplemented!` |
+| `inalcanzable!` | `unreachable!` |
+| `coincide!` | `matches!` |
+| `incluir_texto!` | `include_str!` |
+| `incluir_bytes!` | `include_bytes!` |
+| `entorno!` | `env!` |
+| `entorno_opcional!` | `option_env!` |
+| `concatenar!` | `concat!` |
+| `a_texto!` | `stringify!` |
+| `linea!` | `line!` |
+| `archivo!` | `file!` |
+| `columna!` | `column!` |
+| `config!` | `cfg!` |
+| `error_de_compilacion!` | `compile_error!` |
+| `local_del_hilo!` | `thread_local!` |
+
+## Tipos y variantes del prelude
+
+| Óxido | Rust |
+|---|---|
+| `Cadena` | `String` |
+| `Vector` | `Vec` |
+| `Opcion` | `Option` |
+| `Alguno` | `Some` |
+| `Ninguno` | `None` |
+| `Resultado` | `Result` |
+| `Bien` | `Ok` |
+| `Falla` | `Err` |
+| `Caja` | `Box` |
+| `MapaHash` | `HashMap` |
+| `booleano` | `bool` |
+| `caracter` | `char` |
+| `Defecto` | `Default` |
+| `Iterador` | `Iterator` |
+| `texto` (solo tipo) | `str` |
+
+### Métodos del prelude
+
+| Óxido | Rust |
+|---|---|
+| `Vector::nuevo()` | `Vec::new()` |
+| `.esta_vacio()` | `.is_empty()` |
+| `.agregar()` | `.push()` |
+| `.sacar()` | `.pop()` |
+| `.obtener()` | `.get()` |
+| `.insertar()` | `.insert()` |
+| `.quitar()` | `.remove()` |
+| `.contiene()` | `.contains()` |
+| `.vaciar()` | `.clear()` |
+| `.largo()` | `.len()` |
+| `.iterar()` | `.iter()` |
+| `.iterar_mutable()` | `.iter_mut()` |
+| `.mapear()` | `.map()` |
+| `.filtrar()` | `.filter()` |
+| `.recolectar()` | `.collect()` |
+| `.encontrar()` | `.find()` |
+| `.sumar()` | `.sum()` |
+| `.ordenar()` | `.sort()` |
+| `.clonar()` | `.clone()` |
+| `.desenvolver()` | `.unwrap()` |
+| `.exigir()` | `.expect()` |
+| `.es_alguno()` | `.is_some()` |
+| `.es_ninguno()` | `.is_none()` |
+| `.a_mayusculas()` | `.to_uppercase()` |
+| `.a_minusculas()` | `.to_lowercase()` |
+| `.a_cadena()` | `.to_string()` |
+
+### Módulos de `std`
+
+| Óxido | Rust |
+|---|---|
+| `colecciones` (tras `std::`) | `collections` |
+| `archivos` (tras `std::`) | `fs` |
+| `es` (tras `std::`) | `io` |
+| `hilo` (tras `std::`) | `thread` |
+
+### Atributos
+
+| Óxido | Rust |
+|---|---|
+| `#[prueba]` | `#[test]` |
+| `#[permitir]` | `#[allow]` |
+| `#[derivar]` | `#[derive]` |
+<!-- END GENERATED ALIASES -->
 
 ## Keywords débiles/contextuales conservadas
 
@@ -87,22 +191,12 @@ Se traduce el nombre de una macro estándar allowlisted; los nombres Rust origin
 
 Para macros estándar que reciben expresiones (`print*`, `format*`, `write*`, `vec!`, `panic!`, `assert*`, `dbg!`, `todo!`, `unimplemented!`, `unreachable!` y `matches!`), el backend recorre tokens de expresiones para normalizar aliases y macros estándar anidadas. Las cadenas y literales no se modifican. Macros de metaprogramación/configuración como `concat!`, `stringify!`, `cfg!`, `include_*`, `env!`, `line!`, `file!`, `column!`, `compile_error!` y `thread_local!` traducen solo el nombre y mantienen sus argumentos opacos.
 
-Aliases registrados: `imprimirln!`→`println!`, `imprimir!`/`imprimir_sin_salto!`→`print!`, `imprimir_error!`→`eprintln!`, `imprimir_error_sin_salto!`→`eprint!`, `formato!`/`formatear!`→`format!`, `argumentos_formato!`→`format_args!`, `escribir!`→`write!`, `escribir_linea!`→`writeln!`, `vector!`→`vec!`, `panico!`/`entrar_en_panico!`→`panic!`, `afirmar!`→`assert!`, `afirmar_igual!`→`assert_eq!`, `afirmar_distinto!`→`assert_ne!`, `afirmar_debug!`→`debug_assert!`, `afirmar_igual_debug!`→`debug_assert_eq!`, `afirmar_distinto_debug!`→`debug_assert_ne!`, `depurar!`→`dbg!`, `pendiente!`→`todo!`, `no_implementado!`/`sin_implementar!`→`unimplemented!`, `inalcanzable!`→`unreachable!`, `coincide!`→`matches!`, `incluir_texto!`→`include_str!`, `incluir_bytes!`→`include_bytes!`, `entorno!`→`env!`, `entorno_opcional!`→`option_env!`, `concatenar!`→`concat!`, `a_texto!`→`stringify!`, `linea!`→`line!`, `archivo!`→`file!`, `columna!`→`column!`, `config!`→`cfg!`, `error_de_compilacion!`→`compile_error!` y `local_del_hilo!`→`thread_local!`.
-
 Los argumentos de las macros externas son opacos intencionalmente: Óxido no debe cambiar DSLs como JSON o SQL ni exigir que sus dependencias adopten aliases españoles. La expansión y la semántica siguen correspondiendo a Rust.
 
-Solo se traducen estos atributos: `#[prueba]`→`#[test]`, `#[permitir(...)]`→`#[allow(...)]`, `#[derivar(...)]`→`#[derive(...)]`. Dentro de `derivar`, también se normalizan los aliases de traits de la tabla. Todo atributo no listado permanece opaco.
+Solo se traducen los atributos enumerados en la tabla generada. Dentro de `derivar`, también se normalizan los aliases de traits registrados. Todo atributo no listado permanece opaco.
 
 Rust especifica una invocación como path, `!` y árbol delimitado ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)).
 
-## Prelude español inicial
+Los nombres numéricos (`i32`, `u8`, `f64`) y los traits `Display`, `Debug`, `Clone`, `Copy`, `From` e `Into` se conservan. Los aliases de métodos se normalizan en llamadas y `nuevo` también en constructores del prelude; las declaraciones `fn` permanecen intactas para que las implementaciones de traits conserven sus nombres Rust. El traductor recoge las funciones y métodos declarados en el archivo `.ox` compilado: si uno coincide con un alias, preserva esas llamadas y emite `OX3002`; escribe el nombre Rust (`.get()`) para llamar al método estándar de ese mismo nombre. El compilador actual procesa un archivo fuente `.ox` por invocación, así que el conjunto cubre esa unidad de compilación. Los nombres de módulos `es`, `hilo`, `archivos` y `colecciones` solo se traducen tras `std::`; como nombres sueltos se conservan. Las rutas y macros externas se mantienen intactas.
 
-| Óxido | Rust | Alcance |
-|---|---|---|
-| `Cadena`, `Vector`, `Opcion`, `Alguno`, `Ninguno`, `Resultado`, `Bien`, `Error`, `Caja`, `MapaHash` | `String`, `Vec`, `Option`, `Some`, `None`, `Result`, `Ok`, `Err`, `Box`, `HashMap` | Identificadores fuera de macros/atributos |
-| `booleano`, `caracter`, `texto` | `bool`, `char`, `str` | Identificadores de tipo; `texto` se escribe como `&texto` para un préstamo textual |
-| `Defecto`, `Iterador` | `Default`, `Iterator` | Traits/derives |
-
-Los nombres numéricos (`i32`, `u8`, `f64`) y los traits `Display`, `Debug`, `Clone`, `Copy`, `From` e `Into` se conservan. También se reconocen métodos `desenvolver`, `esperar_o`, `agregar`, `largo`, `iterar`, `mapear`, `filtrar`, `recolectar`, `clonar`, `a_cadena` y `es_alguno` como aliases de `unwrap`, `expect`, `push`, `len`, `iter`, `map`, `filter`, `collect`, `clone`, `to_string` e `is_some`; se aplican a llamadas con punto y declaraciones de método. Los módulos `std::colecciones`, `std::archivos`, `std::es` y `std::hilo` se normalizan únicamente bajo `std::`.
-
-`principal` solo nombra la función de entrada y se genera como `main`; no puede usarse como otro identificador salvo con escape raw cuando Rust lo permita. `variable mutable x` equivale a `let mut x`; `variable x` equivale a `let x`, y `mutable` también es el alias independiente de `mut` en referencias y parámetros.
+`principal` solo nombra la función de entrada y se genera como `main`; no puede usarse como otro identificador salvo con escape raw cuando Rust lo permita. `dejar mutable x` equivale a `let mut x`; `dejar x` equivale a `let x`, y `mutable` también es el alias independiente de `mut` en referencias y parámetros.

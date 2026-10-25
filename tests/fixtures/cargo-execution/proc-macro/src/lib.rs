@@ -1,4 +1,4 @@
-use proc_macro::TokenStream;
+use proc_macro::{Literal, TokenStream, TokenTree};
 
 #[proc_macro_attribute]
 pub fn identity(_: TokenStream, item: TokenStream) -> TokenStream {
@@ -6,4 +6,9 @@ pub fn identity(_: TokenStream, item: TokenStream) -> TokenStream {
         std::fs::write(path, "proc-macro").unwrap();
     }
     item
+}
+
+#[proc_macro]
+pub fn token_text(input: TokenStream) -> TokenStream {
+    TokenStream::from(TokenTree::Literal(Literal::string(&input.to_string())))
 }

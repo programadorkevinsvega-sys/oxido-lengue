@@ -4,7 +4,8 @@
 
 ## Alcance implementado y probado
 
-- Variables `let`/`dejar`/`variable`, `mutable` como alias individual de `mut` y pareja `variable mutable`, literales, llamadas, operadores y expresiones Rust en el subconjunto del parser.
+- Variables `let`/`dejar`, `mutable` como alias individual de `mut` y pareja `dejar mutable`, literales, llamadas, operadores y expresiones Rust en el subconjunto del parser.
+- Las anotaciones locales son opcionales cuando Rust puede inferir el tipo (`dejar total = 3 + 4`). Óxido conserva la inferencia estática de `rustc`; no introduce tipos dinámicos ni inferencia propia. Los parámetros llevan tipo y los retornos siguen las reglas de anotación de Rust; Óxido no infiere firmas.
 - Funciones, parámetros, tipos de retorno, visibilidad y valores de bloque.
 - Condiciones y bucles estructurales cubiertos por Fase 6.
 - Tuplas, arrays y tipos primitivos preservados como sintaxis Rust.

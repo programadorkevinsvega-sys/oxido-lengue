@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–8: completadas en sus alcances verificados. Fase 9 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y aliases de prelude/macros. Fase 8 amplía la sintaxis estructural indentada y la interoperabilidad con Rust. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
+**Fases 0–7: completadas. Fase 8: en curso para ampliar la interoperabilidad con Rust. Fases 9–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y aliases de prelude/macros. Fase 8 no se cierra hasta aprobar sus regresiones de interoperabilidad ampliadas; no se avanza a Fase 9 antes de ese cierre.
 
 ## Reglas para avanzar
 
@@ -182,7 +182,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ### Subfases
 
-1. **Variables y expresiones:** completadas para `let`/`dejar`/`variable`, `variable mutable`, aliases `&mutable`, literales, llamadas y expresiones Rust; pruebas positivas/negativas y de tipo.
+1. **Variables y expresiones:** completadas para `let`/`dejar`, `dejar mutable`, alias `&mutable`, literales, llamadas y expresiones Rust; pruebas positivas/negativas y de tipo.
 2. **Funciones:** completadas para `funcion`, `principal`→`main`, parámetros, tipos, retorno, visibilidad y semicolon/tail.
 3. **Control:** condiciones y bucles iniciales en ambos modos, con equivalencia ejecutable verificada en Fase 6.
 4. **Tipos compuestos:** tuplas, arrays y primitivos preservados como Rust y probados en ejecución.
@@ -192,7 +192,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 8. **Errores y tipos comunes:** `Result`, `Option` y `?` probados mediante compilación y ejecución.
 9. **Aliases de prelude:** completada para tipos, variantes, primitivos, traits, métodos y rutas `std` enumerados en [aliases](aliases.md).
 10. **Macros/atributos:** completada para aliases estándar y atributos allowlisted; los nombres Rust originales siguen válidos, se recorren aliases anidados en macros estándar expresivas y las DSL externas permanecen opacas. La prueba E2E de Fase 8 compila y ejecuta todas las aliases estándar ejecutables mediante Cargo/rustc; `compile_error!` tiene caso negativo.
-11. **Entrada principal y mutabilidad:** completada para `principal`→`main`, `variable`/`variable mutable` y `mutable` en referencias/parámetros, más colisión y escape `r#`.
+11. **Entrada principal y mutabilidad:** completada para `principal`→`main`, `dejar`/`dejar mutable` y `mutable` en referencias/parámetros, más colisión y escape `r#`.
 12. **Errores y diagnóstico:** completada para el inventario de códigos rustc común documentado; conserva códigos/spans JSON y no depende de salida humana.
 13. **Pruebas diferenciales:** completada con corpus positivo/negativo, ejecución end-to-end, aliases y matriz reproducibles.
 
@@ -214,15 +214,16 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 2. Dependencias Cargo reales y configuración reproducible. **Verificado para crates local y registry:** SemVer validado con `semver`; crates.io por defecto, `path` requiere `--permitir-rutas-locales`, git/URL rechazados. La vista previa lista paquetes y diff; `--confirmar` hace solo `cargo fetch`. Compilar/ejecutar exige `--locked --offline` y `--confiar-dependencias`; OX7001 explica el lock faltante. E2E verifica checksums, lock estable, vendor alterado, build.rs/proc-macro bajo confianza y Rust determinista en diferentes directorios.
 3. Genéricos, traits y lifetimes dentro del alcance del frontend. **Verificado para el corpus actual:** firmas genéricas con lifetime, `impl Fn`, bounds `where`, trait e implementación genéricos y tipos asociados pasan por generación y Cargo.
 4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend. **Verificado para el corpus actual:** closure como argumento, `Iterator::find`, patrones `Some`/`None` y brazos indentados/llaves compilan y producen el mismo resultado.
-5. Macros declarativas y atributos, preservando árboles de tokens. **Verificado para preservación opaca:** macro local exportada por una dependencia de ruta, invocada sin alterar la biblioteca; `#[derive(Debug)]` delegado a rustc. Sin expansión propia ni traducción de DSL.
-6. `async`/`await` y concurrencia según compatibilidad validada. **Verificado:** función async con `.await` ejecutada por `futures-executor` vendorizado y `std::thread::spawn` ejecutado; runtime elegido por el proyecto, sin runtime Óxido.
-7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus inicial verificado:** crates registry `itoa` y `futures-executor`, además de crate local con macro exportada; compilación/ejecución offline. La matriz declara ese corpus, no compatibilidad con todo el ecosistema.
-8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie. **Verificado para detección estática acotada:** `auditar-unsafe` informa/rechaza tokens; `auditar-proyecto` informa `build.rs`, manifiestos proc-macro, FFI y `Command::new`, con rutas relativas y sin seguir symlinks. No resuelve toda la cadena de dependencias ni código expandido; Workspace Trust/sandbox de compilaciones editoriales se implementa en Fase 11.
+5. Macros declarativas y atributos, preservando árboles de tokens. **Parcial:** macro local exportada por una dependencia y `#[derive(Debug)]` pasan a Rust; falta probar macros externas de función, atributo y derive desde crates sin modificar, además de fidelidad de DSL/tokens. No se implementa expansor Óxido.
+6. `async`/`await` y concurrencia. **Parcial:** `.await` se ejecuta con `futures-executor`; falta probar runtimes externos adicionales, por ejemplo Tokio, mediante proyectos Cargo sin modificar sus macros. El runtime lo elige la aplicación.
+7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus inicial:** `itoa`, `futures-executor` y crates locales. Pendiente en Fase 8: fixture de `serde` derive y macros externas; compilar/ejecutar con dependencias locked y confianza explícita, sin cambiar su fuente.
+8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie. **Parcial:** auditoría estática acotada existe. Pendiente en Fase 8: compilar una API `unsafe` válida sin rechazo por defecto y comprobar que el modo `--rechazar` solo bloquea cuando se solicita. Workspace Trust/sandbox de compilaciones editoriales se implementa en Fase 11.
 9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.85 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
+10. **Diagnósticos y preservación cruzada:** pendiente de ampliar regresiones para macros/atributos externos, dependencias y tokens Rust no transformados; verificar mapeo de errores `rustc` a `.ox` cuando haya mapa y diagnóstico explícito cuando no se pueda preservar una construcción.
 
 **Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.
 
-**Criterio de salida:** cumplido para el alcance inicial descrito: características anunciadas con evidencia Cargo/rustc y límites documentados en la matriz. Workspace Trust corresponde a la integración LSP de Fase 11 y deberá impedir compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales; el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
+**Criterio de salida:** pendiente hasta que las brechas enumeradas tengan regresiones Cargo/rustc aprobadas y reproducibles. El objetivo es interoperabilidad sin cambiar fuentes de bibliotecas, no compatibilidad universal sin evidencia. La Fase 10 puede aportar infraestructura de laboratorio, pero no absorbe ni aplaza estos criterios. Workspace Trust corresponde a la integración LSP de Fase 11 y deberá impedir compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales; el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
 
 **Dependencia:** Fase 7.
 
@@ -263,7 +264,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 4. Pruebas de ida y vuelta/exportación-importación.
 5. Fuzzing con `cargo-fuzz`, corpus y regresiones.
 6. Pruebas de tamaño, profundidad, Unicode, recuperación y cancelación.
-7. Proyectos de referencia: CLI, API educativa solo si corresponde al ejemplo del lenguaje, y dependencias reales compatibles.
+7. Mantener proyectos de referencia y harnesses reutilizables para las fases que los necesiten. La aprobación de integración con crates, macros, runtimes o `unsafe` pertenece a la fase funcional correspondiente (Fase 8 para los criterios de ADR 0007), no se traslada a este laboratorio.
 8. Informes reproducibles con versiones, commit, entorno, pruebas aprobadas/fallidas/pendientes y rendimiento medido.
 9. Integración de suites en CI y detección de regresiones.
 
@@ -285,7 +286,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 2. Semantic tokens del lexer/parser de Óxido.
 3. Servidor LSP en Rust con tolerancia a archivos incompletos.
 4. Diagnósticos del compilador y Cargo con mapeo al `.ox`.
-5. Integración con `rust-analyzer` para tipos/autocompletado sobre Rust generado cuando el mapeo sea fiable.
+5. Integración con `rust-analyzer` para tipos inferidos, hover, inlay hints y autocompletado sobre Rust generado; mapear todas las posiciones al `.ox` y no inventar tipos desde el LSP.
 6. Navegación, símbolos, referencias y renombrado solo cuando puedan verificarse.
 7. Formateador y acciones de código.
 8. Workspace Trust: no ejecutar compilación/análisis que ejecute código sin confianza explícita.
@@ -391,9 +392,9 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md); `cargo test -p oxido-language -p oxido-rust-backend --locked` | La ampliación de items estructurales se documenta en Fases 7–8 |
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 8 | Completada (integración Rust, alcance inicial verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked --offline`, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`, cargo-deny y cargo-audit | Sin compatibilidad general. Workspace Trust para compilaciones LSP se exige en Fase 11; la CLI no sandboxa código de dependencias |
+| 8 | En curso (ampliación de interoperabilidad Rust) | [Informe de Fase 8](fase-8-integracion-rust.md); falta aprobar las regresiones enumeradas allí | No avanzar a Fase 9 hasta cerrar macros externas, runtimes, API `unsafe` válida y diagnósticos/preservación cruzada; Workspace Trust es Fase 11 |
 | 9–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–8 están completadas en los alcances indicados arriba. La Fase 9 puede comenzar según sus dependencias; las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–7 están completadas. La Fase 8 sigue abierta hasta satisfacer sus criterios ampliados; no iniciar Fase 9 antes de cerrarla. Las limitaciones de la matriz no se consideran características implementadas.

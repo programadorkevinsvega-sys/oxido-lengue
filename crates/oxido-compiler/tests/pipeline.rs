@@ -48,8 +48,9 @@ fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
-    let source =
-        SourceFile::new("sintaxis indentacion\nfuncion main():\n    println!(\"Hola, mundo.\");\n");
+    let source = SourceFile::new(
+        "sintaxis indentacion\nfuncion main():\n    dejar valor = 40 + 2\n    println!(\"Hola, {}.\", valor);\n",
+    );
     let checked = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(
@@ -61,7 +62,7 @@ fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
     let run = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(run.success, "{} {:?}", run.stderr, run.diagnostics);
-    assert_eq!(run.program_output, ["Hola, mundo."]);
+    assert_eq!(run.program_output, ["Hola, 42."]);
 }
 
 #[test]
@@ -203,10 +204,10 @@ local_del_hilo! { static CONTADOR: std::cell::Cell<u32> = const { std::cell::Cel
 fn main() {
     imprimir!("A");
     imprimir_sin_salto!("B");
-    imprimirln!("C");
+    imprimir!("C");
     imprimir_error!("error de prueba");
     imprimir_error_sin_salto!("!");
-    let cadena = formatear!("{}", 7);
+    let cadena = formato!("{}", 7);
     let cadena_dos = formato!("{}!", cadena);
     let argumentos = argumentos_formato!("{}:{}", cadena, 8);
     let mut buffer = String::new();
@@ -239,10 +240,8 @@ fn main() {
     afirmar_igual!(vec![4, 5].len(), 2);
     assert_eq!(format!("{}", 9), "9");
     if std::hint::black_box(false) {
-        entrar_en_panico!("no se ejecuta");
         panico!("no se ejecuta");
         pendiente!();
-        no_implementado!();
         sin_implementar!();
         inalcanzable!();
     }
@@ -252,17 +251,15 @@ fn main() {
     let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     for (alias, rust_name) in [
-        ("imprimir!", "print!"),
+        ("imprimir!", "println!"),
         ("imprimir_sin_salto!", "print!"),
-        ("imprimirln!", "println!"),
         ("imprimir_error!", "eprintln!"),
         ("imprimir_error_sin_salto!", "eprint!"),
-        ("formatear!", "format!"),
+        ("formato!", "format!"),
         ("argumentos_formato!", "format_args!"),
         ("escribir!", "write!"),
         ("escribir_linea!", "writeln!"),
         ("vector!", "vec!"),
-        ("entrar_en_panico!", "panic!"),
         ("panico!", "panic!"),
         ("afirmar!", "assert!"),
         ("afirmar_igual!", "assert_eq!"),
@@ -272,7 +269,6 @@ fn main() {
         ("afirmar_distinto_debug!", "debug_assert_ne!"),
         ("depurar!", "dbg!"),
         ("pendiente!", "todo!"),
-        ("no_implementado!", "unimplemented!"),
         ("sin_implementar!", "unimplemented!"),
         ("inalcanzable!", "unreachable!"),
         ("coincide!", "matches!"),
@@ -298,7 +294,7 @@ fn main() {
     let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
-    assert_eq!(result.program_output, ["ABC"]);
+    assert_eq!(result.program_output, ["A", "BC"]);
 
     let compile_error = SourceFile::new(
         "sintaxis llaves\nfn main() { error_de_compilacion!(\"fallo esperado\"); }\n",
@@ -353,11 +349,11 @@ funcion seleccionar<'a, T>(items: &'a [T], aceptar: impl Fn(&T) -> bool) -> Opti
     items.iter().find(|item| aceptar(item))
 
 funcion principal():
-    variable nombres = ["Ana", "Luis", "Ada"]
-    variable elegido = seleccionar(&nombres, |nombre| nombre.starts_with('A'))
+    dejar nombres = ["Ana", "Luis", "Ada"]
+    dejar elegido = seleccionar(&nombres, |nombre| nombre.starts_with('A'))
     coincidir elegido:
-        Some(nombre) => imprimirln!("{}", nombre)
-        None => imprimirln!("ninguno")
+        Some(nombre) => imprimir!("{}", nombre)
+        None => imprimir!("ninguno")
 "#,
         ),
         SourceFile::new(
@@ -430,14 +426,14 @@ implementar Dato<i32>:
         mismo.valor
 
 funcion principal():
-    variable mutable dato = Dato::nuevo(4)
+    dejar mutable dato = Dato::nuevo(4)
     dato.avanzar(5)
-    variable prestado = dato.elemento()
-    variable duplicado = dato.clonar()
-    variable limite: usize = Dato::<i32>::limite()
-    variable unidad: () = Dato::<i32>::limite_unit()
-    variable consumido = duplicado.consumir()
-    imprimirln!("{}:{}:{}:{}", dato.valor, *prestado, limite, consumido)
+    dejar prestado = dato.elemento()
+    dejar duplicado = dato.clonar()
+    dejar limite: usize = Dato::<i32>::limite()
+    dejar unidad: () = Dato::<i32>::limite_unit()
+    dejar consumido = duplicado.consumir()
+    imprimir!("{}:{}:{}:{}", dato.valor, *prestado, limite, consumido)
 "#,
     );
     let generated = oxido_compiler::generate_ox(&indentation, LexOptions::default())
@@ -489,13 +485,13 @@ impl Dato<i32> {
     fn consumir(self) -> i32 { self.valor }
 }
 funcion principal() {
-    variable mutable dato = Dato::nuevo(4);
+    dejar mutable dato = Dato::nuevo(4);
     dato.avanzar(5);
-    variable prestado = dato.elemento();
-    variable duplicado = dato.clonar();
-    variable limite: usize = Dato::<i32>::limite();
-    variable unidad: () = Dato::<i32>::limite_unit();
-    variable consumido = duplicado.consumir();
+    dejar prestado = dato.elemento();
+    dejar duplicado = dato.clonar();
+    dejar limite: usize = Dato::<i32>::limite();
+    dejar unidad: () = Dato::<i32>::limite_unit();
+    dejar consumido = duplicado.consumir();
     println!("{}:{}:{}:{}", dato.valor, *prestado, limite, consumido);
 }
 "#,
@@ -542,7 +538,7 @@ fn maps_rustc_errors_inside_indented_methods_to_the_method_line() {
     use oxido_language::domain::syntax::LexOptions;
 
     let source = SourceFile::new(
-        "sintaxis indentacion\nestructura Dato:\n    valor: i32\nimplementar Dato:\n    funcion leer(&mismo) -> i32:\n        nombre_que_no_existe\nfuncion principal():\n    variable dato = Dato { valor: 1 }\n    dato.leer()\n",
+        "sintaxis indentacion\nestructura Dato:\n    valor: i32\nimplementar Dato:\n    funcion leer(&mismo) -> i32:\n        nombre_que_no_existe\nfuncion principal():\n    dejar dato = Dato { valor: 1 }\n    dato.leer()\n",
     );
     let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
@@ -584,8 +580,8 @@ implementar Punto: // comentario al abrir el bloque
         mismo.x
     // Comentario ordinario al final del bloque.
 funcion principal():
-    variable punto = Punto { x: 1 }
-    imprimirln!("{}", punto.ultimo())
+    dejar punto = Punto { x: 1 }
+    imprimir!("{}", punto.ultimo())
 "#,
     );
     let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
@@ -623,17 +619,17 @@ fn preserves_ordinary_comments_at_structural_boundaries_when_exporting() {
 
 // también antes del item, tras una línea vacía
 funcion principal():
-    variable valor = 1 // al final de una sentencia
+    dejar valor = 1 // al final de una sentencia
     si valor == 1:
-        imprimirln!("uno ñ")
+        imprimir!("uno ñ")
         // al final del bloque si
     /* bloque multilínea
      * entre instrucciones
      */
     coincidir valor:
-        1 => imprimirln!("coincide")
+        1 => imprimir!("coincide")
         // entre brazos
-        _ => imprimirln!("otro")
+        _ => imprimir!("otro")
 // al final del archivo
 "#,
     );
@@ -697,6 +693,21 @@ funcion principal():
             .message
             .contains("grupo opaco de macro o atributo")
     }));
+
+    for source in [
+        "sintaxis llaves\nfn main() { crate_externo::dsl!({ /* comentario interno */ nombre: [tipo, verdadero] }); }\n",
+        "sintaxis llaves\n#[crate_externo::atributo(/* comentario interno */ tipo)]\nfn main() {}\n",
+    ] {
+        let source = SourceFile::new(source);
+        let diagnostics = oxido_compiler::generate_ox(&source, LexOptions::default())
+            .expect_err("los comentarios en grupos opacos no deben perderse silenciosamente");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "OX4001"
+                && diagnostic
+                    .message
+                    .contains("grupo opaco de macro o atributo")
+        }));
+    }
 }
 
 #[test]
@@ -967,4 +978,181 @@ fn validates_function_signatures_patterns_types_and_expressions() {
         assert!(parsed.has_errors(), "{source}: {:?}", parsed.diagnostics);
         assert!(parsed.file.is_none(), "{source}");
     }
+}
+
+#[test]
+fn generic_struct_field_types_do_not_join_the_next_indented_field() {
+    use oxido_language::domain::syntax::LexOptions;
+    let source = SourceFile::new(
+        "sintaxis indentacion\nestructura Almacen:\n    productos: Vector<Producto>\n    siguiente_id: u32\ntipo Estado = Arc<Mutex<Almacen>>;\n",
+    );
+    let parsed = oxido_compiler::parse_ox(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .expect("los campos genéricos deben generar una estructura Rust válida");
+    assert!(generated.rust.contains("productos"));
+    assert!(generated.rust.contains("siguiente_id"));
+}
+
+#[test]
+fn generates_the_indented_crud_example_as_valid_rust() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(include_str!("fixtures/crud_indented.ox"));
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        !generated
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "OX3002"),
+        "una función libre `obtener` sin llamadas de método no debe producir OX3002: {:?}",
+        generated.diagnostics
+    );
+    oxido_compiler::analyze_rust(&SourceFile::new(&generated.rust))
+        .expect("el CRUD debe generar un archivo Rust sintácticamente válido");
+    assert!(generated.rust.contains("async fn listar"));
+    assert!(generated.rust.contains("struct Almacen"));
+}
+
+#[test]
+fn prelude_aliases_collide_as_identifiers_with_raw_escape_guidance() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    for (alias, _) in oxido_language::domain::syntax::PRELUDE_ALIASES {
+        let source = SourceFile::new(format!(
+            "sintaxis indentacion\nfuncion principal():\n    dejar {alias} = 1\n"
+        ));
+        let parsed = oxido_compiler::parse_ox(&source, LexOptions::default());
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "OX3001" && diagnostic.message.contains("r#")),
+            "el alias {alias} debe sugerir escape como identificador"
+        );
+        let raw_source = SourceFile::new(format!(
+            "sintaxis indentacion\nfuncion principal():\n    dejar r#{alias} = 1\n"
+        ));
+        let raw = oxido_compiler::parse_ox(&raw_source, LexOptions::default());
+        assert!(
+            !raw.has_errors(),
+            "escape raw {alias}: {:?}",
+            raw.diagnostics
+        );
+    }
+}
+
+#[test]
+fn compiles_and_runs_the_indented_student_example_with_static_inference() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(include_str!("fixtures/alumnos_inferencia.ox"));
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(
+        result.program_output,
+        ["Ana aprobó", "Luis reprobó", "Promedio: 6.75"]
+    );
+}
+
+#[test]
+fn declared_spanish_method_names_are_not_rewritten_as_standard_aliases() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::{diagnostics::Severity, syntax::LexOptions};
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nestructura Repositorio:\n    valor: i32\nimplementar Repositorio:\n    funcion obtener(&mismo) -> i32:\n        mismo.valor\nfuncion principal():\n    dejar repo = Repositorio { valor: 7 }\n    dejar valores = Vector::from([1])\n    dejar _primero = valores.get(0)\n    imprimir!(\"{}\", repo.obtener())\n",
+    );
+    let parsed = oxido_compiler::parse_ox(&source, LexOptions::default());
+    assert!(
+        parsed.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "OX3002"
+                && diagnostic.severity == Severity::Warning
+                && diagnostic.message.contains("obtener")
+        }),
+        "{:?}",
+        parsed.diagnostics
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated.rust.contains("fn obtener"), "{}", generated.rust);
+    assert!(
+        generated.rust.contains("repo.obtener()"),
+        "{}",
+        generated.rust
+    );
+    assert!(
+        generated.rust.contains("valores.get(0)"),
+        "{}",
+        generated.rust
+    );
+
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_deref() == Some("OX3002")),
+        "{:?}",
+        result.diagnostics
+    );
+    assert_eq!(result.program_output, ["7"]);
+}
+
+#[test]
+fn texto_is_a_variable_name_and_a_type_alias_only_in_type_position() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nestructura Dato:\n    valor: &'static texto\n    propio: Cadena\nfuncion principal():\n    dejar texto = Cadena::from(\"hola\")\n    dejar vista: &texto = &texto\n    dejar dato = Dato { valor: \"hola\", propio: texto.clonar() }\n    imprimir!(\"{} {} {}\", texto, vista, dato.valor)\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        generated.rust.contains("let texto = String::from"),
+        "{}",
+        generated.rust
+    );
+    assert!(
+        generated.rust.contains("valor: &'static str"),
+        "{}",
+        generated.rust
+    );
+    assert!(
+        generated.rust.contains("propio: texto"),
+        "{}",
+        generated.rust
+    );
+    assert!(generated.rust.contains("vista: &str"), "{}", generated.rust);
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["hola hola hola"]);
+}
+
+#[test]
+fn error_trait_name_is_not_rewritten_as_the_err_variant_alias() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis llaves\nuse std::error::Error;\nfn fallar() -> Resultado<(), Caja<dyn Error>> { Ok(()) }\nfn main() { fallar().unwrap(); }\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated.rust.contains("dyn Error"), "{}", generated.rust);
+    assert!(
+        generated.rust.contains("Result<(), Box<dyn Error>>"),
+        "{}",
+        generated.rust
+    );
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
 }

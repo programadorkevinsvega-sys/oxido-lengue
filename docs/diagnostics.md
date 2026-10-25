@@ -30,6 +30,7 @@ Los offsets internos son bytes UTF-8. El render CLI muestra línea/columna 1-bas
 | `OX2003` | Se esperaba cuerpo después del encabezado de bloque |
 | `OX2004` | Continuación multilínea inválida |
 | `OX3001` | Keyword usada como identificador; sugerir `r#...` |
+| `OX3002` | Nombre de función/método del archivo coincide con alias; se conserva como método propio y se informa cómo escribir la llamada estándar Rust |
 | `OX4001` | Construcción reservada, no soportada o no transformable en este modo |
 | `OX5001` | Error interno de generación/parseo del Rust generado |
 | `OX5002` | Diagnóstico Rust no pudo mapearse al origen `.ox` |

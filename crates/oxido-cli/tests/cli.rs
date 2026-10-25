@@ -123,6 +123,474 @@ fn exports_compiles_and_runs_the_hello_world_fixture() {
 }
 
 #[test]
+fn compiles_runs_and_recursively_exports_a_hierarchical_ox_project() {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let fixture = repository.join("prueba/modulos_jerarquicos");
+    let root_source = fixture.join("fuente/main.ox");
+    let temp_path = repository.join("target").join(format!(
+        "oxido-cli-modules-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&temp_path).unwrap();
+    let temp = TestDirectory(temp_path);
+
+    let compiled = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args(["compilar", root_source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args(["ejecutar", root_source.to_str().unwrap(), "--release"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    let expected = "Ana aprobó: true\n";
+    assert_eq!(String::from_utf8_lossy(&executed.stdout), expected);
+
+    let output_source = temp.0.join("rust/src/main.rs");
+    fs::create_dir_all(output_source.parent().unwrap()).unwrap();
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args([
+            "exportar",
+            root_source.to_str().unwrap(),
+            "--salida",
+            output_source.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    for generated in [
+        "rust/src/main.rs",
+        "rust/src/main.oxido-map.json",
+        "rust/src/aplicacion.rs",
+        "rust/src/aplicacion.oxido-map.json",
+        "rust/src/aplicacion/servicios.rs",
+        "rust/src/aplicacion/servicios.oxido-map.json",
+        "rust/src/dominio.rs",
+        "rust/src/dominio.oxido-map.json",
+        "rust/src/dominio/modelos.rs",
+        "rust/src/dominio/modelos.oxido-map.json",
+    ] {
+        assert!(temp.0.join(generated).is_file(), "falta {generated}");
+    }
+    let generated_map =
+        fs::read_to_string(temp.0.join("rust/src/dominio/modelos.oxido-map.json")).unwrap();
+    assert!(generated_map.contains("fuente/dominio/modelos.ox"));
+    assert!(!generated_map.contains(repository.to_str().unwrap()));
+
+    let second_source = temp.0.join("rust-second/src/main.rs");
+    fs::create_dir_all(second_source.parent().unwrap()).unwrap();
+    let exported_again = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args([
+            "exportar",
+            root_source.to_str().unwrap(),
+            "--salida",
+            second_source.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        exported_again.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported_again.stderr)
+    );
+    for relative in [
+        "src/main.rs",
+        "src/main.oxido-map.json",
+        "src/aplicacion.rs",
+        "src/aplicacion.oxido-map.json",
+        "src/aplicacion/servicios.rs",
+        "src/aplicacion/servicios.oxido-map.json",
+        "src/dominio.rs",
+        "src/dominio.oxido-map.json",
+        "src/dominio/modelos.rs",
+        "src/dominio/modelos.oxido-map.json",
+    ] {
+        assert_eq!(
+            fs::read(temp.0.join("rust").join(relative)).unwrap(),
+            fs::read(temp.0.join("rust-second").join(relative)).unwrap(),
+            "la exportación no fue reproducible para {relative}"
+        );
+    }
+    let second_attempt = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args([
+            "exportar",
+            root_source.to_str().unwrap(),
+            "--salida",
+            output_source.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!second_attempt.status.success());
+    assert_eq!(
+        fs::read(&output_source).unwrap(),
+        fs::read(&second_source).unwrap()
+    );
+
+    let manifest = temp.0.join("rust/Cargo.toml");
+    fs::write(
+        &manifest,
+        "[package]\nname = \"module-export-check\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    )
+    .unwrap();
+    let target_dir = temp.0.join("cargo-target");
+    let generate_lock = Command::new("cargo")
+        .current_dir(&repository)
+        .env("CARGO_TARGET_DIR", &target_dir)
+        .args([
+            "generate-lockfile",
+            "--offline",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        generate_lock.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generate_lock.stderr)
+    );
+    let built = Command::new("cargo")
+        .current_dir(&repository)
+        .env("CARGO_TARGET_DIR", &target_dir)
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let binary = target_dir.join("release").join(format!(
+        "module-export-check{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    let exported_run = Command::new(binary).output().unwrap();
+    assert!(exported_run.status.success());
+    assert_eq!(String::from_utf8_lossy(&exported_run.stdout), expected);
+
+    // The checked-in `rust/` tree is the file-by-file export route. Keep it
+    // equivalent to recursive export and compile/run both trees independently.
+    for relative in [
+        "src/main.rs",
+        "src/aplicacion.rs",
+        "src/aplicacion/servicios.rs",
+        "src/dominio.rs",
+        "src/dominio/modelos.rs",
+    ] {
+        assert_eq!(
+            fs::read(fixture.join("rust").join(relative)).unwrap(),
+            fs::read(temp.0.join("rust").join(relative)).unwrap(),
+            "la exportación archivo por archivo difiere en {relative}"
+        );
+    }
+    let manual_manifest = fixture.join("rust/Cargo.toml");
+    let manual_target = temp.0.join("cargo-target-file-by-file");
+    let manual_build = Command::new("cargo")
+        .current_dir(&repository)
+        .env("CARGO_TARGET_DIR", &manual_target)
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            manual_manifest.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        manual_build.status.success(),
+        "{}",
+        String::from_utf8_lossy(&manual_build.stderr)
+    );
+    let manual_binary = manual_target.join("release").join(format!(
+        "modulos-jerarquicos{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    let manual_run = Command::new(manual_binary).output().unwrap();
+    assert!(manual_run.status.success());
+    assert_eq!(String::from_utf8_lossy(&manual_run.stdout), expected);
+}
+
+#[test]
+fn resolves_module_ambiguity_and_maps_rustc_errors_to_the_module_ox_file() {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let test_path = repository.join("target").join(format!(
+        "oxido-cli-module-diagnostics-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&test_path).unwrap();
+    let temp = TestDirectory(test_path);
+    let main = write_module_fixture(&temp.0.join("mapped"), Some("alumno.nota >= \"seis\""));
+
+    let compile = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args(["compilar", main.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&compile.stderr);
+    assert!(!compile.status.success());
+    assert!(
+        stderr.contains("fuente/aplicacion/servicios.ox:5:5"),
+        "{stderr}"
+    );
+
+    let ambiguous_root = temp.0.join("ambiguous");
+    let ambiguous_main = write_module_fixture(&ambiguous_root, Some("alumno.nota >= 6.0"));
+    fs::write(
+        ambiguous_root.join("fuente/aplicacion/mod.ox"),
+        "sintaxis llaves\n",
+    )
+    .unwrap();
+    let ambiguous = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args(["compilar", ambiguous_main.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&ambiguous.stderr);
+    assert!(!ambiguous.status.success());
+    assert!(stderr.contains("OX8001"), "{stderr}");
+    assert!(stderr.contains("ambig"), "{stderr}");
+}
+
+#[test]
+fn resolves_path_modules_and_exports_their_rewritten_rust_paths() {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let root = repository.join("target").join(format!(
+        "oxido-cli-path-modules-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(root.join("fuente/modulos/custom")).unwrap();
+    fs::write(
+        root.join("oxido.toml"),
+        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("fuente/main.ox"),
+        "#[path = \"modulos/custom.ox\"] mod app;\nfn main() { println!(\"{}\", app::mensaje()); }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("fuente/modulos/custom.ox"),
+        "#[path = \"../shared.ox\"] mod shared;\npub fn mensaje() -> &'static str { shared::mensaje() }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("fuente/shared.ox"),
+        "pub fn mensaje() -> &'static str { \"#[path] funciona\" }\n",
+    )
+    .unwrap();
+    let temp = TestDirectory(root.clone());
+    let root_source = root.join("fuente/main.ox");
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args(["ejecutar", root_source.to_str().unwrap(), "--release"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout),
+        "#[path] funciona\n"
+    );
+
+    let output_main = temp.0.join("export/src/main.rs");
+    fs::create_dir_all(output_main.parent().unwrap()).unwrap();
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args([
+            "exportar",
+            root_source.to_str().unwrap(),
+            "--salida",
+            output_main.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let exported_root = fs::read_to_string(&output_main).unwrap();
+    let exported_nested = fs::read_to_string(temp.0.join("export/src/modulos/custom.rs")).unwrap();
+    assert!(exported_root.contains("#[path = \"modulos/custom.rs\"]"));
+    assert!(exported_nested.contains("#[path = \"../shared.rs\"]"));
+    assert!(temp.0.join("export/src/shared.rs").is_file());
+
+    let manifest = temp.0.join("export/Cargo.toml");
+    fs::write(
+        &manifest,
+        "[package]\nname = \"path-module-export\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    )
+    .unwrap();
+    let target = temp.0.join("export-target");
+    let lock = Command::new("cargo")
+        .env("CARGO_TARGET_DIR", &target)
+        .args([
+            "generate-lockfile",
+            "--offline",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        lock.status.success(),
+        "{}",
+        String::from_utf8_lossy(&lock.stderr)
+    );
+    let built = Command::new("cargo")
+        .env("CARGO_TARGET_DIR", &target)
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let binary = target.join("release").join(format!(
+        "path-module-export{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    let exported_run = Command::new(binary).output().unwrap();
+    assert!(exported_run.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&exported_run.stdout),
+        "#[path] funciona\n"
+    );
+}
+
+#[test]
+fn rejects_path_modules_that_escape_the_project_root() {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let temp = TestDirectory::new();
+    let project = temp.0.join("project");
+    fs::create_dir_all(project.join("fuente")).unwrap();
+    fs::write(
+        project.join("oxido.toml"),
+        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("fuente/main.ox"),
+        "#[path = \"../../outside.ox\"] mod modulo_fuera;\nfn main() {}\n",
+    )
+    .unwrap();
+    fs::write(temp.0.join("outside.ox"), "pub fn dato() {}\n").unwrap();
+
+    let result = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&repository)
+        .args(["compilar", project.join("fuente/main.ox").to_str().unwrap()])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(!result.status.success());
+    assert!(stderr.contains("OX8001"), "{stderr}");
+    assert!(stderr.contains("sale de la raíz del proyecto"), "{stderr}");
+}
+
+fn write_module_fixture(root: &std::path::Path, service_body: Option<&str>) -> std::path::PathBuf {
+    fs::create_dir_all(root.join("fuente/aplicacion")).unwrap();
+    fs::create_dir_all(root.join("fuente/dominio")).unwrap();
+    fs::write(
+        root.join("oxido.toml"),
+        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("fuente/main.ox"),
+        include_str!("../../../prueba/modulos_jerarquicos/fuente/main.ox"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("fuente/aplicacion.ox"),
+        include_str!("../../../prueba/modulos_jerarquicos/fuente/aplicacion.ox"),
+    )
+    .unwrap();
+    let services =
+        include_str!("../../../prueba/modulos_jerarquicos/fuente/aplicacion/servicios.ox");
+    let services = service_body.map_or_else(
+        || services.to_owned(),
+        |body| services.replace("alumno.nota >= 6.0", body),
+    );
+    fs::write(root.join("fuente/aplicacion/servicios.ox"), services).unwrap();
+    fs::write(
+        root.join("fuente/dominio.ox"),
+        include_str!("../../../prueba/modulos_jerarquicos/fuente/dominio.ox"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("fuente/dominio/modelos.ox"),
+        include_str!("../../../prueba/modulos_jerarquicos/fuente/dominio/modelos.ox"),
+    )
+    .unwrap();
+    root.join("fuente/main.ox")
+}
+
+#[test]
 fn reads_project_mode_from_declarative_oxido_toml() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");
@@ -276,7 +744,7 @@ fn dependency_fetch_never_runs_build_scripts_or_proc_macros_without_explicit_tru
     .unwrap();
     fs::write(
         project.join("principal.ox"),
-        "sintaxis llaves\n#[macro_fixture::identity]\nfn main() { build_fixture::marker(); }\n",
+        "sintaxis llaves\n#[macro_fixture::identity]\nfn main() { build_fixture::marker(); println!(\"{}\", macro_fixture::token_text!(si tipo verdadero)); }\n",
     )
     .unwrap();
     let build_marker = temp.0.join("build-marker");
@@ -333,7 +801,7 @@ fn dependency_fetch_never_runs_build_scripts_or_proc_macros_without_explicit_tru
         .current_dir(&project)
         .env("OXIDO_BUILD_MARKER", &build_marker)
         .env("OXIDO_PROC_MARKER", &macro_marker)
-        .args(["compilar", "principal.ox", "--confiar-dependencias"])
+        .args(["ejecutar", "principal.ox", "--confiar-dependencias"])
         .output()
         .unwrap();
     assert!(
@@ -343,6 +811,10 @@ fn dependency_fetch_never_runs_build_scripts_or_proc_macros_without_explicit_tru
     );
     assert_eq!(fs::read_to_string(build_marker).unwrap(), "build");
     assert_eq!(fs::read_to_string(macro_marker).unwrap(), "proc-macro");
+    assert_eq!(
+        String::from_utf8_lossy(&trusted.stdout).trim(),
+        "si tipo verdadero"
+    );
 }
 
 #[test]
@@ -367,7 +839,7 @@ fn compiles_a_registry_crate_offline_and_persists_the_project_lockfile() {
     .unwrap();
     fs::write(
         work.join("oxido.toml"),
-        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n\n[dependencies.itoa]\nversion = \"1.0\"\n\n[dependencies.futures-executor]\nversion = \"0.3.32\"\n",
+        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n\n[dependencies.itoa]\nversion = \"1.0\"\n\n[dependencies.futures-executor]\nversion = \"0.3.32\"\n\n[dependencies.paste]\nversion = \"1\"\n\n[dependencies.serde]\nversion = \"1\"\nfeatures = [\"derive\"]\n\n[dependencies.serde_json]\nversion = \"1\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"macros\", \"rt-multi-thread\"]\n",
     )
     .unwrap();
     fs::write(
@@ -526,6 +998,254 @@ fn compiles_a_registry_crate_offline_and_persists_the_project_lockfile() {
 }
 
 #[test]
+fn interoperates_with_registry_proc_macros_in_direct_and_exported_module_trees() {
+    let temp = TestDirectory::new();
+    let project = temp.0.join("project");
+    let cargo_home = temp.0.join("cargo-home");
+    let vendor = fs::canonicalize(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/cargo-registry/vendor"),
+    )
+    .unwrap();
+    fs::create_dir_all(&cargo_home).unwrap();
+    let vendor_text = vendor.to_str().unwrap();
+    fs::write(
+        cargo_home.join("config.toml"),
+        format!(
+            "[source.crates-io]\nreplace-with = \"fixture\"\n\n[source.fixture]\ndirectory = {vendor_text:?}\n"
+        ),
+    )
+    .unwrap();
+    fs::create_dir_all(project.join("modulos")).unwrap();
+    fs::write(
+        project.join("oxido.toml"),
+        "[language]\nsyntax = \"indentation\"\nedition = \"2024\"\n\n[dependencies.paste]\nversion = \"1\"\n\n[dependencies.serde]\nversion = \"1\"\nfeatures = [\"derive\"]\n\n[dependencies.serde_json]\nversion = \"1\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"macros\", \"rt-multi-thread\"]\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("principal.ox"),
+        "sintaxis indentacion\n#[path = \"modulos/datos.ox\"]\nmodulo datos;\nmacro_rules! conservar { ($($token:tt)*) => { stringify!($($token)*) }; }\n#[tokio::main(flavor = \"current_thread\")]\nasincrono funcion principal():\n    dejar dato = datos::crear()\n    dejar serializado = serde_json::to_string(&dato).expect(\"serialización\")\n    dejar recuperado: datos::Dato = serde_json::from_str(&serializado).expect(\"deserialización\")\n    dejar seleccionado = tokio::select! {\n        valor = async { recuperado.valor } => valor,\n    }\n    imprimir!(\"{}:{}:{}:{}:{}\", serializado, seleccionado, conservar!(si tipo verdadero), serde_json::json!({\"si\": true, \"tipo\": \"texto\"}), datos::macro_si());\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("modulos/datos.ox"),
+        "sintaxis indentacion\n#[path = \"auxiliar.rs\"]\nmodulo auxiliar;\npaste::paste! {\n    pub fn [<macro_ si>]() -> &'static str {\n        stringify!({ identificador: [tipo, verdadero], texto: \"si tipo verdadero\" })\n    }\n}\n#[derive(serde::Serialize, serde::Deserialize)]\npub estructura Dato:\n    #[serde(rename = \"valor_especial\")]\n    pub valor: i32\npub funcion crear() -> Dato:\n    Dato { valor: auxiliar::valor() }\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("modulos/auxiliar.rs"),
+        "pub fn valor() -> i32 { 42 }\n",
+    )
+    .unwrap();
+
+    let fetched = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&project)
+        .env("CARGO_HOME", &cargo_home)
+        .env("CARGO_NET_OFFLINE", "true")
+        .args(["descargar-dependencias", "principal.ox", "--confirmar"])
+        .output()
+        .unwrap();
+    assert!(
+        fetched.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fetched.stderr)
+    );
+
+    let compiled = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&project)
+        .env("CARGO_HOME", &cargo_home)
+        .args(["compilar", "principal.ox", "--confiar-dependencias"])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&project)
+        .env("CARGO_HOME", &cargo_home)
+        .args(["ejecutar", "principal.ox", "--confiar-dependencias"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&executed.stdout);
+    assert!(
+        stdout.contains(r#"{"valor_especial":42}:42:si tipo verdadero:{"si":true,"tipo":"texto"}:{ identificador : [tipo, verdadero], texto : "si tipo verdadero" }"#),
+        "{stdout}"
+    );
+
+    let export_source_tree = project.join("exportado");
+    fs::create_dir_all(export_source_tree.join("src")).unwrap();
+    let export = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&project)
+        .args([
+            "exportar",
+            "principal.ox",
+            "--salida",
+            "exportado/src/main.rs",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        export.status.success(),
+        "{}",
+        String::from_utf8_lossy(&export.stderr)
+    );
+    fs::write(
+        export_source_tree.join("Cargo.toml"),
+        "[package]\nname = \"oxido_generated\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\npaste = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\ntokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }\n",
+    )
+    .unwrap();
+    fs::copy(
+        project.join("Cargo.lock"),
+        export_source_tree.join("Cargo.lock"),
+    )
+    .unwrap();
+    let exported_project = temp.0.join("exportado-independiente");
+    copy_directory(
+        &export_source_tree.join("src"),
+        &exported_project.join("src"),
+    );
+    fs::copy(
+        export_source_tree.join("Cargo.toml"),
+        exported_project.join("Cargo.toml"),
+    )
+    .unwrap();
+    fs::copy(
+        export_source_tree.join("Cargo.lock"),
+        exported_project.join("Cargo.lock"),
+    )
+    .unwrap();
+    remove_source_maps(&exported_project.join("src"));
+    let independent_build = Command::new("cargo")
+        .arg("build")
+        .arg("--locked")
+        .arg("--offline")
+        .arg("--manifest-path")
+        .arg(exported_project.join("Cargo.toml"))
+        .current_dir(&exported_project)
+        .env("CARGO_HOME", &cargo_home)
+        .env("CARGO_TARGET_DIR", exported_project.join("target"))
+        .output()
+        .unwrap();
+    assert!(
+        independent_build.status.success(),
+        "{}",
+        String::from_utf8_lossy(&independent_build.stderr)
+    );
+    let independent_run = Command::new("cargo")
+        .arg("run")
+        .arg("--locked")
+        .arg("--offline")
+        .arg("--quiet")
+        .arg("--manifest-path")
+        .arg(exported_project.join("Cargo.toml"))
+        .current_dir(&exported_project)
+        .env("CARGO_HOME", &cargo_home)
+        .env("CARGO_TARGET_DIR", exported_project.join("target"))
+        .output()
+        .unwrap();
+    assert!(
+        independent_run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&independent_run.stderr)
+    );
+    assert_eq!(independent_run.stdout, executed.stdout);
+    assert!(
+        !fs::read_to_string(exported_project.join("src/main.rs"))
+            .unwrap()
+            .contains(project.to_str().unwrap())
+    );
+
+    let valid_source = fs::read_to_string(project.join("principal.ox")).unwrap();
+    let invalid_source = valid_source.replace(
+        "serde_json::json!({\"si\": true, \"tipo\": \"texto\"})",
+        "serde_json::json!(@)",
+    );
+    assert_ne!(valid_source, invalid_source);
+    fs::write(project.join("principal.ox"), invalid_source).unwrap();
+    let invalid_macro = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&project)
+        .env("CARGO_HOME", &cargo_home)
+        .args(["compilar", "principal.ox", "--confiar-dependencias"])
+        .output()
+        .unwrap();
+    let diagnostics = String::from_utf8_lossy(&invalid_macro.stderr);
+    assert!(!invalid_macro.status.success());
+    assert!(diagnostics.contains("principal.ox:"), "{diagnostics}");
+    assert!(diagnostics.contains("error"), "{diagnostics}");
+
+    let bad_export_source_tree = project.join("exportacion-fallida");
+    fs::create_dir_all(bad_export_source_tree.join("src")).unwrap();
+    let bad_export = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&project)
+        .args([
+            "exportar",
+            "principal.ox",
+            "--salida",
+            "exportacion-fallida/src/main.rs",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        bad_export.status.success(),
+        "{}",
+        String::from_utf8_lossy(&bad_export.stderr)
+    );
+    fs::write(
+        bad_export_source_tree.join("Cargo.toml"),
+        "[package]\nname = \"oxido_generated\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\npaste = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\ntokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }\n",
+    )
+    .unwrap();
+    fs::copy(
+        project.join("Cargo.lock"),
+        bad_export_source_tree.join("Cargo.lock"),
+    )
+    .unwrap();
+    let bad_exported_project = temp.0.join("exportacion-fallida-independiente");
+    copy_directory(
+        &bad_export_source_tree.join("src"),
+        &bad_exported_project.join("src"),
+    );
+    fs::copy(
+        bad_export_source_tree.join("Cargo.toml"),
+        bad_exported_project.join("Cargo.toml"),
+    )
+    .unwrap();
+    fs::copy(
+        bad_export_source_tree.join("Cargo.lock"),
+        bad_exported_project.join("Cargo.lock"),
+    )
+    .unwrap();
+    remove_source_maps(&bad_exported_project.join("src"));
+    let exported_error = Command::new("cargo")
+        .args([
+            "check",
+            "--locked",
+            "--offline",
+            "--message-format=human",
+            "--manifest-path",
+        ])
+        .arg(bad_exported_project.join("Cargo.toml"))
+        .current_dir(&bad_exported_project)
+        .env("CARGO_HOME", &cargo_home)
+        .env("CARGO_TARGET_DIR", bad_exported_project.join("target"))
+        .output()
+        .unwrap();
+    let exported_diagnostics = String::from_utf8_lossy(&exported_error.stderr);
+    assert!(!exported_error.status.success());
+    assert!(
+        exported_diagnostics.contains("src/main.rs:"),
+        "{exported_diagnostics}"
+    );
+}
+
+#[test]
 fn cargo_detects_modified_vendor_and_lockfile_checksums_during_compile() {
     let temp = TestDirectory::new();
     let fixture_vendor = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -627,7 +1347,7 @@ fn create_registry_project(
     .unwrap();
     fs::write(
         project.join("oxido.toml"),
-        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n\n[dependencies.itoa]\nversion = \"1.0\"\n\n[dependencies.futures-executor]\nversion = \"0.3.32\"\n",
+        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n\n[dependencies.itoa]\nversion = \"1.0\"\n\n[dependencies.futures-executor]\nversion = \"0.3.32\"\n\n[dependencies.serde]\nversion = \"1\"\nfeatures = [\"derive\"]\n\n[dependencies.serde_json]\nversion = \"1\"\n\n[dependencies.tokio]\nversion = \"1\"\nfeatures = [\"macros\", \"rt-multi-thread\"]\n",
     )
     .unwrap();
     fs::write(
@@ -649,6 +1369,22 @@ fn copy_directory(source: &std::path::Path, destination: &std::path::Path) {
             copy_directory(&source_path, &destination_path);
         } else {
             fs::copy(source_path, destination_path).unwrap();
+        }
+    }
+}
+
+fn remove_source_maps(directory: &std::path::Path) {
+    for entry in fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        let metadata = fs::symlink_metadata(&path).unwrap();
+        assert!(!metadata.file_type().is_symlink());
+        if metadata.is_dir() {
+            remove_source_maps(&path);
+        } else if path
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().ends_with(".oxido-map.json"))
+        {
+            fs::remove_file(path).unwrap();
         }
     }
 }

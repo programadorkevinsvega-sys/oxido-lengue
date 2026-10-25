@@ -677,15 +677,19 @@ impl Scanner<'_> {
     }
 
     fn last_token_continues_line(&self) -> bool {
-        let Some(token) = self
+        let Some((index, token)) = self
             .tokens
             .iter()
+            .enumerate()
             .rev()
-            .find(|token| !matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+            .find(|(_, token)| !matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
         else {
             return false;
         };
         let text = self.source.slice(token.span);
+        if matches!(text, ">" | ">>") && self.closes_generic_arguments(index, text) {
+            return false;
+        }
         matches!(
             text,
             "=" | ","
@@ -713,6 +717,22 @@ impl Scanner<'_> {
                 | "donde"
                 | "where"
         )
+    }
+
+    fn closes_generic_arguments(&self, end: usize, closing: &str) -> bool {
+        let mut unmatched_closers = closing.chars().count();
+        for token in self.tokens[..end].iter().rev() {
+            if matches!(token.kind, TokenKind::Newline) {
+                break;
+            }
+            match self.source.slice(token.span) {
+                ">" | ">>" => unmatched_closers += self.source.slice(token.span).chars().count(),
+                "<" if unmatched_closers == 1 => return true,
+                "<" => unmatched_closers = unmatched_closers.saturating_sub(1),
+                _ => {}
+            }
+        }
+        false
     }
 
     fn next_line_starts_continuation(&self) -> bool {

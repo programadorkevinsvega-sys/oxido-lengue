@@ -15,9 +15,9 @@ use oxido_language::{
     },
 };
 use proc_macro2::{Delimiter, LineColumn, Span as RustSpan, TokenStream, TokenTree};
-use quote::quote;
+use quote::{ToTokens, quote};
 use serde::Serialize;
-use std::str::FromStr;
+use std::{cell::RefCell, collections::HashSet, str::FromStr};
 use syn::parse::{Error as SynError, Parser};
 use syn::spanned::Spanned;
 
@@ -47,8 +47,70 @@ struct PendingMapping {
     tokens: Vec<String>,
 }
 
+thread_local! {
+    static DECLARED_METHOD_ALIASES: RefCell<Option<HashSet<String>>> = const { RefCell::new(None) };
+}
+
+struct DeclaredMethodScope(Option<HashSet<String>>);
+
+impl DeclaredMethodScope {
+    fn enter(names: HashSet<String>) -> Self {
+        Self(DECLARED_METHOD_ALIASES.with(|slot| slot.replace(Some(names))))
+    }
+}
+
+impl Drop for DeclaredMethodScope {
+    fn drop(&mut self) {
+        let previous = self.0.take();
+        DECLARED_METHOD_ALIASES.with(|slot| {
+            slot.replace(previous);
+        });
+    }
+}
+
+fn method_alias_is_declared(name: &str) -> bool {
+    DECLARED_METHOD_ALIASES.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .is_some_and(|names| names.contains(name))
+    })
+}
+
+fn collect_declared_method_aliases(source: &str) -> HashSet<String> {
+    fn visit(tokens: TokenStream, names: &mut HashSet<String>) {
+        let trees = tokens.into_iter().collect::<Vec<_>>();
+        for (index, tree) in trees.iter().enumerate() {
+            if matches!(tree, TokenTree::Ident(ident) if matches!(ident.to_string().as_str(), "fn" | "funcion"))
+            {
+                if let Some(TokenTree::Ident(name)) = trees.get(index + 1) {
+                    let spelling = name.to_string();
+                    let spelling = spelling.strip_prefix("r#").unwrap_or(&spelling);
+                    if oxido_language::domain::syntax::method_translation(spelling).is_some() {
+                        names.insert(spelling.to_owned());
+                    }
+                }
+            }
+            if let TokenTree::Group(group) = tree {
+                let is_macro_body = index > 0
+                    && matches!(&trees[index - 1], TokenTree::Punct(punct) if punct.as_char() == '!');
+                if !is_macro_body {
+                    visit(group.stream(), names);
+                }
+            }
+        }
+    }
+
+    let mut names = HashSet::new();
+    if let Ok(tokens) = TokenStream::from_str(source) {
+        visit(tokens, &mut names);
+    }
+    names
+}
+
 /// Emite Rust desde el AST Óxido, conserva correspondencias de tokens y formatea el resultado.
 pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynError> {
+    let _declared_methods =
+        DeclaredMethodScope::enter(collect_declared_method_aliases(source.text()));
     let mut pending = Vec::new();
     let attributes = file
         .attributes
@@ -495,12 +557,18 @@ fn emit_indented_container(
             }
             (ContainerKind::Impl, Item::RustFragment(fragment)) => {
                 register_fragment(fragment, mappings)?;
-                let item = syn::parse2::<syn::ImplItem>(parse_tokens(&fragment.text)?)?;
+                let mut item = syn::parse2::<syn::ImplItem>(parse_tokens(&fragment.text)?)?;
+                if let syn::ImplItem::Fn(function) = &mut item {
+                    translate_signature_types(&mut function.sig)?;
+                }
                 quote! { #item }
             }
             (ContainerKind::Trait, Item::RustFragment(fragment)) => {
                 register_fragment(fragment, mappings)?;
-                let item = syn::parse2::<syn::TraitItem>(parse_tokens(&fragment.text)?)?;
+                let mut item = syn::parse2::<syn::TraitItem>(parse_tokens(&fragment.text)?)?;
+                if let syn::TraitItem::Fn(function) = &mut item {
+                    translate_signature_types(&mut function.sig)?;
+                }
                 quote! { #item }
             }
             (_, item) => emit_item(item, mappings)?,
@@ -575,7 +643,7 @@ fn emit_indented_aggregate(
             member_attributes.push(parse_attribute_fragment(&attribute.text)?);
             register_fragment(attribute, mappings)?;
         }
-        let value = parse_tokens(&member.value.text)?;
+        let value = parse_aggregate_member(&member.value.text, aggregate.kind)?;
         register_fragment(&member.value, mappings)?;
         members.push(quote! { #(#member_attributes)* #value });
     }
@@ -586,6 +654,63 @@ fn emit_indented_aggregate(
         AggregateKind::Enum => Ok(quote! {
             #(#attributes)* #visibility enum #header { #(#members,)* }
         }),
+    }
+}
+
+fn parse_aggregate_member(fragment: &str, kind: AggregateKind) -> Result<TokenStream, SynError> {
+    match kind {
+        AggregateKind::Struct => {
+            let trees = TokenStream::from_str(fragment)
+                .map_err(|error| SynError::new(RustSpan::call_site(), error.to_string()))?
+                .into_iter()
+                .collect::<Vec<_>>();
+            let separator = trees.iter().enumerate().find_map(|(index, tree)| {
+                let TokenTree::Punct(punct) = tree else {
+                    return None;
+                };
+                if punct.as_char() != ':' {
+                    return None;
+                }
+                let previous_colon = index.checked_sub(1).is_some_and(|previous| {
+                    matches!(&trees[previous], TokenTree::Punct(punct) if punct.as_char() == ':')
+                });
+                let next_colon = matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == ':');
+                (!previous_colon && !next_colon).then_some(index)
+            });
+            let Some(separator) = separator else {
+                return parse_tokens(fragment);
+            };
+            let left = trees[..separator].iter().cloned().collect::<TokenStream>();
+            let right = trees[separator + 1..]
+                .iter()
+                .cloned()
+                .collect::<TokenStream>()
+                .to_string();
+            let left = parse_tokens(&left.to_string())?;
+            let right = parse_type_tokens(&right)?;
+            Ok(quote! { #left: #right })
+        }
+        AggregateKind::Enum => {
+            let mut variant = syn::parse2::<syn::Variant>(parse_tokens(fragment)?)?;
+            match &mut variant.fields {
+                syn::Fields::Named(fields) => {
+                    for field in &mut fields.named {
+                        field.ty = syn::parse2(parse_type_tokens(
+                            &field.ty.to_token_stream().to_string(),
+                        )?)?;
+                    }
+                }
+                syn::Fields::Unnamed(fields) => {
+                    for field in &mut fields.unnamed {
+                        field.ty = syn::parse2(parse_type_tokens(
+                            &field.ty.to_token_stream().to_string(),
+                        )?)?;
+                    }
+                }
+                syn::Fields::Unit => {}
+            }
+            Ok(quote! { #variant })
+        }
     }
 }
 
@@ -608,7 +733,8 @@ fn emit_function(
         .transpose()?;
 
     let signature_tokens = parse_tokens(&function.signature.text)?;
-    let signature = syn::parse2::<syn::ItemFn>(quote! { fn #signature_tokens {} })?.sig;
+    let mut signature = syn::parse2::<syn::ItemFn>(quote! { fn #signature_tokens {} })?.sig;
+    translate_signature_types(&mut signature)?;
     register_fragment(&function.signature, mappings)?;
     if signature.ident != function.name.as_str() {
         return Err(SynError::new(
@@ -672,7 +798,7 @@ fn emit_statement(
                 .type_annotation
                 .as_ref()
                 .map(|fragment| {
-                    let tokens = parse_tokens(&fragment.text)?;
+                    let tokens = parse_type_tokens(&fragment.text)?;
                     register_fragment(fragment, mappings)?;
                     Ok::<_, SynError>(quote! { : #tokens })
                 })
@@ -809,6 +935,59 @@ fn parse_tokens(fragment: &str) -> Result<TokenStream, SynError> {
     let tokens = TokenStream::from_str(fragment)
         .map_err(|error| SynError::new(RustSpan::call_site(), error.to_string()))?;
     Ok(normalize_aliases(tokens))
+}
+
+fn parse_type_tokens(fragment: &str) -> Result<TokenStream, SynError> {
+    fn translate_type_aliases(tokens: TokenStream) -> TokenStream {
+        let trees = tokens.into_iter().collect::<Vec<_>>();
+        let mut normalized = TokenStream::new();
+        for (index, tree) in trees.iter().enumerate() {
+            match tree {
+                TokenTree::Ident(ident)
+                    if oxido_language::domain::syntax::type_translation(&ident.to_string())
+                        .is_some()
+                        && !ident.to_string().starts_with("r#")
+                        && !(index >= 2
+                            && matches!(&trees[index - 1], TokenTree::Punct(punct) if punct.as_char() == ':')
+                            && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')) =>
+                {
+                    let translated =
+                        oxido_language::domain::syntax::type_translation(&ident.to_string())
+                            .expect("alias type context");
+                    normalized.extend([TokenTree::Ident(proc_macro2::Ident::new(
+                        translated,
+                        ident.span(),
+                    ))]);
+                }
+                TokenTree::Group(group) => {
+                    let mut replacement = proc_macro2::Group::new(
+                        group.delimiter(),
+                        translate_type_aliases(group.stream()),
+                    );
+                    replacement.set_span(group.span());
+                    normalized.extend([TokenTree::Group(replacement)]);
+                }
+                _ => normalized.extend([tree.clone()]),
+            }
+        }
+        normalized
+    }
+
+    Ok(translate_type_aliases(parse_tokens(fragment)?))
+}
+
+fn translate_signature_types(signature: &mut syn::Signature) -> Result<(), SynError> {
+    for input in &mut signature.inputs {
+        if let syn::FnArg::Typed(argument) = input {
+            *argument.ty = syn::parse2(parse_type_tokens(
+                &argument.ty.to_token_stream().to_string(),
+            )?)?;
+        }
+    }
+    if let syn::ReturnType::Type(_, output) = &mut signature.output {
+        **output = syn::parse2(parse_type_tokens(&output.to_token_stream().to_string())?)?;
+    }
+    Ok(())
 }
 
 fn parse_attribute_fragment(fragment: &str) -> Result<syn::Attribute, SynError> {
@@ -955,8 +1134,19 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
             TokenTree::Ident(ident) if !ident.to_string().starts_with("r#") => {
                 let spelling = ident.to_string();
                 let previous = index.checked_sub(1).and_then(|at| trees.get(at));
-                let is_method = matches!(previous, Some(TokenTree::Punct(punct)) if punct.as_char() == '.')
-                    || matches!(previous, Some(TokenTree::Ident(keyword)) if keyword == "fn");
+                let is_method_call =
+                    matches!(previous, Some(TokenTree::Punct(punct)) if punct.as_char() == '.');
+                let is_standard_constructor = spelling == "nuevo"
+                    && matches!(previous, Some(TokenTree::Punct(punct)) if punct.as_char() == ':')
+                    && index >= 3
+                    && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')
+                    && matches!(
+                        &trees[index - 3],
+                        TokenTree::Ident(receiver)
+                            if matches!(receiver.to_string().as_str(), "Vector" | "Vec" | "Cadena" | "String" | "MapaHash" | "HashMap" | "Caja" | "Box")
+                    )
+                    && matches!(trees.get(index + 1), Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis);
+                let declared_method = method_alias_is_declared(&spelling);
                 let is_std_path = index >= 3
                     && matches!(&trees[index - 1], TokenTree::Punct(punct) if punct.as_char() == ':')
                     && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')
@@ -965,7 +1155,7 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
                     .filter(|translated| *translated != spelling)
                     .or_else(|| oxido_language::domain::syntax::prelude_translation(&spelling))
                     .or_else(|| {
-                        is_method
+                        ((is_method_call || is_standard_constructor) && !declared_method)
                             .then(|| oxido_language::domain::syntax::method_translation(&spelling))
                             .flatten()
                     })
@@ -1071,12 +1261,7 @@ fn normalize_known_attribute(group: &proc_macro2::Group) -> TokenTree {
     let Some(TokenTree::Ident(name)) = trees.first() else {
         return TokenTree::Group(group.clone());
     };
-    let replacement = match name.to_string().as_str() {
-        "prueba" => Some("test"),
-        "permitir" => Some("allow"),
-        "derivar" => Some("derive"),
-        _ => None,
-    };
+    let replacement = oxido_language::domain::syntax::attribute_translation(&name.to_string());
     let Some(replacement) = replacement else {
         return TokenTree::Group(group.clone());
     };
@@ -1235,7 +1420,7 @@ pub fn validate_jump(kind: &str, fragment: Option<&str>) -> Result<(), SynError>
 
 /// Valida un fragmento de tipo Rust.
 pub fn validate_type(fragment: &str) -> Result<(), SynError> {
-    syn::parse2::<syn::Type>(parse_tokens(fragment)?).map(|_| ())
+    syn::parse2::<syn::Type>(parse_type_tokens(fragment)?).map(|_| ())
 }
 
 /// Valida un fragmento de patrón Rust.
@@ -1318,7 +1503,7 @@ mod generation_tests {
     #[test]
     fn normalizes_standard_macro_arguments_but_keeps_raw_identifiers_opaque() {
         let source = SourceFile::new(
-            "sintaxis indentacion\n#[permitir(tipo)]\nfuncion principal():\n    variable activo = verdadero\n    afirmar_igual!(verdadero, r#tipo);\n    activo\n",
+            "sintaxis indentacion\n#[permitir(tipo)]\nfuncion principal():\n    dejar activo = verdadero\n    afirmar_igual!(verdadero, r#tipo);\n    activo\n",
         );
         let parsed = parse(&source, LexOptions::default());
         assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
@@ -1341,9 +1526,49 @@ mod generation_tests {
     }
 
     #[test]
+    fn translates_texto_only_as_a_type_and_std_module_aliases_only_in_std_paths() {
+        let tokens = parse_tokens(
+            r#"let texto = "local"; let vista: &texto = &texto; let es = 1; let hilo = 2; let archivos = 3; let colecciones = 4; use std::es;"#,
+        )
+        .unwrap()
+        .to_string();
+        assert!(tokens.contains("let texto = \"local\""), "{tokens}");
+        assert!(tokens.contains("vista : & texto"), "{tokens}");
+        assert!(tokens.contains("let es = 1"), "{tokens}");
+        assert!(tokens.contains("let hilo = 2"), "{tokens}");
+        assert!(tokens.contains("let archivos = 3"), "{tokens}");
+        assert!(tokens.contains("let colecciones = 4"), "{tokens}");
+        assert!(tokens.contains("std :: io"), "{tokens}");
+
+        let expression_value = parse_tokens("let texto = 1; let dato = Dato { campo: texto };")
+            .unwrap()
+            .to_string();
+        assert!(
+            expression_value.contains("campo : texto"),
+            "{expression_value}"
+        );
+        assert_eq!(parse_type_tokens("&texto").unwrap().to_string(), "& str");
+    }
+
+    #[test]
+    fn preserves_error_trait_name_in_result_and_box_types() {
+        let source = SourceFile::new(
+            "sintaxis llaves\nuse std::error::Error;\ntype Fallo = Resultado<(), Caja<dyn Error>>;\nfn main() {}\n",
+        );
+        let parsed = parse(&source, LexOptions::default());
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+        let generated = generate(&parsed.file.unwrap(), &source).unwrap();
+        assert!(
+            generated.code.contains("Box<dyn Error>"),
+            "{}",
+            generated.code
+        );
+    }
+
+    #[test]
     fn normalizes_prelude_aliases_methods_and_known_macros() {
         let source = SourceFile::new(
-            "sintaxis indentacion\nfuncion principal():\n    variable mutable nombres: Vector<Cadena> = vector![String::from(\"Ada\")]\n    nombres.agregar(formato!(\"{}\", nombres.len()))\n    imprimirln!(\"{}\", nombres[0].to_string())\n",
+            "sintaxis indentacion\nfuncion principal():\n    dejar mutable nombres: Vector<Cadena> = vector![String::from(\"Ada\")]\n    nombres.agregar(formato!(\"{}\", nombres.len()))\n    imprimir!(\"{}\", nombres[0].to_string())\n",
         );
         let parsed = parse(&source, LexOptions::default());
         assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
@@ -1360,6 +1585,64 @@ mod generation_tests {
                 generated.code
             );
         }
+    }
+
+    #[test]
+    fn translates_every_registered_method_alias_only_in_method_calls() {
+        for (alias, rust_name) in oxido_language::domain::syntax::PRELUDE_ALIASES {
+            let normalized = normalize_aliases(parse_tokens(alias).unwrap()).to_string();
+            assert_eq!(normalized, *rust_name, "alias prelude {alias}");
+        }
+
+        for (alias, rust_name) in oxido_language::domain::syntax::METHOD_ALIASES {
+            let source = if *alias == "nuevo" {
+                "Vector::nuevo()".to_owned()
+            } else {
+                format!("valor.{alias}()")
+            };
+            let normalized = normalize_aliases(parse_tokens(&source).unwrap()).to_string();
+            assert!(
+                normalized.contains(rust_name),
+                "{alias} debía convertirse en {rust_name}: {normalized}"
+            );
+        }
+
+        for (alias, _) in oxido_language::domain::syntax::METHOD_ALIASES {
+            let declaration = normalize_aliases(
+                parse_tokens(&format!("trait Personalizado {{ fn {alias}(); }}")).unwrap(),
+            )
+            .to_string();
+            assert!(
+                declaration.contains(&format!("fn {alias}")),
+                "la declaración de trait {alias} debe conservarse: {declaration}"
+            );
+            let raw_call = normalize_aliases(parse_tokens(&format!("valor.r#{alias}() ")).unwrap())
+                .to_string();
+            assert!(
+                raw_call.contains(&format!("r#{alias}")),
+                "el escape raw de {alias} debe conservarse: {raw_call}"
+            );
+        }
+
+        let untouched = normalize_aliases(
+            parse_tokens(r#"let texto = "valor.agregar()"; datos.metodo_externo();"#).unwrap(),
+        )
+        .to_string();
+        assert!(untouched.contains("valor.agregar()"), "{untouched}");
+        assert!(untouched.contains("metodo_externo"), "{untouched}");
+    }
+
+    #[test]
+    fn published_alias_tables_match_the_translator_registry() {
+        let documentation = include_str!("../../../docs/aliases.md");
+        let start_marker = "<!-- BEGIN GENERATED ALIASES -->";
+        let end_marker = "<!-- END GENERATED ALIASES -->";
+        let start = documentation.find(start_marker).expect("marcador inicial");
+        let end = documentation.find(end_marker).expect("marcador final") + end_marker.len();
+        assert_eq!(
+            &documentation[start..end],
+            oxido_language::domain::syntax::render_alias_markdown()
+        );
     }
 
     #[test]
@@ -1386,7 +1669,7 @@ mod generation_tests {
                 .to_string(),
             "assert_eq ! (true)"
         );
-        let std_path = parse_tokens("std::colecciones::HashMap<String, Vector<texto>>")
+        let std_path = parse_type_tokens("std::colecciones::HashMap<String, Vector<texto>>")
             .unwrap()
             .to_string();
         assert!(
@@ -1399,19 +1682,16 @@ mod generation_tests {
     #[test]
     fn every_published_macro_and_std_module_alias_is_registered() {
         let macros = [
-            ("imprimirln", "println"),
+            ("imprimir", "println"),
             ("imprimir_error", "eprintln"),
             ("imprimir_error_sin_salto", "eprint"),
-            ("imprimir", "print"),
             ("imprimir_sin_salto", "print"),
             ("formato", "format"),
-            ("formatear", "format"),
             ("argumentos_formato", "format_args"),
             ("escribir", "write"),
             ("escribir_linea", "writeln"),
             ("vector", "vec"),
             ("panico", "panic"),
-            ("entrar_en_panico", "panic"),
             ("afirmar", "assert"),
             ("afirmar_igual", "assert_eq"),
             ("afirmar_distinto", "assert_ne"),
@@ -1419,7 +1699,6 @@ mod generation_tests {
             ("afirmar_igual_debug", "debug_assert_eq"),
             ("afirmar_distinto_debug", "debug_assert_ne"),
             ("pendiente", "todo"),
-            ("no_implementado", "unimplemented"),
             ("sin_implementar", "unimplemented"),
             ("inalcanzable", "unreachable"),
             ("depurar", "dbg"),
@@ -1444,6 +1723,56 @@ mod generation_tests {
                 parse_tokens(&format!("{rust}!()")).unwrap().to_string(),
                 format!("{rust} ! ()"),
                 "el nombre Rust original {rust} debe seguir funcionando"
+            );
+        }
+        for legacy in [
+            "imprimirln",
+            "formatear",
+            "entrar_en_panico",
+            "no_implementado",
+        ] {
+            assert!(
+                oxido_language::domain::syntax::macro_translation(legacy).is_none(),
+                "el alias duplicado/retirado {legacy} no debe traducirse"
+            );
+        }
+        for removed in ["esperar_o", "Error", "variable"] {
+            assert!(
+                oxido_language::domain::syntax::prelude_translation(removed).is_none()
+                    && oxido_language::domain::syntax::method_translation(removed).is_none()
+                    && oxido_language::domain::syntax::keyword_translation(removed).is_none(),
+                "el alias retirado {removed} no debe traducirse"
+            );
+        }
+        assert_eq!(
+            oxido_language::domain::syntax::prelude_translation("Falla"),
+            Some("Err")
+        );
+
+        let aliases = [
+            oxido_language::domain::syntax::token::KEYWORD_ALIASES
+                .iter()
+                .map(|(_, rust, _)| *rust)
+                .collect::<Vec<_>>(),
+            oxido_language::domain::syntax::token::MACRO_ALIASES
+                .iter()
+                .map(|(_, rust)| *rust)
+                .collect::<Vec<_>>(),
+            oxido_language::domain::syntax::PRELUDE_ALIASES
+                .iter()
+                .map(|(_, rust)| *rust)
+                .collect::<Vec<_>>(),
+            oxido_language::domain::syntax::METHOD_ALIASES
+                .iter()
+                .map(|(_, rust)| *rust)
+                .collect::<Vec<_>>(),
+        ];
+        for group in aliases {
+            let unique = group.iter().copied().collect::<HashSet<_>>();
+            assert_eq!(
+                unique.len(),
+                group.len(),
+                "hay aliases duplicados: {group:?}"
             );
         }
         assert_eq!(

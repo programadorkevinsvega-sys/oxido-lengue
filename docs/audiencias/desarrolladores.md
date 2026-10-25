@@ -14,6 +14,8 @@ cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox
 ```
 
+Para generar y ejecutar con las optimizaciones del perfil release de Cargo, añade `--release` a `compilar` o `ejecutar`. Por ejemplo: `cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox --release`.
+
 `exportar` crea además el mapa `.oxido-map.json`. `importar` acepta solo el subconjunto reversible de funciones libres y verifica que regenerar conserve el Rust formateado. `analizar-rust` sigue validando archivos `.rs` directamente.
 
 La CLI admite dependencias locales y versiones de crates.io mediante `oxido.toml`:

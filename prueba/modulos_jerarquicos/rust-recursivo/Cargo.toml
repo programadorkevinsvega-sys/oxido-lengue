@@ -1,0 +1,10 @@
+[package]
+name = "modulos-jerarquicos-oxido-recursivo"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[[bin]]
+name = "modulos-jerarquicos"
+path = "src/main.rs"

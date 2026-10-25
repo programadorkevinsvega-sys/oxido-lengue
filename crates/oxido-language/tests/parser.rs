@@ -113,6 +113,24 @@ fn parses_visibility_attributes_async_and_rust_passthrough_items() {
 }
 
 #[test]
+fn parses_multiline_braced_macro_items_as_one_opaque_rust_fragment() {
+    let source = SourceFile::new(
+        "sintaxis indentacion\npaste::paste! {\n    pub fn [<macro_ si>]() -> &'static str {\n        stringify!({ identificador: [tipo, verdadero], texto: \"si tipo verdadero\" })\n    }\n}\nfuncion principal():\n    imprimir!(\"{}\", macro_si())\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("AST presente");
+    let Item::RustFragment(macro_item) = &file.items[0] else {
+        panic!("la macro debe conservarse como fragmento Rust")
+    };
+    assert!(macro_item.text.starts_with("paste::paste!"));
+    assert!(macro_item.text.contains("[<macro_ si>]"));
+    assert!(macro_item.text.contains("[tipo, verdadero]"));
+    assert!(macro_item.text.ends_with('}'));
+    assert!(matches!(file.items[1], Item::Function(_)));
+}
+
+#[test]
 fn parses_every_initial_control_form_in_both_block_styles() {
     for source in [
         "sintaxis indentacion\nfuncion recorrer(xs: &[i32]):\n    para x en xs:\n        mientras *x > 0:\n            si *x == 1:\n                romper\n            sino:\n                continuar\n    bucle:\n        romper\n",
@@ -234,7 +252,7 @@ fn future_reserved_aliases_are_rejected_as_names_with_raw_escape_suggestions() {
 #[test]
 fn diagnoses_prelude_alias_collisions_and_accepts_raw_escape() {
     let collision =
-        SourceFile::new("sintaxis indentacion\nfuncion principal():\n    variable Cadena = 1\n");
+        SourceFile::new("sintaxis indentacion\nfuncion principal():\n    dejar Cadena = 1\n");
     let parsed = oxido_language::domain::syntax::parse(&collision, LexOptions::default());
     assert!(parsed.has_errors());
     assert!(parsed.diagnostics.iter().any(|diagnostic| {
@@ -242,7 +260,7 @@ fn diagnoses_prelude_alias_collisions_and_accepts_raw_escape() {
     }));
 
     let escaped = SourceFile::new(
-        "sintaxis indentacion\nfuncion principal():\n    variable r#Cadena = 1\n    imprimirln!(\"{}\", r#Cadena)\n",
+        "sintaxis indentacion\nfuncion principal():\n    dejar r#Cadena = 1\n    imprimir!(\"{}\", r#Cadena)\n",
     );
     let parsed = oxido_language::domain::syntax::parse(&escaped, LexOptions::default());
     assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);

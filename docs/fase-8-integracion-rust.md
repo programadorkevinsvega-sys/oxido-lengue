@@ -1,6 +1,26 @@
 # Fase 8 — Integración con Rust
 
-**Estado:** completada para el alcance inicial verificado. Esto no declara compatibilidad general con Rust ni preparación para producción.
+**Estado:** el alcance inicial está verificado; la Fase 8 está reabierta para cerrar los criterios de interoperabilidad de [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md). Esto no declara compatibilidad general ni limita permanentemente el lenguaje. La meta normativa es interoperar con bibliotecas Rust sin exigir cambios en su fuente.
+
+## Contrato de interoperabilidad
+
+Óxido analiza y traduce su sintaxis estructural; Rust conserva la semántica de expresiones, tipos, traits, macros, asincronía y `unsafe` que el frontend preserva. Cargo/rustc resuelve dependencias, expande macros, valida tipos y compila. Preservar significa conservar tokens, delimitadores, nombres y estructura con significado para Rust, no copiar texto sin análisis. Si una construcción no puede preservarse fielmente ni transformarse mediante una regla definida, Óxido debe diagnosticarla en vez de alterarla silenciosamente.
+
+Las macros de bibliotecas deben funcionar sin modificar la biblioteca. Admitirlas significa preservar las invocaciones, atributos y árboles de tokens para que Cargo/rustc los procese; no significa implementar un sistema Óxido para definir, analizar o expandir macros Rust. `macro_rules!` y macros locales escritas como Rust pasan por el frontend como Rust. Los aliases allowlisted se traducen con sus reglas explícitas y las DSL externas permanecen opacas. `async/await` usa el runtime elegido por la aplicación. `unsafe` conserva su semántica y solo una opción explícita activa el rechazo.
+
+## Cobertura actual y brechas de conformidad
+
+| Área | Evidencia registrada | Brecha que sigue bajo evaluación |
+|---|---|---|
+| Crates externas | E2E con `itoa`, `futures-executor` y crates locales, offline y bajo lockfile | Ampliar el corpus real; el corpus actual no demuestra compatibilidad general |
+| Traits, genéricos y lifetimes | Corpus E2E con bounds, tipos asociados, `impl Fn`, closure e iteradores | Aumentar casos de traits/genéricos y versiones de crates sin reescribir sus fuentes |
+| Macros declarativas y DSL | E2E ejecuta `macro_rules!`, `serde_json::json!` 1.0.154, `tokio::select!` 1.54.1 y `paste::paste!` 1.0.15; aliases `si`/`tipo`/`verdadero`, cadenas y grupos anidados llegan sin traducirse dentro de las DSL | Ampliar el corpus a otras formas y versiones de crates; no implementar un expansor Óxido |
+| Macros procedurales | E2E offline ejecuta derive/atributo de Serde 1.0.229 y `tokio::main`; `paste!` recibe `[<macro_ si>]`, genera una función usada y ejecutada | Compatibilidad general no demostrada; mantener pruebas por crate/forma y diagnosticar errores del compilador |
+| `async/await` | Future con `.await` ejecutado mediante `futures-executor` | Probar más patrones async y runtimes externos de referencia; no crear runtime propio |
+| `unsafe` | Auditoría estática acotada y opción explícita de rechazo | Añadir regresión que compile/ejecute interoperabilidad válida con una API `unsafe` y demostrar que la auditoría por defecto no la bloquea |
+| Diagnósticos | Cargo JSON y mapas por módulo relacionan errores con `.ox` cuando existe correspondencia | Ampliar corpus de diagnósticos a macros, dependencias y casos sin mapa, conservando errores externos correctamente |
+
+Estas brechas son trabajo pendiente de la Fase 8 y deben cerrarse antes de avanzar a Fase 9. La Fase 10 podrá aportar infraestructura común de laboratorio; no es propietaria ni aplaza estos criterios. Ningún caso se declara aprobado sin ejecución reproducible.
 
 ## Subfase 1 — Estructura indentada
 
@@ -11,7 +31,7 @@ La sintaxis indentada inicial admite:
 - `implementar Tipo:` con métodos, métodos asociados y items asociados Rust terminados en `;`.
 - `rasgo Nombre:` con declaraciones de métodos terminadas en `;`, métodos por defecto y items asociados.
 - `modulo nombre:` con items anidados recursivamente.
-- `coincidir expresion:` como expresión independiente o inicializador `variable x = coincidir ...:`.
+- `coincidir expresion:` como expresión independiente o inicializador `dejar x = coincidir ...:`.
 - Brazos `patron => expresion` y `patron =>` seguido de un bloque indentado.
 
 Los encabezados, patrones, tipos y expresiones siguen tokens Rust con aliases Óxido documentados. Los argumentos de macros estándar que reciben expresiones pueden normalizar aliases anidados; las DSL externas y macros no allowlisted conservan sus tokens opacos. Syn valida cada item/contexto y Cargo/rustc mantiene la validación semántica.
@@ -30,7 +50,7 @@ La regresión de documentación compara el Rust generado para comentarios `///` 
 
 `compiles_generics_lifetimes_closures_iterators_and_patterns_in_both_modes` ejecuta el mismo programa en modo indentación y llaves. Usa una función genérica con lifetime explícito y bound `where`, un parámetro `impl Fn`, `Iterator::find`, una closure, patrones `Some`/`None` y `coincidir`. Ambos programas producen `Ana`. La prueba confirma generación y compilación con Cargo/rustc, además de igualdad observable entre los dos modos.
 
-Los tipos, expresiones, closures y patrones dentro de estas firmas y cuerpos siguen siendo sintaxis Rust validada por Syn y semántica delegada a rustc. No se afirma cobertura completa de lifetimes, traits, inferencia, patrones ni iteradores.
+Los tipos, expresiones, closures y patrones dentro de estas firmas y cuerpos siguen siendo sintaxis Rust validada por Syn y semántica delegada a rustc. La inferencia local, cuando Rust puede resolverla, es estática y corresponde a `rustc`; Óxido no infiere firmas ni implementa inferencia propia. La cobertura de lifetimes, traits, patrones e iteradores se limita al corpus registrado en la matriz.
 
 ## Subfase 2 — Dependencias Cargo
 
@@ -44,11 +64,32 @@ Cargo ejecuta `build.rs` y macros procedurales durante compilación, no durante 
 
 ## Subfase 5 — Macros declarativas y atributos
 
-**Estado:** verificada para preservación opaca y delegación a Rust.
+**Estado:** verificada para los casos descritos, con delegación de expansión a Rust.
 
-Las definiciones `macro_rules!` se preservan como fragmentos Rust opacos y Cargo expande la macro del fixture durante una ejecución E2E. Una prueba aparte consume una macro exportada por un crate local mediante una ruta calificada; el crate de la biblioteca no necesita cambios y los argumentos repetidos llegan intactos a su expansión. Los atributos aceptados por el subconjunto estructural también se conservan; `#[derive(Debug)]` está cubierto sobre una estructura indentada. Óxido no traduce ni reescribe los tokens de definiciones ni llamadas externas. Las pruebas verifican generación Rust y salida exacta del binario.
+La prueba CLI `interoperates_with_registry_proc_macros_in_direct_and_exported_module_trees` usa dependencias vendorizadas y un `CARGO_HOME` temporal sin caché de crates. Ejecuta `#[derive(serde::Serialize, serde::Deserialize)]`, `#[serde(rename = ...)]`, `#[tokio::main(flavor = "current_thread")]`, `tokio::select!`, `serde_json::json!` y `paste::paste!`; también una macro `macro_rules!`. `paste!` consume `[<macro_ si>]`, genera `macro_si`, y el programa llama y ejecuta esa función. El cuerpo generado usa `stringify!` con identificadores, aliases de Óxido, una cadena y delimitadores anidados. Un módulo `.ox` apunta mediante `#[path]` a `.rs`. El parser conserva la invocación multilínea con llaves como un fragmento único. La prueba compila y ejecuta mediante Óxido; después copia el árbol exportado a un directorio hermano independiente, elimina los mapas laterales, configura su propio `CARGO_TARGET_DIR` y compila/ejecuta allí con `cargo --locked --offline`. No depende de fuentes ni artefactos del proyecto original y la salida coincide.
 
-Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro, expansión propia, macros procedurales ni compatibilidad general con atributos de terceros. La lógica de la macro debe escribirse con sintaxis Rust; los atributos siguen sujetos a aceptación de Syn y rustc. La macro externa se prueba con un crate local por ruta; el corpus de registry cubre `itoa` y `futures-executor`, no macros exportadas desde crates de registry.
+El caso negativo usa `serde_json::json!(@)`. `oxido compilar` informa `principal.ox` y una ubicación; Cargo sobre la exportación independiente informa `src/main.rs` y una ubicación generada, pues Cargo no lee los mapas laterales de Óxido. No se presenta el diagnóstico directo de Cargo como si conservara el nombre `.ox`.
+
+Los comentarios ordinarios dentro de argumentos de macros o árboles de atributos opacos siguen rechazándose con `OX4001`, porque `syn`/`TokenStream` no los conservan. Regresiones comprueban ambos contextos; no se descartan ni se reubican silenciosamente.
+
+Óxido no implementa un sistema propio de macros Rust. Las definiciones e invocaciones escritas en Rust se preservan como tokens; Cargo/rustc resuelve dependencias, expande macros y compila. Las macros externas probadas no requieren cambios en sus fuentes. Los aliases estándar solo se traducen según su allowlist y las DSL externas se mantienen opacas. Estos resultados cubren versiones concretas fijadas en [el fixture de crates](../tests/fixtures/cargo-registry/README.md), no cualquier macro ni cualquier versión. El atributo `#[path]` y el árbol mixto quedan demostrados con la estructura del fixture.
+
+Las verificaciones obligatorias del workspace son:
+
+```sh
+cargo fmt --all -- --check
+cargo check --locked --offline --workspace
+cargo test --locked --offline --workspace
+```
+
+La regresión E2E de macros se puede repetir por separado:
+
+```sh
+cargo test --locked --offline -p oxido-cli interoperates_with_registry_proc_macros_in_direct_and_exported_module_trees -- --nocapture
+cargo test --locked --offline -p oxido-cli dependency_fetch_never_runs_build_scripts_or_proc_macros_without_explicit_trust -- --nocapture
+```
+
+Las pruebas crean un `CARGO_HOME` temporal que solo apunta al directorio vendorizado. `--locked --offline` prueba repetibilidad con esas dependencias ya disponibles localmente; no prueba descarga sin red. Para regenerar el fixture desde el manifiesto, sigue los comandos `cargo generate-lockfile` y `cargo vendor --locked vendor` en su [README](../tests/fixtures/cargo-registry/README.md), revisa el diff del lockfile y valida checksums con la suite CLI.
 
 ## Subfase 6 — Async/await y concurrencia
 
@@ -74,7 +115,7 @@ La matriz de [compatibilidad](compatibility.md) declara Rust 2024, MSRV 1.85 y l
 
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
-- Las macros externas y las DSL no allowlisted permanecen opacas; los aliases de macros estándar y sus expresiones anidadas se describen en [aliases](aliases.md).
-- `async`/`await` está probado con `futures-executor`; no hay aliases/runtime propios y otros runtimes no están aún en la matriz. Macros externas se conservan opacas y las expande rustc; Óxido no expande ni traduce sus DSL. Auditoría de superficie detecta las formas descritas, no llamadas indirectas ni código expandido. Estos límites constan en la matriz y no amplían el alcance de Fase 8; Workspace Trust para compilaciones iniciadas por el LSP es trabajo de Fase 11. La CLI actual no ofrece sandbox para código de dependencias.
+- Las macros externas y las DSL probadas se preservan opacas; los aliases estándar y las expresiones que traducen se describen en [aliases](aliases.md). No se afirma fidelidad universal para toda DSL, macro o versión de Rust.
+- `async/await` está probado con `futures-executor`; otros runtimes aún no están en la matriz. No hay runtime propio, porque la aplicación selecciona su dependencia. La auditoría de `unsafe` solo detecta las formas descritas; no prueba ausencia de riesgo. Workspace Trust para compilaciones iniciadas por el LSP es trabajo de Fase 11. La CLI actual no ofrece sandbox para código de dependencias.
 
-Las decisiones de estructura y dependencias están en [ADR 0004](adr/0004-estructura-indentada-rust.md) y [ADR 0005](adr/0005-dependencias-cargo-versionadas.md). La fase queda cerrada con esta matriz de alcance inicial. Workspace Trust corresponde al futuro LSP: no se deben iniciar compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales, por lo que el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
+Las decisiones de estructura, dependencias e interoperabilidad están en [ADR 0004](adr/0004-estructura-indentada-rust.md), [ADR 0005](adr/0005-dependencias-cargo-versionadas.md) y [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md). El alcance inicial está verificado, pero la Fase 8 permanece abierta hasta completar la matriz de interoperabilidad anterior; ampliar la compatibilidad no crea una limitación permanente del lenguaje. Workspace Trust corresponde al futuro LSP: no se deben iniciar compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales, por lo que el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.

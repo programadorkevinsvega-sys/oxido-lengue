@@ -1,4 +1,7 @@
-use super::source_map::{SourceLocation, SourceMap};
+use super::{
+    modules::GeneratedModule,
+    source_map::{SourceLocation, SourceMap, SourceMapSet},
+};
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
@@ -18,10 +21,18 @@ pub enum CargoAction {
     Check,
     /// Compile after the operator explicitly trusts declared dependencies.
     CheckTrusted,
+    /// Compile with release optimizations without user dependencies.
+    CheckRelease,
+    /// Compile with release optimizations after explicitly trusting dependencies.
+    CheckReleaseTrusted,
     /// Run without user dependencies.
     Run,
     /// Run after the operator explicitly trusts declared dependencies.
     RunTrusted,
+    /// Run with release optimizations without user dependencies.
+    RunRelease,
+    /// Run with release optimizations after explicitly trusting dependencies.
+    RunReleaseTrusted,
     /// Resolve and display a lockfile/download plan without fetching crates.
     FetchPlan,
     /// Fetch crates for an already reviewed plan and persist the lockfile.
@@ -37,6 +48,7 @@ pub struct MappedCargoDiagnostic {
     pub level: String,
     pub code: Option<String>,
     pub message: String,
+    pub source_file: Option<String>,
     pub source: Option<SourceLocation>,
 }
 
@@ -203,7 +215,33 @@ pub fn build_generated_with_dependencies(
     persistent_lockfile: Option<&Path>,
     action: CargoAction,
 ) -> io::Result<CargoBuildResult> {
-    if !dependencies.is_empty() && matches!(action, CargoAction::Check | CargoAction::Run) {
+    build_generated_project_with_dependencies(
+        rust,
+        source_map,
+        &[],
+        dependencies,
+        persistent_lockfile,
+        action,
+    )
+}
+
+pub fn build_generated_project_with_dependencies(
+    rust: &str,
+    source_map: &SourceMap,
+    additional_sources: &[GeneratedModule],
+    dependencies: &[crate::config::ResolvedDependency],
+    persistent_lockfile: Option<&Path>,
+    action: CargoAction,
+) -> io::Result<CargoBuildResult> {
+    if !dependencies.is_empty()
+        && matches!(
+            action,
+            CargoAction::Check
+                | CargoAction::Run
+                | CargoAction::CheckRelease
+                | CargoAction::RunRelease
+        )
+    {
         return Ok(CargoBuildResult {
             success: false,
             timed_out: false,
@@ -212,6 +250,7 @@ pub fn build_generated_with_dependencies(
                 level: "error".into(),
                 code: Some("OX7002".into()),
                 message: "la compilación puede ejecutar build.rs y macros procedurales; revisa las dependencias y usa explícitamente `--confiar-dependencias`".into(),
+                source_file: None,
                 source: None,
             }],
             program_output: Vec::new(),
@@ -228,6 +267,7 @@ pub fn build_generated_with_dependencies(
         dependencies,
         persistent_lockfile,
         !update_lock,
+        additional_sources,
     )?;
     let lock_path = workspace.path().join("Cargo.lock");
     if matches!(
@@ -302,6 +342,7 @@ pub fn build_generated_with_dependencies(
                     level: "error".into(),
                     code: Some("OX7001".into()),
                     message: "falta Cargo.lock para las dependencias del proyecto; ejecuta `oxido descargar-dependencias <archivo.ox>`, revisa el plan y luego usa `--confirmar`".into(),
+                    source_file: None,
                     source: None,
                 }],
                 program_output: Vec::new(),
@@ -331,8 +372,25 @@ pub fn build_generated_with_dependencies(
         CargoAction::Check | CargoAction::CheckTrusted => {
             vec!["check", "--locked", "--offline", "--message-format=json"]
         }
+        CargoAction::CheckRelease | CargoAction::CheckReleaseTrusted => {
+            vec![
+                "check",
+                "--release",
+                "--locked",
+                "--offline",
+                "--message-format=json",
+            ]
+        }
         CargoAction::Run | CargoAction::RunTrusted => vec![
             "run",
+            "--locked",
+            "--offline",
+            "--message-format=json",
+            "--quiet",
+        ],
+        CargoAction::RunRelease | CargoAction::RunReleaseTrusted => vec![
+            "run",
+            "--release",
             "--locked",
             "--offline",
             "--message-format=json",
@@ -355,7 +413,14 @@ pub fn build_generated_with_dependencies(
         success: output.success,
         timed_out: output.timed_out,
         exit_code: output.exit_code,
-        diagnostics: parse_cargo_diagnostics(&output.messages, source_map),
+        diagnostics: if additional_sources.is_empty() {
+            parse_cargo_diagnostics(&output.messages, source_map)
+        } else {
+            parse_cargo_diagnostics_with_maps(
+                &output.messages,
+                &source_maps(source_map, additional_sources),
+            )
+        },
         program_output: output.non_json_stdout,
         stderr: output.stderr,
     })
@@ -454,6 +519,7 @@ fn create_workspace(
     dependencies: &[crate::config::ResolvedDependency],
     persistent_lockfile: Option<&Path>,
     read_lockfile: bool,
+    additional_sources: &[GeneratedModule],
 ) -> io::Result<Workspace> {
     let temp = fs::canonicalize(std::env::temp_dir())?;
     let root = temp.join("oxido-builds");
@@ -512,11 +578,67 @@ fn create_workspace(
     }
     fs::write(src.join("main.rs"), rust)?;
     let mut source_map = source_map.clone();
-    source_map.set_generated_file(Some(Path::new("main.rs")));
+    source_map.set_generated_relative_path("src/main.rs".to_owned());
     let map = serde_json::to_vec_pretty(&source_map)
         .map_err(|error| io::Error::other(error.to_string()))?;
     fs::write(workspace.path().join("main.oxido-map.json"), map)?;
+    for generated in additional_sources {
+        validate_generated_path(&generated.path)?;
+        let destination = src.join(&generated.path);
+        let parent = destination.parent().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "el módulo no tiene directorio padre",
+            )
+        })?;
+        fs::create_dir_all(parent)?;
+        fs::write(&destination, &generated.rust)?;
+        if let Some(source_map) = &generated.source_map {
+            let map_path = destination.with_extension("oxido-map.json");
+            let mut source_map = source_map.clone();
+            source_map.set_generated_relative_path(format!(
+                "src/{}",
+                generated.path.to_string_lossy().replace('\\', "/")
+            ));
+            let map = serde_json::to_vec_pretty(&source_map)
+                .map_err(|error| io::Error::other(error.to_string()))?;
+            fs::write(map_path, map)?;
+        }
+    }
     Ok(workspace)
+}
+
+fn validate_generated_path(path: &Path) -> io::Result<()> {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("rs")
+        || path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+        || path == Path::new("main.rs")
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "ruta de módulo Rust generada no válida",
+        ));
+    }
+    Ok(())
+}
+
+fn source_maps(root: &SourceMap, modules: &[GeneratedModule]) -> SourceMapSet {
+    let mut root = root.clone();
+    root.set_generated_relative_path("src/main.rs".to_owned());
+    let mut maps = vec![root];
+    maps.extend(modules.iter().filter_map(|module| {
+        module.source_map.clone().map(|mut map| {
+            map.set_generated_relative_path(format!(
+                "src/{}",
+                module.path.to_string_lossy().replace('\\', "/")
+            ));
+            map
+        })
+    }));
+    SourceMapSet::new(maps)
 }
 
 fn generated_manifest(dependencies: &[crate::config::ResolvedDependency]) -> io::Result<String> {
@@ -577,6 +699,13 @@ fn parse_cargo_diagnostics(
     messages: &[Value],
     source_map: &SourceMap,
 ) -> Vec<MappedCargoDiagnostic> {
+    parse_cargo_diagnostics_with_maps(messages, &SourceMapSet::new(vec![source_map.clone()]))
+}
+
+fn parse_cargo_diagnostics_with_maps(
+    messages: &[Value],
+    source_maps: &SourceMapSet,
+) -> Vec<MappedCargoDiagnostic> {
     messages
         .iter()
         .filter(|event| event["reason"] == "compiler-message")
@@ -589,7 +718,7 @@ fn parse_cargo_diagnostics(
                 .and_then(|value| value.get("code"))
                 .and_then(Value::as_str)
                 .map(str::to_owned);
-            let source = message
+            let mapped_source = message
                 .get("spans")
                 .and_then(Value::as_array)
                 .and_then(|spans| {
@@ -601,14 +730,21 @@ fn parse_cargo_diagnostics(
                 .and_then(|span| {
                     let line = span.get("line_start")?.as_u64()? as usize;
                     let column = span.get("column_start")?.as_u64()? as usize;
-                    source_map.map_generated(line, column)
+                    source_maps.map_generated(
+                        span.get("file_name").and_then(Value::as_str),
+                        line,
+                        column,
+                    )
                 });
             let translated_message = translate_rustc_message(code.as_deref(), text);
             Some(MappedCargoDiagnostic {
                 level,
                 code,
                 message: translated_message,
-                source,
+                source_file: mapped_source
+                    .as_ref()
+                    .and_then(|(source_file, _)| source_file.clone()),
+                source: mapped_source.map(|(_, location)| location),
             })
         })
         .collect()

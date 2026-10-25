@@ -2,7 +2,7 @@
 
 El contrato normativo está en [ARCHITECTURE_RULES.md](../ARCHITECTURE_RULES.md). Este documento resume los crates que ya existen y los límites que siguen preparados para fases posteriores.
 
-La decisión de limitar el parser propio a estructura Óxido y preservar fragmentos Rust está registrada en [ADR-0001](adr/0001-parser-hibrido.md).
+La decisión de limitar el parser propio a estructura Óxido y preservar fragmentos Rust está registrada en [ADR-0001](adr/0001-parser-hibrido.md). El objetivo normativo de interoperabilidad amplia con Rust, sin modificar bibliotecas externas, está en [ADR-0007](adr/0007-contrato-interoperabilidad-rust.md). La cobertura incompleta es una brecha de implementación/pruebas, no un límite permanente del lenguaje.
 
 ## Componentes
 
@@ -17,7 +17,7 @@ La decisión de limitar el parser propio a estructura Óxido y preservar fragmen
 | `editors/vscode-oxido` | Integración y presentación en VS Code | Cliente separado |
 | `website` | Portal estático Markdown con documentación por audiencia y referencia | Frontend documental; Astro Starlight |
 
-El producto corre localmente como herramienta de desarrollo. Las APIs entre estos módulos son Rust tipado dentro del proceso. La comunicación distribuida, almacenamiento de negocio y telemetría remota no forman parte de esta arquitectura. La CLI exporta, compila y ejecuta la rebanada inicial de `.ox`; la compatibilidad general del lenguaje sigue pendiente.
+El producto corre localmente como herramienta de desarrollo. Las APIs entre estos módulos son Rust tipado dentro del proceso. La comunicación distribuida, almacenamiento de negocio y telemetría remota no forman parte de esta arquitectura. La CLI exporta, compila y ejecuta la rebanada inicial de `.ox`; el objetivo es la interoperabilidad amplia con Rust, cuya cobertura se amplía y verifica progresivamente en el laboratorio de conformidad.
 
 ## Estado de los directorios
 

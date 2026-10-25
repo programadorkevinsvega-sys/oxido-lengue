@@ -56,6 +56,8 @@ edition = "2024"
 6. En modo llaves, los terminadores siguen las reglas Rust; no se infieren puntos y coma por saltos de línea.
 7. Las keywords no crean capacidades Rust inexistentes. Palabras reservadas futuras permanecen reservadas y sin semántica Óxido.
 8. Tipos, referencias, ownership, borrowing, lifetimes, macros y ejecución conservan semántica Rust.
+9. Las variables locales pueden omitir su tipo cuando `rustc` lo infiere estáticamente. Óxido no implementa inferencia ni un sistema de tipos propios. Las firmas de funciones y métodos siguen las reglas de Rust: los parámetros llevan tipo y los retornos se escriben cuando Rust los exige; Óxido no infiere firmas.
+10. El editor mostrará tipos inferidos consultando a `rust-analyzer` sobre el Rust generado y traduciendo sus posiciones al `.ox` con el mapa de fuente. No se simulan tipos en el LSP de Óxido.
 
 ## 6. No objetivos de 0.1
 
@@ -63,9 +65,13 @@ edition = "2024"
 - Un prelude de aliases de tipos/métodos.
 - Expansión propia de macros y traducción de DSLs de macros externas.
 - Un type checker o borrow checker propio.
+- Inferencia de tipos propia, incluida la inferencia de firmas de funciones. Cualquier propuesta en esa dirección requiere una decisión explícita que actualice esta especificación.
 - Aceptar automáticamente toda gramática Rust dentro de bloques indentados.
+- Afirmar compatibilidad general sin pruebas por construcción y dependencia. La interoperabilidad amplia con Rust sí es el objetivo; el alcance probado de 0.1 solo delimita la evidencia disponible.
 - Telemetría remota por defecto.
 - Convertir el proyecto Óxido en una API/backend o añadir infraestructura que la herramienta local no necesite.
+
+El contrato de preservación, interoperabilidad con bibliotecas/macros, `async`/`await` y `unsafe` está en [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md).
 
 ## 7. Compatibilidad de edición
 

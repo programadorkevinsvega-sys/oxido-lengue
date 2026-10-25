@@ -16,7 +16,7 @@ rasgo Describible:
 
 implementar Describible para Contador:
     funcion describir(&mismo) -> Cadena:
-        variable valor = mismo.valor
+        dejar valor = mismo.valor
         formato!("valor {}", valor)
 
 modulo utilidades:
@@ -25,13 +25,13 @@ modulo utilidades:
             a + b
 
 funcion principal():
-    variable contador = Contador::nuevo(utilidades::operaciones::sumar(2, 2))
-    variable etiqueta = coincidir contador.leer():
+    dejar contador = Contador::nuevo(utilidades::operaciones::sumar(2, 2))
+    dejar etiqueta = coincidir contador.leer():
         4 => "cuatro"
         _ => "otro"
     coincidir contador.leer():
         4 =>
-            variable detalle = contador.describir()
-            imprimirln!("{}: {}", detalle, etiqueta)
+            dejar detalle = contador.describir()
+            imprimir!("{}: {}", detalle, etiqueta)
         _ =>
-            imprimirln!("{}: {}", contador.describir(), etiqueta)
+            imprimir!("{}: {}", contador.describir(), etiqueta)

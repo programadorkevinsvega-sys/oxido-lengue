@@ -3,21 +3,23 @@
 //! Casos de uso del compilador, sin transporte ni acceso directo a procesos.
 
 use oxido_language::SourceFile;
-use std::path::Path;
+use std::{fs, path::Path};
 
 pub mod config;
 pub mod application {
     pub mod cargo;
+    pub mod modules;
     pub mod source_map;
 }
 
 use application::source_map::SourceMap;
-use oxido_language::domain::diagnostics::Diagnostic;
+use oxido_language::domain::diagnostics::{Diagnostic, Severity};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GeneratedProgram {
     pub rust: String,
     pub source_map: SourceMap,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// Parse and emit Rust for the currently supported `.ox` subset.
@@ -32,6 +34,7 @@ pub fn generate_ox(
     let Some(file) = parsed.file else {
         return Err(parsed.diagnostics);
     };
+    let diagnostics = parsed.diagnostics;
     let generated = oxido_rust_backend::generate(&file, source).map_err(|error| {
         let span = source
             .span(0, source.text().len())
@@ -47,6 +50,7 @@ pub fn generate_ox(
     Ok(GeneratedProgram {
         rust: generated.code,
         source_map,
+        diagnostics,
     })
 }
 
@@ -78,7 +82,7 @@ pub fn build_ox_in_project(
     action: application::cargo::CargoAction,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
     let generated = generate_ox(source, options)?;
-    application::cargo::build_generated_with_dependencies(
+    let mut result = application::cargo::build_generated_with_dependencies(
         &generated.rust,
         &generated.source_map,
         dependencies,
@@ -94,7 +98,96 @@ pub fn build_ox_in_project(
             format!("no se pudo iniciar Cargo: {error}"),
             span,
         )]
-    })
+    })?;
+    append_warnings(&mut result, &generated.diagnostics, source);
+    Ok(result)
+}
+
+fn append_warnings(
+    result: &mut application::cargo::CargoBuildResult,
+    diagnostics: &[Diagnostic],
+    source: &SourceFile,
+) {
+    for diagnostic in diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == Severity::Warning)
+    {
+        let location = source
+            .position(diagnostic.primary_span.start())
+            .map(|position| application::source_map::SourceLocation {
+                line: position.line,
+                column: position.column,
+                start: diagnostic.primary_span.start(),
+                end: diagnostic.primary_span.end(),
+            });
+        result
+            .diagnostics
+            .push(application::cargo::MappedCargoDiagnostic {
+                level: "warning".to_owned(),
+                code: Some(diagnostic.code.to_owned()),
+                message: diagnostic.message.clone(),
+                source_file: None,
+                source: location,
+            });
+    }
+}
+
+/// Resuelve los módulos externos del proyecto, genera el árbol Rust y lo compila como unidad.
+pub fn build_ox_project_in_project(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    dependencies: &[config::ResolvedDependency],
+    lockfile: Option<&Path>,
+    action: application::cargo::CargoAction,
+    project_root: &Path,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    let generated = generate_ox(source, options)?;
+    let resolved = application::modules::resolve_project_modules(
+        source,
+        &generated.rust,
+        options,
+        project_root,
+    )
+    .map_err(|message| {
+        let span = source
+            .span(0, 0)
+            .unwrap_or_else(oxido_language::domain::source::Span::empty);
+        vec![Diagnostic::error("OX8001", message, span)]
+    })?;
+    let generated = GeneratedProgram {
+        rust: resolved.root_rust,
+        ..generated
+    };
+    let mut source_map = generated.source_map.clone();
+    source_map.set_generated_relative_path("src/main.rs".to_owned());
+    let relative_source = source
+        .path()
+        .and_then(|path| fs::canonicalize(path).ok())
+        .and_then(|path| path.strip_prefix(project_root).ok().map(Path::to_path_buf))
+        .map(|path| path.to_string_lossy().into_owned());
+    if let Some(relative_source) = relative_source {
+        source_map.set_source_relative_path(relative_source);
+    }
+    let mut result = application::cargo::build_generated_project_with_dependencies(
+        &generated.rust,
+        &source_map,
+        &resolved.modules,
+        dependencies,
+        lockfile,
+        action,
+    )
+    .map_err(|error| {
+        let span = source
+            .span(0, source.text().len())
+            .unwrap_or_else(oxido_language::domain::source::Span::empty);
+        vec![Diagnostic::error(
+            "OX5001",
+            format!("no se pudo iniciar Cargo: {error}"),
+            span,
+        )]
+    })?;
+    append_warnings(&mut result, &generated.diagnostics, source);
+    Ok(result)
 }
 
 /// Importa Rust al subconjunto reversible de Óxido y verifica que regenerarlo conserve Rust.

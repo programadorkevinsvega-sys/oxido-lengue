@@ -60,9 +60,11 @@ dependencies = [
  "oxido-cargo",
  "oxido-language",
  "oxido-rust-backend",
+ "proc-macro2",
  "semver",
  "serde",
  "serde_json",
+ "syn 2.0.119",
  "toml",
 ]
 

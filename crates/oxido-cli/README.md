@@ -1,3 +1,3 @@
 # oxido-cli
 
-Punto de entrada inicial. `oxido analizar-rust <archivo.rs>` valida sintaxis Rust; no compila ni ejecuta el archivo.
+CLI del compilador inicial. Comandos: `analizar-rust`, `exportar`, `importar`, `compilar` y `ejecutar`. Solo `ejecutar` inicia el binario generado; los demás comandos no ejecutan el programa fuente.

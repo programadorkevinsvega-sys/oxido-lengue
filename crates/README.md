@@ -1,3 +1,3 @@
 # Crates
 
-El workspace contiene cuatro crates funcionales iniciales: `oxido-language`, `oxido-rust-backend`, `oxido-compiler` y `oxido-cli`. Sus responsabilidades están resumidas en [la arquitectura](../docs/architecture.md). `oxido-cargo` y `oxido-lsp` permanecen como directorios preparados hasta que sus casos de uso entren en alcance.
+El workspace contiene cinco crates funcionales: `oxido-language`, `oxido-rust-backend`, `oxido-compiler`, `oxido-cargo` y `oxido-cli`. Sus responsabilidades están resumidas en [la arquitectura](../docs/architecture.md). `oxido-lsp` permanece preparado para su fase; la extensión VS Code es un cliente separado.

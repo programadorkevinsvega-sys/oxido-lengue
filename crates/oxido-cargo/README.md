@@ -1,3 +1,3 @@
-# oxido-cargo — plan
+# oxido-cargo
 
-Adapter de procesos Cargo/rustc, generación de proyectos de trabajo, argumentos seguros y lectura de `--message-format=json`. Aún no es un crate funcional.
+Adapter de procesos Cargo: invoca `Command` con argv separado, directorio explícito, `CARGO_HOME` aislado y timeout de 120 segundos; separa mensajes `--message-format=json` de stdout del programa.

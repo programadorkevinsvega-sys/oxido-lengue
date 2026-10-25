@@ -4,20 +4,28 @@
 
 ## Estado
 
-El proyecto está en fase inicial. Hoy existe una base Cargo, un lexer de `.ox` como biblioteca y un comando experimental para analizar Rust como comprobación del pipeline. El parser y compilador `.ox` aún no están implementados. La configuración `oxido.toml` se acepta como TOML de datos con campos cerrados; todavía no se descubre ni carga automáticamente desde el workspace. Consulta el [portal documental](docs/index.md), el [roadmap](docs/roadmap.md) y la [especificación](docs/language-spec.md). Para trabajar en el sitio Markdown, sigue [website/README.md](website/README.md).
+El proyecto está en fase inicial. El lexer y el parser estructural `.ox` existen, y la Fase 5 ya exporta, compila y ejecuta el ejemplo mínimo documentado. La compatibilidad sigue limitada al subconjunto verificado; no es una herramienta lista para producción. La CLI lee `oxido.toml` como datos declarativos con campos cerrados. Consulta el [portal documental](docs/index.md), el [roadmap](docs/roadmap.md) y la [especificación](docs/language-spec.md). Para trabajar en el sitio Markdown, sigue [website/README.md](website/README.md).
 
 ## Requisitos
 
 - Rust estable; la edición objetivo del workspace es Rust 2024.
 - Cargo.
 
-## Comprobación inicial
+## Ejemplo ejecutable inicial
 
 ```sh
-cargo run --locked -p oxido-cli -- analizar-rust ruta/al/archivo.rs
+cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
+cargo run --locked -p oxido-cli -- compilar examples/hola_mundo.ox
+cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
 ```
 
-El comando valida que el archivo sea sintácticamente Rust válido. No compila ni ejecuta el programa.
+`exportar` crea también `target/hola.oxido-map.json`. `compilar` usa Cargo para comprobar el Rust generado; `ejecutar` es la única orden que corre el programa `.ox`. La importación reversible se limita a funciones libres admitidas:
+
+```sh
+cargo run --locked -p oxido-cli -- importar target/hola.rs --salida target/hola-vuelta.ox
+```
+
+El comando `analizar-rust` sigue disponible para validar sintaxis Rust directamente.
 
 ## Desarrollo
 

@@ -1,3 +1,3 @@
 # oxido-rust-backend
 
-Adapter inicial que parsea archivos Rust con Syn y los formatea con prettyplease. No convierte aún la sintaxis `.ox`; esa capacidad se implementará cuando existan lexer y parser de Óxido.
+Backend que emite Rust desde el AST con quote/proc_macro2, valida con Syn y formatea con prettyplease. Incluye la importación reversible restringida a funciones libres.

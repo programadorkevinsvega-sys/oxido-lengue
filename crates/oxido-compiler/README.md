@@ -1,3 +1,3 @@
 # oxido-compiler
 
-Capa de aplicación con el caso de uso inicial `analyze_rust`: parsea Rust, lo formatea y vuelve a parsear el resultado para comprobar el pipeline. No invoca Cargo ni declara compatibilidad con `.ox`.
+Capa de aplicación para parseo estructural `.ox`, generación Rust, mapa de posiciones, adaptador Cargo, diagnósticos JSON e importación del subconjunto reversible. La evidencia y los límites están en el informe de [Fase 5](../../docs/fase-5-compilador.md).

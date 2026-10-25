@@ -204,3 +204,57 @@ fn compiles_and_runs_with_a_declared_local_cargo_dependency_offline() {
         "desde un crate local"
     );
 }
+
+#[test]
+fn audits_unsafe_tokens_and_can_reject_them_without_compiling() {
+    let temp = TestDirectory::new();
+    let rust = temp.0.join("muestra.rs");
+    fs::write(
+        &rust,
+        "fn main() {\n    // unsafe en comentario\n    let texto = \"unsafe en literal\";\n    unsafe { core::hint::black_box(()); }\n}\n",
+    )
+    .unwrap();
+
+    let report = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .args(["auditar-unsafe", rust.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        report.status.success(),
+        "{}",
+        String::from_utf8_lossy(&report.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&report.stdout);
+    assert!(stdout.contains("muestra.rs:4:"), "{stdout}");
+    assert!(!stdout.contains("muestra.rs:2:"), "{stdout}");
+    assert!(!stdout.contains("muestra.rs:3:"), "{stdout}");
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .args(["auditar-unsafe", rust.to_str().unwrap(), "--rechazar"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("--rechazar"));
+}
+
+#[test]
+fn audits_the_oxido_keyword_alias_without_running_cargo() {
+    let temp = TestDirectory::new();
+    let ox = temp.0.join("muestra.ox");
+    fs::write(
+        &ox,
+        "sintaxis llaves\nfuncion principal() { inseguro { core::hint::black_box(()); } }\n",
+    )
+    .unwrap();
+
+    let report = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .args(["auditar-unsafe", ox.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        report.status.success(),
+        "{}",
+        String::from_utf8_lossy(&report.stderr)
+    );
+    assert!(String::from_utf8_lossy(&report.stdout).contains("muestra.ox:2:"));
+}

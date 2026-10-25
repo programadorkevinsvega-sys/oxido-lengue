@@ -36,12 +36,80 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     };
     match command {
         "analizar-rust" => analyze_rust(&args[1..]),
+        "auditar-unsafe" => audit_unsafe(&args[1..]),
         "exportar" => export_ox(&args[1..]),
         "importar" => import_rust(&args[1..]),
         "compilar" => cargo_ox(&args[1..], CargoAction::Check),
         "ejecutar" => cargo_ox(&args[1..], CargoAction::Run),
         _ => Err(usage().into()),
     }
+}
+
+fn audit_unsafe(args: &[OsString]) -> Result<(), String> {
+    let (path, reject) = match args {
+        [path] => (PathBuf::from(path), false),
+        [path, flag] if flag == "--rechazar" => (PathBuf::from(path), true),
+        _ => return Err("uso: oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]".into()),
+    };
+    if !matches!(path.extension(), Some(extension) if extension == "ox" || extension == "rs") {
+        return Err("el archivo debe terminar en .ox o .rs".into());
+    }
+    let canonical = fs::canonicalize(&path)
+        .map_err(|error| format!("no se pudo resolver {}: {error}", path.display()))?;
+    let metadata = fs::metadata(&canonical)
+        .map_err(|error| format!("no se pudo inspeccionar {}: {error}", path.display()))?;
+    if metadata.len() > MAX_SOURCE_BYTES {
+        return Err("la fuente supera el límite de 4 MiB".into());
+    }
+    let text = fs::read_to_string(&canonical)
+        .map_err(|error| format!("no se pudo leer {}: {error}", path.display()))?;
+    let source = SourceFile::with_path(path.clone(), text);
+    let lexed = oxido_language::domain::syntax::lex(
+        &source,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    if lexed.has_errors() {
+        return Err(format_diagnostics(&source, &path, &lexed.diagnostics));
+    }
+    let findings = lexed
+        .tokens
+        .iter()
+        .filter(|token| {
+            matches!(
+                token.kind,
+                oxido_language::domain::syntax::TokenKind::Keyword {
+                    rust_keyword: "unsafe",
+                    ..
+                }
+            )
+        })
+        .filter_map(|token| {
+            source
+                .position(token.span.start())
+                .map(|position| (position.line, position.column))
+        })
+        .collect::<Vec<_>>();
+    let display_name = path.file_name().and_then(OsStr::to_str).unwrap_or("fuente");
+    if findings.is_empty() {
+        println!("No se encontraron tokens `unsafe` en {display_name}.");
+        return Ok(());
+    }
+    for (line, column) in &findings {
+        println!("{display_name}:{line}:{column}: token `unsafe`");
+    }
+    if reject {
+        return Err(format!(
+            "la política --rechazar encontró {} uso(s) de unsafe",
+            findings.len()
+        ));
+    }
+    println!(
+        "Informe estático: {} token(s); no demuestra ausencia de riesgo.",
+        findings.len()
+    );
+    Ok(())
 }
 
 fn analyze_rust(args: &[OsString]) -> Result<(), String> {
@@ -317,5 +385,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido <analizar-rust|exportar|importar|compilar|ejecutar> ..."
+    "uso: oxido <analizar-rust|auditar-unsafe|exportar|importar|compilar|ejecutar> ..."
 }

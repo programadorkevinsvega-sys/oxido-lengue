@@ -217,7 +217,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 5. Macros declarativas y atributos, preservando árboles de tokens. **En curso (primer corte):** `macro_rules!` opaco en nivel superior indentado y `#[derive(Debug)]` sobre estructura indentada compilan y ejecutan mediante Cargo; sin expansión propia ni traducción de sus cuerpos.
 6. `async`/`await` y concurrencia según compatibilidad validada. **En curso (primer corte):** funciones async y `.await` compilan en Cargo; `std::thread::spawn` tiene prueba de ejecución. Sin runtime async propio ni matriz de futures.
 7. Bibliotecas externas de referencia y pruebas de conformidad.
-8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie.
+8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie. **En curso (corte léxico):** `oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` informa tokens con posición y puede rechazarlos sin compilar; no identifica aún `build.rs`, macros procedurales, FFI ni llamadas externas.
 9. Actualizar matriz con límites por versión/edición de Rust.
 
 **Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.

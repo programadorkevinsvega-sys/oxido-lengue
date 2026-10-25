@@ -186,8 +186,7 @@ fn emit_indented_container(
 ) -> Result<TokenStream, SynError> {
     let mut attributes = Vec::new();
     for attribute in &container.attributes {
-        let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
-        attributes.extend(parsed);
+        attributes.push(parse_attribute_fragment(&attribute.text)?);
         register_fragment(attribute, mappings)?;
     }
     let visibility = container
@@ -247,13 +246,7 @@ fn emit_indented_use(
 ) -> Result<TokenStream, SynError> {
     let mut attributes = Vec::new();
     for attribute in &item.attributes {
-        let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
-        attributes.push(
-            parsed
-                .into_iter()
-                .next()
-                .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))?,
-        );
+        attributes.push(parse_attribute_fragment(&attribute.text)?);
         register_fragment(attribute, mappings)?;
     }
     let visibility = item
@@ -298,13 +291,7 @@ fn emit_indented_aggregate(
     for member in &aggregate.members {
         let mut member_attributes = Vec::new();
         for attribute in &member.attributes {
-            let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
-            member_attributes.push(
-                parsed
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))?,
-            );
+            member_attributes.push(parse_attribute_fragment(&attribute.text)?);
             register_fragment(attribute, mappings)?;
         }
         let value = parse_tokens(&member.value.text)?;
@@ -327,13 +314,7 @@ fn emit_function(
 ) -> Result<TokenStream, SynError> {
     let mut attributes = Vec::new();
     for attribute in &function.attributes {
-        let mut parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
-        attributes.push(
-            parsed
-                .drain(..)
-                .next()
-                .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))?,
-        );
+        attributes.push(parse_attribute_fragment(&attribute.text)?);
         register_fragment(attribute, mappings)?;
     }
     let visibility = function
@@ -547,6 +528,43 @@ fn parse_tokens(fragment: &str) -> Result<TokenStream, SynError> {
     let tokens = TokenStream::from_str(fragment)
         .map_err(|error| SynError::new(RustSpan::call_site(), error.to_string()))?;
     Ok(normalize_aliases(tokens))
+}
+
+fn parse_attribute_fragment(fragment: &str) -> Result<syn::Attribute, SynError> {
+    let trimmed = fragment.trim_start();
+    let doc = if let Some(content) = trimmed
+        .strip_prefix("///")
+        .filter(|_| !trimmed.starts_with("////"))
+    {
+        Some(content.strip_prefix(' ').unwrap_or(content).to_owned())
+    } else {
+        trimmed
+            .strip_prefix("/**")
+            .filter(|_| !trimmed.starts_with("/***"))
+            .map(|content| {
+                content
+                    .strip_suffix("*/")
+                    .unwrap_or(content)
+                    .trim()
+                    .to_owned()
+            })
+    };
+    if let Some(doc) = doc {
+        let literal = syn::LitStr::new(&doc, RustSpan::call_site());
+        let tokens = quote! { #[doc = #literal] };
+        return syn::Attribute::parse_outer
+            .parse2(tokens)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                SynError::new(RustSpan::call_site(), "comentario de documentación vacío")
+            });
+    }
+    syn::Attribute::parse_outer
+        .parse2(parse_tokens(fragment)?)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))
 }
 
 /// Normaliza nombres de Óxido. Los argumentos de macros y atributos desconocidos
@@ -831,10 +849,7 @@ pub fn validate_signature(fragment: &str) -> Result<(), SynError> {
 
 /// Valida un atributo Rust preservado como fragmento opaco.
 pub fn validate_attribute(fragment: &str) -> Result<(), SynError> {
-    use syn::parse::Parser;
-    syn::Attribute::parse_outer
-        .parse2(parse_tokens(fragment)?)
-        .map(|_| ())
+    parse_attribute_fragment(fragment).map(|_| ())
 }
 
 /// Valida una visibilidad Rust, incluida `pub(...)`.

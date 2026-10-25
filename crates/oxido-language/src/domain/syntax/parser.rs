@@ -38,6 +38,7 @@ pub fn parse(source: &SourceFile, options: LexOptions) -> ParseOutput {
         control_depth: 0,
         diagnostics: lexed.diagnostics,
         mode: lexed.mode.unwrap_or(SyntaxMode::Braces),
+        deferred_doc_comments: Vec::new(),
     };
     let file = parser.parse_file();
     let has_errors = parser.has_errors();
@@ -55,6 +56,7 @@ struct Parser<'a> {
     control_depth: usize,
     diagnostics: Vec<Diagnostic>,
     mode: SyntaxMode,
+    deferred_doc_comments: Vec<RustFragment>,
 }
 
 impl Parser<'_> {
@@ -63,12 +65,14 @@ impl Parser<'_> {
         let mut items = Vec::new();
         let mut saw_item = false;
         while self.current_is_mode_header()
-            || self.is_kind(|kind| matches!(kind, TokenKind::Newline | TokenKind::Comment))
+            || self.is_kind(|kind| matches!(kind, TokenKind::Newline))
+            || (self.is_kind(|kind| matches!(kind, TokenKind::Comment))
+                && !self.is_doc_comment(self.position))
         {
             self.position += 1;
         }
         loop {
-            self.skip_trivia();
+            self.skip_non_doc_trivia();
             if self.at_end() {
                 break;
             }
@@ -297,6 +301,28 @@ impl Parser<'_> {
         }
         let mut statements = Vec::new();
         while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            if self.is_doc_comment(self.position) {
+                self.deferred_doc_comments
+                    .push(self.fragment(self.position, self.position + 1));
+                let mut next = self.position + 1;
+                while self.tokens.get(next).is_some_and(|token| {
+                    matches!(token.kind, TokenKind::Comment | TokenKind::Newline)
+                }) {
+                    if self.is_doc_comment(next) {
+                        self.deferred_doc_comments
+                            .push(self.fragment(next, next + 1));
+                    }
+                    next += 1;
+                }
+                if self
+                    .tokens
+                    .get(next)
+                    .is_some_and(|token| matches!(token.kind, TokenKind::Dedent))
+                {
+                    self.position = next;
+                    break;
+                }
+            }
             self.skip_trivia();
             if self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) || self.at_end() {
                 break;
@@ -868,9 +894,18 @@ impl Parser<'_> {
     }
 
     fn parse_attributes(&mut self) -> Vec<RustFragment> {
-        let mut attributes = Vec::new();
+        let mut attributes = std::mem::take(&mut self.deferred_doc_comments);
         loop {
-            self.skip_comments();
+            while self.is_kind(|kind| matches!(kind, TokenKind::Comment)) {
+                let index = self.position;
+                if self.is_doc_comment(index) {
+                    attributes.push(self.fragment(index, index + 1));
+                }
+                self.position += 1;
+            }
+            while self.is_kind(|kind| matches!(kind, TokenKind::Newline)) {
+                self.position += 1;
+            }
             if !self.is_text("#") {
                 break;
             }
@@ -900,9 +935,32 @@ impl Parser<'_> {
                 );
             }
             attributes.push(self.fragment(start, self.position));
-            self.skip_trivia();
+            while self.is_kind(|kind| matches!(kind, TokenKind::Newline)) {
+                self.position += 1;
+            }
         }
         attributes
+    }
+
+    fn is_doc_comment(&self, index: usize) -> bool {
+        let Some(token) = self.tokens.get(index) else {
+            return false;
+        };
+        if !matches!(token.kind, TokenKind::Comment) {
+            return false;
+        }
+        let text = self.source.slice(token.span).trim_start();
+        (text.starts_with("///") && !text.starts_with("////"))
+            || (text.starts_with("/**") && !text.starts_with("/***"))
+    }
+
+    fn skip_non_doc_trivia(&mut self) {
+        while self.is_kind(|kind| matches!(kind, TokenKind::Newline))
+            || (self.is_kind(|kind| matches!(kind, TokenKind::Comment))
+                && !self.is_doc_comment(self.position))
+        {
+            self.position += 1;
+        }
     }
 
     fn parse_visibility(&mut self) -> Option<RustFragment> {
@@ -1263,13 +1321,18 @@ impl Parser<'_> {
         self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
         self.skip_comments();
         if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
-            self.error_current("OX2003", "se esperaba un cuerpo indentado para el item");
+            let message = if kind == ContainerKind::Impl {
+                "el bloque `implementar` no puede estar vacío"
+            } else {
+                "se esperaba un cuerpo indentado para el item"
+            };
+            self.error_current("OX2003", message);
             self.block_depth -= 1;
             return None;
         }
         let mut members = Vec::new();
         while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
-            self.skip_trivia();
+            self.skip_non_doc_trivia();
             if self.at_end() || self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
                 break;
             }
@@ -1314,6 +1377,13 @@ impl Parser<'_> {
         self.consume_kind(|kind| matches!(kind, TokenKind::Dedent));
         let span = self.source.span(self.tokens[start].span.start(), end)?;
         self.block_depth -= 1;
+        if kind == ContainerKind::Impl && members.is_empty() {
+            self.error(
+                "OX2003",
+                "el bloque `implementar` no puede estar vacío",
+                Some(span),
+            );
+        }
         Some(Item::IndentedContainer(IndentedContainer {
             kind,
             attributes,

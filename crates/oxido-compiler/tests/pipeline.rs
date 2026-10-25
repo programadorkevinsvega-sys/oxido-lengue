@@ -183,6 +183,174 @@ fn compiles_and_runs_indented_impl_traits_modules_and_match_arms() {
 }
 
 #[test]
+fn impl_methods_generics_associated_items_tail_values_and_block_modes_agree() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let indentation = SourceFile::new(
+        r#"sintaxis indentacion
+
+#[derivar(Clone)]
+estructura Dato<T>:
+    valor: T
+
+rasgo Contenido:
+    tipo Elemento;
+    funcion elemento(&mismo) -> &Mismo::Elemento;
+
+implementar<T> Dato<T> donde T: Clone:
+    publico constante LIMITE: usize = 2;
+    publico funcion nuevo(valor: T) -> Mismo:
+        Mismo { valor }
+    /// Copia el dato para el llamador.
+    #[inline]
+    publico funcion clonar(&mismo) -> Mismo:
+        Mismo { valor: mismo.valor.clone() }
+    publico funcion avanzar(&mutable mismo, valor: T):
+        mismo.valor = valor
+
+implementar<T> Contenido para Dato<T> donde T: Clone:
+    tipo Elemento = T;
+    funcion elemento(&mismo) -> &Mismo::Elemento:
+        &mismo.valor
+
+implementar Dato<i32>:
+    funcion limite() -> usize:
+        Dato::<i32>::LIMITE
+    funcion limite_unit():
+        7;
+    funcion consumir(mismo) -> i32:
+        mismo.valor
+
+funcion principal():
+    variable mutable dato = Dato::nuevo(4)
+    dato.avanzar(5)
+    variable prestado = dato.elemento()
+    variable duplicado = dato.clonar()
+    variable limite: usize = Dato::<i32>::limite()
+    variable unidad: () = Dato::<i32>::limite_unit()
+    variable consumido = duplicado.consumir()
+    imprimirln!("{}:{}:{}:{}", dato.valor, *prestado, limite, consumido)
+"#,
+    );
+    let generated = oxido_compiler::generate_ox(&indentation, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        generated.rust.contains("impl<T> Dato<T>"),
+        "{}",
+        generated.rust
+    );
+    assert!(generated.rust.contains("T: Clone"), "{}", generated.rust);
+    assert!(
+        generated.rust.contains("pub const LIMITE: usize = 2;"),
+        "{}",
+        generated.rust
+    );
+    assert!(generated.rust.contains("#[inline]"), "{}", generated.rust);
+    assert!(
+        generated.rust.contains("Copia el dato para el llamador"),
+        "{}",
+        generated.rust
+    );
+    let indented_result =
+        oxido_compiler::build_ox(&indentation, LexOptions::default(), CargoAction::Run)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        indented_result.success,
+        "{} {:?}",
+        indented_result.stderr, indented_result.diagnostics
+    );
+    assert_eq!(indented_result.program_output, ["5:5:2:5"]);
+
+    let braces = SourceFile::new(
+        r#"sintaxis llaves
+#[derive(Clone)] struct Dato<T> { valor: T }
+trait Contenido { type Elemento; fn elemento(&self) -> &Self::Elemento; }
+impl<T> Dato<T> where T: Clone {
+    pub const LIMITE: usize = 2;
+    pub fn nuevo(valor: T) -> Self { Self { valor } }
+    pub fn clonar(&self) -> Self { Self { valor: self.valor.clone() } }
+    pub fn avanzar(&mut self, valor: T) { self.valor = valor; }
+}
+impl<T> Contenido for Dato<T> where T: Clone {
+    type Elemento = T;
+    fn elemento(&self) -> &Self::Elemento { &self.valor }
+}
+impl Dato<i32> {
+    fn limite() -> usize { Dato::<i32>::LIMITE }
+    fn limite_unit() { 7; }
+    fn consumir(self) -> i32 { self.valor }
+}
+funcion principal() {
+    variable mutable dato = Dato::nuevo(4);
+    dato.avanzar(5);
+    variable prestado = dato.elemento();
+    variable duplicado = dato.clonar();
+    variable limite: usize = Dato::<i32>::limite();
+    variable unidad: () = Dato::<i32>::limite_unit();
+    variable consumido = duplicado.consumir();
+    println!("{}:{}:{}:{}", dato.valor, *prestado, limite, consumido);
+}
+"#,
+    );
+    let braced_result = oxido_compiler::build_ox(&braces, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        braced_result.success,
+        "{} {:?}",
+        braced_result.stderr, braced_result.diagnostics
+    );
+    assert_eq!(braced_result.program_output, indented_result.program_output);
+}
+
+#[test]
+fn rejects_empty_impl_and_reports_invalid_method_indentation() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let empty = SourceFile::new(
+        "sintaxis indentacion\nestructura Dato:\n    valor: i32\n\nimplementar Dato:\n",
+    );
+    let parsed = oxido_compiler::parse_ox(&empty, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(parsed.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "OX2003" && diagnostic.message.contains("no puede estar vacío")
+    }));
+
+    let malformed = SourceFile::new(
+        "sintaxis indentacion\nimplementar Dato:\n    funcion leer(mismo) -> i32:\n        mismo.valor\n      funcion otro(mismo) -> i32:\n          0\n",
+    );
+    let parsed = oxido_compiler::parse_ox(&malformed, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "OX2001")
+    );
+}
+
+#[test]
+fn maps_rustc_errors_inside_indented_methods_to_the_method_line() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nestructura Dato:\n    valor: i32\nimplementar Dato:\n    funcion leer(&mismo) -> i32:\n        nombre_que_no_existe\nfuncion principal():\n    variable dato = Dato { valor: 1 }\n    dato.leer()\n",
+    );
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code.as_deref() == Some("E0425"))
+        .expect("el error del método debe conservar su código rustc");
+    let location = diagnostic.source.expect("el span debe mapear al .ox");
+    assert_eq!(location.line, 6);
+    let span = source.span(location.start, location.end).unwrap();
+    assert!(source.slice(span).contains("nombre_que_no_existe"));
+}
+
+#[test]
 fn rejects_indented_match_arms_without_a_pattern_separator() {
     use oxido_language::domain::syntax::LexOptions;
 

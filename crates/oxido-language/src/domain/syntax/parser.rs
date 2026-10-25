@@ -152,6 +152,7 @@ impl Parser<'_> {
         }
         let name = self.source.slice(name_token.span).to_string();
         let signature = self.fragment(header_start, header_end);
+        self.check_signature_patterns(header_start, header_end);
         self.position = body_open;
         let body = self.parse_block()?;
         let span = self.join_spans(
@@ -485,6 +486,13 @@ impl Parser<'_> {
         self.position += 1;
         let open = self.find_control_body_open(style)?;
         let header = self.fragment(self.position, open);
+        if kind == ControlKind::For {
+            if let Some(in_index) =
+                (self.position..open).find(|index| self.is_keyword_at(*index, "in"))
+            {
+                self.check_pattern_keyword_identifier(self.position, in_index);
+            }
+        }
         self.position = open;
         let body = self.parse_block()?;
         let alternative = if matches!(kind, ControlKind::If) {
@@ -807,6 +815,7 @@ impl Parser<'_> {
             consumed = true;
         }
         if consumed {
+            self.check_passthrough_identifier_collisions(start, self.position);
             Some(self.fragment(start, self.position))
         } else {
             None
@@ -854,11 +863,15 @@ impl Parser<'_> {
         {
             index += 1;
         }
-        if self
-            .tokens
-            .get(index)
-            .is_some_and(|token| self.token_text(token) == "pub")
-        {
+        if self.tokens.get(index).is_some_and(|token| {
+            matches!(
+                token.kind,
+                TokenKind::Keyword {
+                    rust_keyword: "pub",
+                    ..
+                }
+            )
+        }) {
             index += 1;
             while self
                 .tokens
@@ -977,32 +990,82 @@ impl Parser<'_> {
         if end <= start {
             return;
         }
-        let candidate = if end == start + 1 {
-            let token = &self.tokens[start];
-            match token.kind {
-                TokenKind::Keyword {
-                    rust_keyword: "true" | "false" | "mut" | "ref",
-                    ..
-                } => None,
-                TokenKind::Keyword { .. } => Some(start),
-                _ => None,
+        for index in start..end {
+            if self.tokens[index].opaque {
+                continue;
             }
-        } else if matches!(
-            self.tokens.get(start).map(|token| &token.kind),
-            Some(TokenKind::Keyword {
-                rust_keyword: "mut" | "ref",
-                ..
-            })
-        ) && matches!(
-            self.tokens.get(start + 1).map(|token| &token.kind),
-            Some(TokenKind::Keyword { .. })
-        ) {
-            Some(start + 1)
-        } else {
-            None
+            let is_identifier_collision =
+                !matches!(
+                    self.tokens[index].kind,
+                    TokenKind::Keyword {
+                        rust_keyword: "true" | "false" | "mut" | "ref" | "self" | "Self",
+                        ..
+                    }
+                ) && matches!(self.tokens[index].kind, TokenKind::Keyword { .. });
+            if is_identifier_collision {
+                self.report_reserved_identifier(index);
+            }
+        }
+    }
+
+    fn check_signature_patterns(&mut self, start: usize, end: usize) {
+        let Some(open) = (start..end).find(|index| self.token_text(&self.tokens[*index]) == "(")
+        else {
+            return;
         };
-        if let Some(index) = candidate {
-            self.report_reserved_identifier(index);
+        let mut depth = 0usize;
+        let mut close = None;
+        for index in open..end {
+            match self.token_text(&self.tokens[index]) {
+                "(" => depth += 1,
+                ")" => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        close = Some(index);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close) = close else { return };
+        let parameter_start = open + 1;
+        let mut segment_start = parameter_start;
+        depth = 0;
+        for index in parameter_start..=close {
+            let text = self.token_text(&self.tokens[index]);
+            if matches!(text, "(" | "[" | "{") {
+                depth += 1;
+            } else if matches!(text, ")" | "]" | "}") {
+                depth = depth.saturating_sub(1);
+            }
+            if (text == "," && depth == 0) || index == close {
+                let segment_end = index;
+                if let Some(colon) = (segment_start..segment_end)
+                    .find(|candidate| self.token_text(&self.tokens[*candidate]) == ":")
+                {
+                    self.check_pattern_keyword_identifier(segment_start, colon);
+                }
+                segment_start = index + 1;
+            }
+        }
+    }
+
+    fn check_passthrough_identifier_collisions(&mut self, start: usize, end: usize) {
+        for index in start..end {
+            if self.tokens[index].opaque
+                || !matches!(self.tokens[index].kind, TokenKind::Keyword { .. })
+            {
+                continue;
+            }
+            let function_name = index > start && self.is_keyword_at(index - 1, "fn");
+            let field_name = self
+                .tokens
+                .get(index + 1)
+                .is_some_and(|token| self.token_text(token) == ":");
+            if function_name || field_name {
+                self.report_reserved_identifier(index);
+            }
         }
     }
 
@@ -1098,7 +1161,10 @@ impl Parser<'_> {
     }
 
     fn is_keyword(&self, rust: &str) -> bool {
-        matches!(self.current().map(|token| &token.kind), Some(TokenKind::Keyword { rust_keyword, .. }) if *rust_keyword == rust)
+        self.is_keyword_at(self.position, rust)
+    }
+    fn is_keyword_at(&self, index: usize, rust: &str) -> bool {
+        matches!(self.tokens.get(index).map(|token| &token.kind), Some(TokenKind::Keyword { rust_keyword, .. }) if *rust_keyword == rust)
     }
     fn consume_keyword(&mut self, rust: &str) -> bool {
         if self.is_keyword(rust) {

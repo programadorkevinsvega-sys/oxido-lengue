@@ -2,7 +2,7 @@
 
 Una sintaxis en español e inglés que busca generar Rust estándar y conservar su semántica, interoperabilidad y herramientas.
 
-> **Estado del proyecto:** lexer, parser/AST estructural inicial, exportación `.ox → .rs` y compilación/ejecución de la rebanada mínima implementados. `examples/hola_mundo.ox` prueba el flujo completo. El lenguaje sigue limitado al subconjunto documentado; consulta la [matriz de compatibilidad](./compatibility).
+> **Estado del proyecto:** lexer, parser/AST inicial, generación Rust y compilación/ejecución de los modos de bloques para el subconjunto de funciones/control están implementados. Las Fases 5 y 6 tienen pruebas end-to-end; el lenguaje sigue limitado al subconjunto de la [matriz de compatibilidad](./compatibility).
 
 <div class="audience-grid">
   <a class="audience-card" href="/audiencias/desarrolladores"><strong>Desarrolladores</strong><span>Arquitectura, compatibilidad con Rust y estado de la toolchain.</span></a>

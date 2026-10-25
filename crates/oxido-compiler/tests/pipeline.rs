@@ -65,6 +65,55 @@ fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
 }
 
 #[test]
+fn bilingual_block_modes_compile_to_the_same_behavior() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let sources = [
+        "sintaxis indentacion\nfuncion main():\n    si verdadero:\n        println!(\"equivalente\");\n    sino:\n        println!(\"distinto\");\n",
+        "sintaxis llaves\nfuncion main() { si verdadero { println!(\"equivalente\"); } sino { println!(\"distinto\"); } }\n",
+    ];
+    for text in sources {
+        let source = SourceFile::new(text);
+        let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+        assert!(generated.rust.contains("if true"), "{}", generated.rust);
+        assert!(
+            generated.rust.contains("println!(\"equivalente\")"),
+            "{}",
+            generated.rust
+        );
+        let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+        assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+        assert_eq!(result.program_output, ["equivalente"]);
+    }
+}
+
+#[test]
+fn normalizes_aliases_in_visibility_signatures_and_passthrough_items() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis llaves\npublico usar std::fmt;\npublico funcion inspeccionar(valor: &dinamico std::fmt::Debug) { let _ = valor; }\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        generated.rust.contains("pub use std::fmt;"),
+        "{}",
+        generated.rust
+    );
+    assert!(
+        generated
+            .rust
+            .contains("pub fn inspeccionar(valor: &dyn std::fmt::Debug)"),
+        "{}",
+        generated.rust
+    );
+}
+
+#[test]
 fn maps_rustc_type_errors_back_to_the_ox_expression() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
@@ -162,7 +211,7 @@ fn validates_each_supported_top_level_item_kind_in_braces_mode() {
     use oxido_language::domain::syntax::LexOptions;
 
     let source = SourceFile::new(
-        "sintaxis llaves\n#[repr(C)] pub struct Dato { valor: i32 }\nenum Color { Rojo, Azul }\nimpl Dato { fn nuevo() -> Self { Self { valor: 0 } } }\ntrait Leer { fn leer(&self) -> i32; }\nmod interno { pub fn valor() -> i32 { 1 } }\nuse std::fmt;\ntype Alias = i32;\nconst LIMITE: i32 = 10;\nstatic GLOBAL: i32 = 0;\nunion Crudo { valor: i32 }\nmacro_rules! ejemplo { () => {} }\nextern \"C\" { fn externo(); }\n",
+        "sintaxis llaves\n#[repr(C)] pub struct Dato { valor: i32 }\nenum Color { Rojo, Azul }\nimpl Dato { fn nuevo() -> Self { Self { valor: 0 } } }\ntrait Leer { fn leer(&self) -> i32; }\nmod interno { pub fn valor() -> i32 { 1 } }\nuse std::fmt;\ntype Alias = i32;\nconst LIMITE: i32 = 10;\nstatic GLOBAL: i32 = 0;\nunion Crudo { valor: i32 }\nmacro_rules! ejemplo { () => {} }\nextern \"C\" { fn llamada_externa(); }\n",
     );
     let parsed = oxido_compiler::parse_ox(&source, LexOptions::default());
     assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);

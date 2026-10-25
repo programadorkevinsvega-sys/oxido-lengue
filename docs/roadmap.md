@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–5: completadas en sus alcances verificados. Fase 6 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. El portal documental se inició transversalmente y se consolidará en Fase 13. El informe de Fase 0 es una fotografía histórica; las fases siguientes añadieron workspace, lexer, parser/AST inicial y el primer flujo `.ox` → Rust → Cargo. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
+**Fases 0–6: completadas en sus alcances verificados. Fase 7 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para el subconjunto de funciones; items con cuerpos indentados pertenecen a Fase 7. El portal documental se inició transversalmente y se consolidará en Fase 13. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -159,18 +159,18 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ### Subfases
 
-1. **Modo indentado:** completar reglas de bloques, continuaciones y terminadores.
-2. **Modo de llaves:** completar bloques equivalentes y terminadores.
-3. **Configuración:** validar modo del proyecto y declaración inicial coincidente por archivo.
-4. **Alias:** normalizar tokens de keywords con pruebas por alias y colisión.
-5. **Escape:** comprobar identificadores crudos y mensajes de palabra reservada.
-6. **Macros:** validar `matches!`, macros externas y grupos anidados sin traducir sus argumentos.
-7. **Equivalencia:** compilar pares de programas equivalentes y comparar resultados.
-8. **Formato:** formatear según modo sin cambios silenciosos de estilo.
+1. **Modo indentado:** completado para funciones, controles anidados, continuaciones y terminadores.
+2. **Modo de llaves:** completado con la misma AST, semántica de tail y formas de control admitidas.
+3. **Configuración:** completada; se admite modo de proyecto sin cabecera y se rechaza una cabecera inicial que lo contradiga.
+4. **Alias:** normalización tokenizada completada en firmas, visibilidad, tipos, patrones, expresiones y items Rust passthrough fuera de regiones opacas.
+5. **Escape:** comprobados `r#...` y diagnósticos `OX3001` con sugerencia en nombres de funciones, parámetros, patrones anidados, bindings y patrones de `para`.
+6. **Macros:** comprobado que las invocaciones y atributos conservan nombre y tokens internos, incluidos grupos anidados.
+7. **Equivalencia:** completada con pruebas que compilan y ejecutan el mismo caso en ambos modos y comparan su salida.
+8. **Formato:** la salida Rust de ambos modos se valida y normaliza con Syn/prettyplease; el formateo no reescribe ni cambia silenciosamente el archivo fuente `.ox`.
 
-**Entregables:** matriz de sintaxis y bilingüismo con pruebas de equivalencia y regresión.
+**Entregables:** completados para el subconjunto inicial de funciones/control descrito en [informe de Fase 6](fase-6-sintaxis-bilinguismo.md); matriz de sintaxis y bilingüismo con pruebas de equivalencia y regresión.
 
-**Criterio de salida:** ningún archivo mezcla delimitadores de bloque; diferencias de comportamiento quedan identificadas y justificadas.
+**Criterio de salida:** cumplido para el subconjunto indicado; pruebas verifican que los modos no mezclan delimitadores, conservan la regla `;`/tail y compilan con comportamiento equivalente. Items con cuerpos indentados y nuevas formas de lenguaje quedan delimitados como Fase 7.
 
 **Dependencia:** Fase 5.
 
@@ -380,12 +380,14 @@ Mantén una tabla de estado en cada revisión del proyecto:
 |---|---|---|---|
 | 0 | Completada | [Informe de auditoría](auditoria-fase-0.md); no había pruebas ejecutables | Ninguno para iniciar Fase 1 |
 | 1 | Completada (alcance documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Ninguno dentro del alcance acordado |
-| 2 | Completada (infraestructura inicial) | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, configuración declarativa, pipeline Rust y pruebas de integración | GitHub Actions no ejecuta jobs por el límite de facturación de esta cuenta; las verificaciones locales están aprobadas |
+| 2 | Completada (infraestructura inicial) | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, configuración declarativa, pipeline Rust y pruebas de integración | Ninguno registrado actualmente |
 | 3 | Completada (fuentes y lexer inicial) | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | No implica parser ni generación; ampliaciones de sintaxis siguen en fases posteriores |
-| 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados y normalización general de aliases son ampliaciones posteriores |
+| 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados quedan en Fase 7 |
+| 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md), exportación, mapa, Cargo, diagnósticos, ejecución y vuelta reversible | Ninguno dentro del alcance verificado |
+| 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | Items indentados y sintaxis adicional quedan en Fase 7 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 5–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
+| 7–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 1–4 están completadas en los alcances indicados arriba. `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo clippy --workspace --all-targets --locked -- -D warnings` y `cargo test --workspace --locked` pasaron localmente. El repositorio es privado y GitHub Actions no inicia los jobs por el límite de facturación de la cuenta; las verificaciones locales no sustituyen una ejecución remota de CI. La configuración de CI sigue pendiente de restablecerse.
+Las fases 1–6 están completadas en los alcances indicados arriba. Las verificaciones locales de Fase 6 incluyen formato, workspace tests, Clippy sin warnings y build del portal. El PR anterior de Fase 5 pasó los checks remotos de Rust y Cloudflare Pages; se comprobarán de nuevo en el PR de Fase 6.

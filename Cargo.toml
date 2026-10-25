@@ -1,0 +1,30 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/oxido-language",
+    "crates/oxido-rust-backend",
+    "crates/oxido-compiler",
+    "crates/oxido-cli",
+]
+default-members = ["crates/oxido-cli"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+
+[workspace.dependencies]
+oxido-language = { path = "crates/oxido-language" }
+oxido-rust-backend = { path = "crates/oxido-rust-backend" }
+oxido-compiler = { path = "crates/oxido-compiler" }
+syn = { version = "2", features = ["full", "parsing"] }
+quote = "1"
+proc-macro2 = "1"
+prettyplease = "0.2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"

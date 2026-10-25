@@ -4,7 +4,7 @@
 
 - Rust es sensible a mayúsculas: `mismo` y `Mismo` representan `self` y `Self` respectivamente.
 - Los alias son tokens de keyword solo en forma no escapada y en contexto de código.
-- Literales, comentarios, documentación, atributos desconocidos y árboles de argumentos de macro se preservan.
+- Literales, comentarios, documentación y atributos desconocidos se preservan. Los argumentos de macros solo se recorren en la lista de macros estándar que acepta expresiones.
 - Los aliases del prelude solo se traducen en tokens no crudos; usa `r#Cadena`, por ejemplo, para un identificador propio con ese nombre.
 - `r#nombre` fuerza un identificador literal llamado `nombre`, sin alias. Ejemplo: `r#tipo` es una variable llamada `tipo`; no es el keyword `type`.
 - Si se usa un alias reservado sin escape como identificador, emitir `OX3001`: «`tipo` es palabra reservada de Óxido; usa `r#tipo` o cámbialo».
@@ -83,7 +83,13 @@ Se mantienen en inglés y con reglas contextuales de Rust: `'static`, `macro_rul
 
 ## Macros y atributos
 
-Los nombres allowlisted de macros se traducen; sus argumentos nunca se traducen. Por tanto, los argumentos deben usar sintaxis Rust (`vector![String::from(...)]`, `formato!("{}", valor)`). `matches!` y macros de terceros mantienen nombre y argumentos intactos. Lista inicial: `imprimirln!`→`println!`, `imprimir!`→`print!`, `formato!`→`format!`, `vector!`→`vec!`, `panico!`→`panic!`, `afirmar!`→`assert!`, `afirmar_igual!`→`assert_eq!`, `pendiente!`→`todo!`, `no_implementado!`→`unimplemented!`, `inalcanzable!`→`unreachable!`, `depurar!`→`dbg!`.
+Se traduce el nombre de una macro estándar allowlisted; los nombres Rust originales siguen válidos. `std::alias!` también se normaliza. Los paths de otros crates (`serde_json::json!`, `sqlx::query!`) y las macros desconocidas conservan su nombre y su árbol de argumentos.
+
+Para macros estándar que reciben expresiones (`print*`, `format*`, `write*`, `vec!`, `panic!`, `assert*`, `dbg!`, `todo!`, `unimplemented!`, `unreachable!` y `matches!`), el backend recorre tokens de expresiones para normalizar aliases y macros estándar anidadas. Las cadenas y literales no se modifican. Macros de metaprogramación/configuración como `concat!`, `stringify!`, `cfg!`, `include_*`, `env!`, `line!`, `file!`, `column!`, `compile_error!` y `thread_local!` traducen solo el nombre y mantienen sus argumentos opacos.
+
+Aliases registrados: `imprimirln!`→`println!`, `imprimir!`/`imprimir_sin_salto!`→`print!`, `imprimir_error!`→`eprintln!`, `imprimir_error_sin_salto!`→`eprint!`, `formato!`/`formatear!`→`format!`, `argumentos_formato!`→`format_args!`, `escribir!`→`write!`, `escribir_linea!`→`writeln!`, `vector!`→`vec!`, `panico!`/`entrar_en_panico!`→`panic!`, `afirmar!`→`assert!`, `afirmar_igual!`→`assert_eq!`, `afirmar_distinto!`→`assert_ne!`, `afirmar_debug!`→`debug_assert!`, `afirmar_igual_debug!`→`debug_assert_eq!`, `afirmar_distinto_debug!`→`debug_assert_ne!`, `depurar!`→`dbg!`, `pendiente!`→`todo!`, `no_implementado!`/`sin_implementar!`→`unimplemented!`, `inalcanzable!`→`unreachable!`, `coincide!`→`matches!`, `incluir_texto!`→`include_str!`, `incluir_bytes!`→`include_bytes!`, `entorno!`→`env!`, `entorno_opcional!`→`option_env!`, `concatenar!`→`concat!`, `a_texto!`→`stringify!`, `linea!`→`line!`, `archivo!`→`file!`, `columna!`→`column!`, `config!`→`cfg!`, `error_de_compilacion!`→`compile_error!` y `local_del_hilo!`→`thread_local!`.
+
+Los argumentos de las macros externas son opacos intencionalmente: Óxido no debe cambiar DSLs como JSON o SQL ni exigir que sus dependencias adopten aliases españoles. La expansión y la semántica siguen correspondiendo a Rust.
 
 Solo se traducen estos atributos: `#[prueba]`→`#[test]`, `#[permitir(...)]`→`#[allow(...)]`, `#[derivar(...)]`→`#[derive(...)]`. Dentro de `derivar`, también se normalizan los aliases de traits de la tabla. Todo atributo no listado permanece opaco.
 

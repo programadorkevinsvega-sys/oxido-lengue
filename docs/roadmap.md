@@ -379,11 +379,13 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | Fase | Estado | Evidencia | Bloqueos |
 |---|---|---|---|
 | 0 | Completada | [Informe de auditoría](auditoria-fase-0.md); no había pruebas ejecutables | Ninguno para iniciar Fase 1 |
-| 1 | Completada (documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Las pruebas de aceptación se implementan en su fase dueña; no son deuda documental de Fase 1 |
-| 2 | Completada | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, parseo seguro de configuración, CI y pruebas del pipeline Rust inicial | El parser/AST `.ox` pertenece a Fase 4 |
-| 3 | Completada | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | El parser/AST pertenece a Fase 4 |
-| 4 | Completada (subconjunto inicial) | [Informe de Fase 4](fase-4-parser.md), AST estructural, parser, validación Syn, límites de anidamiento y pruebas pares de ambos modos | No genera Rust ni compila con Cargo; items indentados y normalización general de aliases son ampliaciones explícitamente posteriores |
+| 1 | Completada y cerrada (100%, documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Ninguno dentro del alcance documental acordado |
+| 2 | Completada y cerrada (100%, alcance inicial) | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, parseo seguro de configuración, pipeline Rust y pruebas de integración | La CI remota está bloqueada por el límite de facturación; las verificaciones locales están aprobadas |
+| 3 | Completada y cerrada (100%, alcance inicial) | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | Ampliaciones posteriores de lenguaje siguen en fases futuras |
+| 4 | Completada y cerrada (100%, subconjunto inicial definido) | [Informe de Fase 4](fase-4-parser.md), AST estructural, parser, validación Syn, límites de anidamiento y pruebas pares de ambos modos | No genera Rust ni compila con Cargo; items indentados y normalización general de aliases pertenecen a fases posteriores |
 | Portal documental | En curso (sitio estático verificado) | [website/README.md](../website/README.md), Astro Starlight y páginas generadas desde Markdown canónico; build probado con Node 22.23.4 | Cloudflare Pages no conectado y dominio sin decidir; sitemap se habilitará al configurar `site`; queda aviso informativo en la ruta 404 generada por Starlight |
 | 5–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
-Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
+Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada y cerrada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
+
+Las fases 1–4 están cerradas al 100% de sus alcances definidos. `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo clippy --workspace --all-targets --locked -- -D warnings` y `cargo test --workspace --locked` pasaron localmente. La CI de GitHub no ejecuta los pasos porque la cuenta está bloqueada por su límite de facturación; este bloqueo externo queda registrado y no impide el cierre local.

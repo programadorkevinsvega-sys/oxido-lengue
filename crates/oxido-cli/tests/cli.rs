@@ -163,7 +163,7 @@ fn compiles_and_runs_with_a_declared_local_cargo_dependency_offline() {
     .unwrap();
     fs::write(
         dependency.join("src/lib.rs"),
-        "pub fn saludo() -> &'static str { \"desde un crate local\" }\n",
+        "#[macro_export]\nmacro_rules! macro_externa { ($valor:expr) => { println!(\"macro={}:{}\", $valor, $valor); }; }\npub fn saludo() -> &'static str { \"desde un crate local\" }\n",
     )
     .unwrap();
     fs::create_dir_all(&work).unwrap();
@@ -174,7 +174,7 @@ fn compiles_and_runs_with_a_declared_local_cargo_dependency_offline() {
     .unwrap();
     fs::write(
         work.join("principal.ox"),
-        "sintaxis llaves\nfn main() { println!(\"{}\", saludos_local::saludo()); }\n",
+        "sintaxis llaves\nfn main() { saludos_local::macro_externa!(\"sin modificar\"); println!(\"{}\", saludos_local::saludo()); }\n",
     )
     .unwrap();
 
@@ -201,7 +201,7 @@ fn compiles_and_runs_with_a_declared_local_cargo_dependency_offline() {
     );
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout).trim(),
-        "desde un crate local"
+        "macro=sin modificar:sin modificar\ndesde un crate local"
     );
 }
 

@@ -44,9 +44,9 @@ Este corte no admite aún versiones de crates.io/git, ni consume/versiona un `Ca
 
 **Estado:** en curso; `macro_rules!` opaco en nivel superior indentado y atributos `derive` del compilador Rust probados con Cargo/rustc.
 
-Las definiciones `macro_rules!` se preservan como fragmentos Rust opacos y Cargo expande la macro del fixture durante una ejecución E2E. Los atributos aceptados por el subconjunto estructural también se conservan; `#[derive(Debug)]` está cubierto sobre una estructura indentada. Óxido no traduce ni reescribe los tokens de la definición declarativa. La prueba verifica generación Rust y salida exacta del binario.
+Las definiciones `macro_rules!` se preservan como fragmentos Rust opacos y Cargo expande la macro del fixture durante una ejecución E2E. Una prueba aparte consume una macro exportada por un crate local mediante una ruta calificada; el crate de la biblioteca no necesita cambios y los argumentos repetidos llegan intactos a su expansión. Los atributos aceptados por el subconjunto estructural también se conservan; `#[derive(Debug)]` está cubierto sobre una estructura indentada. Óxido no traduce ni reescribe los tokens de definiciones ni llamadas externas. Las pruebas verifican generación Rust y salida exacta del binario.
 
-Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro, expansión propia, macros procedurales ni compatibilidad general con atributos de terceros. La lógica de la macro debe escribirse con sintaxis Rust; los atributos siguen sujetos a aceptación de Syn y rustc.
+Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro, expansión propia, macros procedurales ni compatibilidad general con atributos de terceros. La lógica de la macro debe escribirse con sintaxis Rust; los atributos siguen sujetos a aceptación de Syn y rustc. La macro externa se prueba con el crate local por ruta; las macros de crates de registro siguen pendientes junto con esas dependencias.
 
 ## Subfase 6 — Async/await y concurrencia
 

@@ -33,7 +33,7 @@ enumeracion Estado:
     Listo(i32)
 ```
 
-`impl`, métodos y módulos se conservan como items Rust con llaves en esta versión. Todavía no se convierten sus cuerpos a bloques indentados. Tampoco hay brazos indentados para `match`, traducción de mensajes de error completa, type checker propio ni runtime propio. Los diagnósticos Cargo traducen un conjunto inicial de códigos comunes y conservan código, span y detalle JSON.
+Al cerrar Fase 7, `impl`, métodos, traits y módulos aún se escribían con llaves Rust, y `match` no tenía brazos indentados. La [primera subfase de Fase 8](fase-8-integracion-rust.md) ya añade estas formas estructurales. Siguen fuera de alcance un traductor completo de mensajes de error, un type checker propio y un runtime propio. Los diagnósticos Cargo traducen un conjunto inicial de códigos comunes y conservan código, span y detalle JSON.
 
 ## Evidencia local
 

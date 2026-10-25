@@ -6,8 +6,9 @@ use oxido_language::{
     SourceFile,
     domain::{
         ast::{
-            AggregateKind, Block, ControlAlternative, ControlExpression, ControlKind, File,
-            Function, IndentedAggregate, IndentedUse, Item, RustFragment, Statement,
+            AggregateKind, Block, ContainerKind, ControlAlternative, ControlExpression,
+            ControlKind, File, Function, IndentedAggregate, IndentedContainer, IndentedUse, Item,
+            RustFragment, Statement,
         },
         source::Span,
     },
@@ -90,6 +91,7 @@ pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynEr
             Item::RustFragment(fragment) => fragment.span,
             Item::IndentedAggregate(aggregate) => aggregate.span,
             Item::IndentedUse(item) => item.span,
+            Item::IndentedContainer(container) => container.span,
         };
         let generated_span = generated_item.span();
         if let Some(mapping) = make_mapping(
@@ -174,6 +176,68 @@ fn emit_item(item: &Item, mappings: &mut Vec<PendingMapping>) -> Result<TokenStr
         }
         Item::IndentedAggregate(aggregate) => emit_indented_aggregate(aggregate, mappings),
         Item::IndentedUse(item) => emit_indented_use(item, mappings),
+        Item::IndentedContainer(container) => emit_indented_container(container, mappings),
+    }
+}
+
+fn emit_indented_container(
+    container: &IndentedContainer,
+    mappings: &mut Vec<PendingMapping>,
+) -> Result<TokenStream, SynError> {
+    let mut attributes = Vec::new();
+    for attribute in &container.attributes {
+        let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
+        attributes.extend(parsed);
+        register_fragment(attribute, mappings)?;
+    }
+    let visibility = container
+        .visibility
+        .as_ref()
+        .map(|fragment| {
+            register_fragment(fragment, mappings)?;
+            syn::parse2::<syn::Visibility>(parse_tokens(&fragment.text)?)
+        })
+        .transpose()?;
+    let header = parse_tokens(&container.header.text)?;
+    register_fragment(&container.header, mappings)?;
+    let mut members = Vec::new();
+    for member in &container.members {
+        let tokens = match (container.kind, member) {
+            (ContainerKind::Impl, Item::Function(function)) => {
+                let tokens = emit_function(function, mappings)?;
+                let item = syn::parse2::<syn::ImplItem>(tokens)?;
+                quote! { #item }
+            }
+            (ContainerKind::Trait, Item::Function(function)) => {
+                let tokens = emit_function(function, mappings)?;
+                let item = syn::parse2::<syn::TraitItem>(tokens)?;
+                quote! { #item }
+            }
+            (ContainerKind::Impl, Item::RustFragment(fragment)) => {
+                register_fragment(fragment, mappings)?;
+                let item = syn::parse2::<syn::ImplItem>(parse_tokens(&fragment.text)?)?;
+                quote! { #item }
+            }
+            (ContainerKind::Trait, Item::RustFragment(fragment)) => {
+                register_fragment(fragment, mappings)?;
+                let item = syn::parse2::<syn::TraitItem>(parse_tokens(&fragment.text)?)?;
+                quote! { #item }
+            }
+            (_, item) => emit_item(item, mappings)?,
+        };
+        members.push(tokens);
+    }
+    match container.kind {
+        ContainerKind::Impl => Ok(quote! {
+            #(#attributes)* #visibility impl #header { #(#members)* }
+        }),
+        ContainerKind::Trait => Ok(quote! {
+            #(#attributes)* #visibility trait #header { #(#members)* }
+        }),
+        ContainerKind::Module => {
+            let name = syn::parse2::<syn::Ident>(header)?;
+            Ok(quote! { #(#attributes)* #visibility mod #name { #(#members)* } })
+        }
     }
 }
 
@@ -351,8 +415,13 @@ fn emit_statement(
                     Ok::<_, SynError>(quote! { : #tokens })
                 })
                 .transpose()?;
-            let initializer = parse_tokens(&statement.initializer.text)?;
-            register_fragment(&statement.initializer, mappings)?;
+            let initializer = if let Some(control) = &statement.match_initializer {
+                emit_control(control, mappings)?
+            } else {
+                let tokens = parse_tokens(&statement.initializer.text)?;
+                register_fragment(&statement.initializer, mappings)?;
+                tokens
+            };
             Ok(quote! { let #pattern #annotation = #initializer; })
         }
         Statement::Return(statement) => {
@@ -434,11 +503,43 @@ fn emit_control(
         })
         .transpose()?;
 
+    if control.kind == ControlKind::Match {
+        let mut arms = Vec::new();
+        for arm in &control.match_arms {
+            let pattern = syn::Pat::parse_single.parse2(parse_tokens(&arm.pattern.text)?)?;
+            register_fragment(&arm.pattern, mappings)?;
+            let body = if let Some(expression) = &arm.expression {
+                let body = parse_tokens(&expression.text)?;
+                register_fragment(expression, mappings)?;
+                body
+            } else if let Some(block) = &arm.body {
+                emit_block(block, mappings)?
+            } else {
+                return Err(SynError::new(
+                    RustSpan::call_site(),
+                    "brazo de `coincidir` sin cuerpo",
+                ));
+            };
+            arms.push(quote! { #pattern => #body });
+        }
+        let Some(header) = header else {
+            return Err(SynError::new(
+                RustSpan::call_site(),
+                "falta la expresión de `coincidir`",
+            ));
+        };
+        return Ok(quote! { match #header { #(#arms,)* } });
+    }
+
     match control.kind {
         ControlKind::If => Ok(quote! { if #header #body #alternative }),
         ControlKind::Loop => Ok(quote! { loop #body }),
         ControlKind::While => Ok(quote! { while #header #body }),
         ControlKind::For => Ok(quote! { for #header #body }),
+        ControlKind::Match => Err(SynError::new(
+            RustSpan::call_site(),
+            "no se pudo emitir la expresión `coincidir`",
+        )),
     }
 }
 
@@ -717,6 +818,11 @@ pub fn validate_pattern(fragment: &str) -> Result<(), SynError> {
         .map(|_| ())
 }
 
+/// Valida un brazo indentado de `match` como sintaxis Rust.
+pub fn validate_match_arm(fragment: &str) -> Result<(), SynError> {
+    syn::parse2::<syn::Arm>(parse_tokens(fragment)?).map(|_| ())
+}
+
 /// Valida la firma de una función preservada por el AST.
 pub fn validate_signature(fragment: &str) -> Result<(), SynError> {
     let tokens = parse_tokens(fragment)?;
@@ -750,6 +856,12 @@ pub fn validate_indented_aggregate(aggregate: &IndentedAggregate) -> Result<(), 
 /// Valida una importación estructural indentada.
 pub fn validate_indented_use(item: &IndentedUse) -> Result<(), SynError> {
     let tokens = emit_indented_use(item, &mut Vec::new())?;
+    syn::parse2::<syn::Item>(tokens).map(|_| ())
+}
+
+/// Valida un contenedor indentado en su contexto final Rust.
+pub fn validate_indented_container(container: &IndentedContainer) -> Result<(), SynError> {
+    let tokens = emit_indented_container(container, &mut Vec::new())?;
     syn::parse2::<syn::Item>(tokens).map(|_| ())
 }
 

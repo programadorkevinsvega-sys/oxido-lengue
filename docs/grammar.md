@@ -2,7 +2,7 @@
 
 **Versión:** Óxido 0.1. Las producciones son normativas para estructura propia. `RustTokens` representa un fragmento balanceado preservado y validado con Syn/rustc; no pretende redefinir la gramática de Rust.
 
-La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado está enumerado en los informes de [Fase 4](fase-4-parser.md), [Fase 6](fase-6-sintaxis-bilinguismo.md) y [Fase 7](fase-7-lenguaje-inicial.md), además de la matriz de [compatibilidad](compatibility.md). Fase 7 admite cuerpos indentados iniciales de `struct` y `enum`; cuerpos indentados de `impl`, `trait` y módulos siguen pendientes.
+La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado está enumerado en los informes de [Fase 4](fase-4-parser.md), [Fase 6](fase-6-sintaxis-bilinguismo.md), [Fase 7](fase-7-lenguaje-inicial.md) y [Fase 8](fase-8-integracion-rust.md), además de la matriz de [compatibilidad](compatibility.md). La Fase 8 incorpora la primera sintaxis indentada de `impl`, `trait`, módulos y brazos `match`; véase el informe para límites.
 
 ## 1. Convenciones
 
@@ -43,9 +43,13 @@ BracedBlock      ::= "{" {Statement | NL} "}" ;
 IndentedBlock    ::= ":" NL INDENT {Statement | Item | NL} DEDENT ;
 BracedItemBlock  ::= "{" {Item | Member | NL} "}" ;
 IndentedItemBlock ::= ":" NL INDENT {Item | Member | NL} DEDENT ;
+IndentedImplBody ::= ":" NL INDENT {Method | AssociatedItem | NL} DEDENT ;
+IndentedTraitBody ::= ":" NL INDENT {TraitMethod | AssociatedItem | NL} DEDENT ;
+IndentedModuleBody ::= ":" NL INDENT {StructuralItem | NL} DEDENT ;
+TraitMethod      ::= FunctionHeader ";" | FunctionHeader FunctionBody ;
 ```
 
-`RustFunctionHeader`, `RustItemHeader` y `RustUseTree` son secuencias de tokens Rust balanceadas hasta el delimitador estructural. Fuera de atributos e invocaciones de macros, el frontend normaliza tokens keyword que tengan alias español. Syn valida el fragmento en su contexto final.
+`RustFunctionHeader`, `RustItemHeader` y `RustUseTree` son secuencias de tokens Rust balanceadas hasta el delimitador estructural. En modo indentación, `impl`, `trait` y módulos admiten miembros estructurales y funciones con cuerpo indentado. Declaraciones de métodos de trait pueden terminar en `;`. Fuera de argumentos de macros y atributos no allowlisted, el frontend normaliza tokens keyword que tengan alias español. Syn valida el fragmento en su contexto final.
 
 En modo indentación, el `:` final solo abre un bloque después de un encabezado reconocido y al nivel de delimitadores cero. Los dos puntos de parámetros, tipos, paths y expresiones no abren bloques.
 
@@ -69,7 +73,7 @@ Block           ::= BracedBlock | IndentedBlock ;
 ExprLine        ::= RustExpr [";"] ;
 ```
 
-`RustExpr`, `RustPattern` y `RustType` son fragmentos balanceados Rust tras normalizar keywords fuera de regiones opacas. Syn valida la categoría esperada; `rustc` valida tipos, nombres y semántica. `match`/`coincidir` y sus brazos se escriben como expresión Rust con `{}` en 0.1; no se define aún una sintaxis indentada para brazos.
+`RustExpr`, `RustPattern` y `RustType` son fragmentos balanceados Rust tras normalizar keywords fuera de regiones opacas. Syn valida la categoría esperada; `rustc` valida tipos, nombres y semántica. `coincidir` admite una expresión scrutinee seguida de brazos indentados `Patron => Expresion`; un brazo también puede abrir un bloque indentado omitiendo la expresión de la misma línea. Los patrones, guardas y expresiones conservan gramática Rust.
 
 ## 5. Reglas de salida de bloques indentados
 

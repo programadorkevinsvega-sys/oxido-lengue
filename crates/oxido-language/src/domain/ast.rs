@@ -13,6 +13,24 @@ pub enum Item {
     RustFragment(RustFragment),
     IndentedAggregate(IndentedAggregate),
     IndentedUse(IndentedUse),
+    IndentedContainer(IndentedContainer),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContainerKind {
+    Impl,
+    Trait,
+    Module,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndentedContainer {
+    pub kind: ContainerKind,
+    pub attributes: Vec<RustFragment>,
+    pub visibility: Option<RustFragment>,
+    pub header: RustFragment,
+    pub members: Vec<Item>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -90,6 +108,7 @@ pub struct LetStatement {
     pub pattern: RustFragment,
     pub type_annotation: Option<RustFragment>,
     pub initializer: RustFragment,
+    pub match_initializer: Option<Box<ControlExpression>>,
     /// Refleja el delimitador de origen; un backend puede añadir el `;` requerido por Rust.
     pub had_semicolon: bool,
     pub span: Span,
@@ -108,6 +127,7 @@ pub enum ControlKind {
     Loop,
     While,
     For,
+    Match,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -116,7 +136,16 @@ pub struct ControlExpression {
     /// Condición, patrón o cabecera Rust conservada sin normalización textual.
     pub header: RustFragment,
     pub body: Block,
+    pub match_arms: Vec<MatchArm>,
     pub alternative: Option<ControlAlternative>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MatchArm {
+    pub pattern: RustFragment,
+    pub expression: Option<RustFragment>,
+    pub body: Option<Block>,
     pub span: Span,
 }
 

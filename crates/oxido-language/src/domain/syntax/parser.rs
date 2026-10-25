@@ -1,8 +1,9 @@
 use crate::domain::{
     ast::{
-        AggregateKind, Block, BlockStyle, ControlAlternative, ControlExpression, ControlKind,
-        ControlStatement, Expression, File, Function, IndentedAggregate, IndentedMember,
-        IndentedUse, Item, LetStatement, RustFragment, Statement,
+        AggregateKind, Block, BlockStyle, ContainerKind, ControlAlternative, ControlExpression,
+        ControlKind, ControlStatement, Expression, File, Function, IndentedAggregate,
+        IndentedContainer, IndentedMember, IndentedUse, Item, LetStatement, MatchArm, RustFragment,
+        Statement,
     },
     diagnostics::{Diagnostic, DiagnosticSuggestion},
     source::{SourceFile, Span},
@@ -454,12 +455,41 @@ impl Parser<'_> {
             );
             return None;
         }
+        let match_initializer_index = if style == BlockStyle::Indentation
+            && self.is_keyword_at(initializer_start, "match")
+            && self.token_text(&self.tokens[initializer_end - 1]) == ":"
+        {
+            Some(initializer_start)
+        } else {
+            None
+        };
+        let (initializer, match_initializer, end_span) =
+            if let Some(match_index) = match_initializer_index {
+                self.position = match_index;
+                let control = self.parse_control_expression(style, ControlKind::Match)?;
+                let span = control.span;
+                (
+                    RustFragment {
+                        text: String::new(),
+                        span: Span::empty(),
+                    },
+                    Some(Box::new(control)),
+                    span,
+                )
+            } else {
+                (
+                    self.fragment(initializer_start, initializer_end),
+                    None,
+                    self.tokens[parts.last().copied().unwrap_or(0)].span,
+                )
+            };
         Some(LetStatement {
             pattern,
             type_annotation,
-            initializer: self.fragment(initializer_start, initializer_end),
+            initializer,
+            match_initializer,
             had_semicolon,
-            span: self.join_spans(start, self.tokens[parts.last().copied().unwrap_or(0)].span),
+            span: self.join_spans(start, end_span),
         })
     }
 
@@ -518,7 +548,11 @@ impl Parser<'_> {
             }
         }
         self.position = open;
-        let body = self.parse_block()?;
+        let (body, match_arms) = if kind == ControlKind::Match {
+            self.parse_match_arms(style)?
+        } else {
+            (self.parse_block()?, Vec::new())
+        };
         let alternative = if matches!(kind, ControlKind::If) {
             self.skip_trivia();
             if self.is_keyword("else") {
@@ -551,9 +585,133 @@ impl Parser<'_> {
             kind,
             header,
             body,
+            match_arms,
             alternative,
             span: self.join_spans(start, end),
         })
+    }
+
+    fn parse_match_arms(&mut self, style: BlockStyle) -> Option<(Block, Vec<MatchArm>)> {
+        if style != BlockStyle::Indentation {
+            self.error_current(
+                "OX2002",
+                "los brazos indentados de `coincidir` requieren modo indentación",
+            );
+            return None;
+        }
+        let opening = self.current()?.clone();
+        self.position += 1;
+        self.skip_comments();
+        if !self.consume_kind(|kind| matches!(kind, TokenKind::Newline)) {
+            self.error_current(
+                "OX2003",
+                "se esperaba un salto de línea después de `coincidir:`",
+            );
+            return None;
+        }
+        self.skip_comments();
+        if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
+            self.error_current(
+                "OX2003",
+                "se esperaba al menos un brazo indentado para `coincidir`",
+            );
+            return None;
+        }
+        let mut arms = Vec::new();
+        while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            self.skip_trivia();
+            if self.at_end() || self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+                break;
+            }
+            let start = self.position;
+            let end = self.line_fragment_end(start);
+            let indices = (start..end).collect::<Vec<_>>();
+            let Some(arrow_offset) = self.find_top_level_text(&indices, "=>") else {
+                self.error_current("OX2003", "se esperaba `=>` en el brazo de `coincidir`");
+                self.recover_line();
+                continue;
+            };
+            if arrow_offset == 0 {
+                self.error_current("OX2003", "falta el patrón del brazo de `coincidir`");
+                self.recover_line();
+                continue;
+            }
+            let arrow = indices[arrow_offset];
+            let pattern = self.fragment(start, arrow);
+            let expression_start = arrow + 1;
+            let mut expression_end = end;
+            if expression_end > expression_start
+                && self.token_text(&self.tokens[expression_end - 1]) == ","
+            {
+                expression_end -= 1;
+            }
+            self.position = end;
+            let (expression, body, arm_end) = if expression_start < expression_end {
+                let fragment = self.fragment(expression_start, expression_end);
+                let arm_end = self.tokens[expression_end - 1].span;
+                self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+                (Some(fragment), None, arm_end)
+            } else {
+                self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+                self.skip_comments();
+                if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
+                    self.error_current("OX2003", "se esperaba cuerpo indentado después de `=>`");
+                    self.recover_line();
+                    continue;
+                }
+                let block = self.parse_indented_contents(self.tokens[start].span)?;
+                let arm_end = block.span;
+                (None, Some(block), arm_end)
+            };
+            arms.push(MatchArm {
+                pattern,
+                expression,
+                body,
+                span: self.join_spans(self.tokens[start].span, arm_end),
+            });
+        }
+        let end = self.current().map_or(opening.span, |token| token.span);
+        self.consume_kind(|kind| matches!(kind, TokenKind::Dedent));
+        Some((
+            Block {
+                style: BlockStyle::Indentation,
+                statements: Vec::new(),
+                tail: None,
+                span: self.join_spans(opening.span, end),
+            },
+            arms,
+        ))
+    }
+
+    fn parse_indented_contents(&mut self, opening: Span) -> Option<Block> {
+        if self.block_depth >= MAX_BLOCK_DEPTH {
+            self.error_current(
+                "OX6001",
+                format!("los bloques superan la profundidad máxima de {MAX_BLOCK_DEPTH}"),
+            );
+            return None;
+        }
+        self.block_depth += 1;
+        let mut statements = Vec::new();
+        while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            self.skip_trivia();
+            if self.at_end() || self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+                break;
+            }
+            let before = self.position;
+            if let Some(statement) = self.parse_statement(BlockStyle::Indentation) {
+                statements.push(statement);
+            } else {
+                self.recover_line();
+            }
+            if before == self.position {
+                self.position += 1;
+            }
+        }
+        let end = self.current().map_or(opening, |token| token.span);
+        self.consume_kind(|kind| matches!(kind, TokenKind::Dedent));
+        self.block_depth -= 1;
+        Some(self.finish_block(BlockStyle::Indentation, statements, opening, end))
     }
 
     fn find_control_body_open(&mut self, style: BlockStyle) -> Option<usize> {
@@ -861,6 +1019,12 @@ impl Parser<'_> {
             "enum" | "enumeracion" => Some(AggregateKind::Enum),
             _ => None,
         };
+        let container_kind = match first {
+            "impl" | "implementar" => Some(ContainerKind::Impl),
+            "trait" | "rasgo" => Some(ContainerKind::Trait),
+            "mod" | "modulo" => Some(ContainerKind::Module),
+            _ => None,
+        };
         let simple = matches!(
             first,
             "use"
@@ -877,6 +1041,9 @@ impl Parser<'_> {
                 | "externo"
         );
         let macro_call = self.is_macro_invocation_start(item_start);
+        if let Some(kind) = container_kind {
+            return self.parse_indented_container(start, item_start, kind, attributes, visibility);
+        }
         if aggregate_kind.is_none() && !simple && !macro_call {
             self.position = start;
             return None;
@@ -947,7 +1114,7 @@ impl Parser<'_> {
                 break;
             }
             let text = self.token_text(token);
-            if depth == 0 && text == ":" {
+            if depth == 0 && text == ":" && self.next_significant_text(index + 1) == Some("\n") {
                 colon = Some(index);
                 break;
             }
@@ -1031,6 +1198,124 @@ impl Parser<'_> {
         self.check_passthrough_identifier_collisions(start, self.position);
         Some(Item::IndentedAggregate(IndentedAggregate {
             kind: aggregate_kind?,
+            attributes,
+            visibility,
+            header,
+            members,
+            span,
+        }))
+    }
+
+    fn parse_indented_container(
+        &mut self,
+        start: usize,
+        item_start: usize,
+        kind: ContainerKind,
+        attributes: Vec<RustFragment>,
+        visibility: Option<RustFragment>,
+    ) -> Option<Item> {
+        if self.block_depth >= MAX_BLOCK_DEPTH {
+            self.error_current("OX0005", "se superó el límite de anidamiento de items");
+            self.recover_line();
+            return None;
+        }
+        self.block_depth += 1;
+        let mut depth = 0usize;
+        let mut colon = None;
+        for index in item_start..self.tokens.len() {
+            let token = &self.tokens[index];
+            if matches!(token.kind, TokenKind::Newline | TokenKind::Dedent) {
+                break;
+            }
+            let text = self.token_text(token);
+            if depth == 0 && text == ":" && self.next_significant_text(index + 1) == Some("\n") {
+                colon = Some(index);
+                break;
+            }
+            match text {
+                "(" | "[" | "{" | "<" => depth += 1,
+                ")" | "]" | "}" | ">" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        let Some(colon) = colon else {
+            self.error_current(
+                "OX2003",
+                "se esperaba ':' y un cuerpo indentado para el item",
+            );
+            self.recover_line();
+            self.block_depth -= 1;
+            return None;
+        };
+        let header = self.fragment(item_start + 1, colon);
+        if header.text.trim().is_empty() {
+            self.error(
+                "OX2003",
+                "falta el tipo o nombre del item",
+                Some(self.tokens[item_start].span),
+            );
+            self.position = colon + 1;
+            self.block_depth -= 1;
+            return None;
+        }
+        self.position = colon + 1;
+        self.skip_comments();
+        self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+        self.skip_comments();
+        if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
+            self.error_current("OX2003", "se esperaba un cuerpo indentado para el item");
+            self.block_depth -= 1;
+            return None;
+        }
+        let mut members = Vec::new();
+        while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            self.skip_trivia();
+            if self.at_end() || self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+                break;
+            }
+            let member_start = self.position;
+            let member_attributes = self.parse_attributes();
+            self.skip_comments();
+            let member_visibility = self.parse_visibility();
+            let asynchronous = self.consume_keyword("async");
+            if self.is_keyword("fn") {
+                if kind == ContainerKind::Trait {
+                    let function_start = self.position;
+                    let end = self.line_fragment_end(function_start);
+                    if end > member_start && self.token_text(&self.tokens[end - 1]) == ";" {
+                        members.push(Item::RustFragment(self.fragment(member_start, end)));
+                        self.position = end;
+                        self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+                        continue;
+                    }
+                }
+                if let Some(function) =
+                    self.parse_function(member_attributes, member_visibility, asynchronous)
+                {
+                    members.push(Item::Function(Box::new(function)));
+                    continue;
+                }
+            }
+            self.position = member_start;
+            if let Some(member) = self.parse_indented_item() {
+                members.push(member);
+                continue;
+            }
+            self.error_current(
+                "OX4001",
+                "item de contenedor no admitido; usa una función indentada o un item Rust con ';'",
+            );
+            self.recover_line();
+        }
+        let end = self.current().map_or_else(
+            || self.tokens.last().map_or(0, |token| token.span.end()),
+            |token| token.span.end(),
+        );
+        self.consume_kind(|kind| matches!(kind, TokenKind::Dedent));
+        let span = self.source.span(self.tokens[start].span.start(), end)?;
+        self.block_depth -= 1;
+        Some(Item::IndentedContainer(IndentedContainer {
+            kind,
             attributes,
             visibility,
             header,
@@ -1472,8 +1757,31 @@ impl Parser<'_> {
                 rust_keyword: "for",
                 ..
             }) => Some(ControlKind::For),
+            Some(TokenKind::Keyword {
+                rust_keyword: "match",
+                ..
+            }) if self.has_indented_match_body(self.position) => Some(ControlKind::Match),
             _ => None,
         }
+    }
+    fn has_indented_match_body(&self, start: usize) -> bool {
+        let mut depth = 0usize;
+        for index in start + 1..self.tokens.len() {
+            let token = &self.tokens[index];
+            if matches!(token.kind, TokenKind::Newline | TokenKind::Dedent) && depth == 0 {
+                return false;
+            }
+            let text = self.token_text(token);
+            if depth == 0 && text == ":" {
+                return self.next_significant_text(index + 1) == Some("\n");
+            }
+            match text {
+                "(" | "[" | "{" => depth += 1,
+                ")" | "]" | "}" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        false
     }
     fn current_is_mode_header(&self) -> bool {
         self.is_kind(|kind| matches!(kind, TokenKind::ModeHeader(_)))

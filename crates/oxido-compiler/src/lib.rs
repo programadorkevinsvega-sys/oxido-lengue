@@ -147,7 +147,9 @@ pub fn parse_ox(
                             ));
                         }
                     }
-                    if let Err(error) =
+                    if let Some(control) = &statement.match_initializer {
+                        validate_control(control, diagnostics);
+                    } else if let Err(error) =
                         oxido_rust_backend::validate_expression(&statement.initializer.text)
                     {
                         diagnostics.push(Diagnostic::error(
@@ -227,6 +229,7 @@ pub fn parse_ox(
             }
             ControlKind::For => oxido_rust_backend::validate_for_header(&control.header.text),
             ControlKind::Loop => Ok(()),
+            ControlKind::Match => oxido_rust_backend::validate_expression(&control.header.text),
         };
         if let Err(error) = validation {
             diagnostics.push(Diagnostic::error(
@@ -235,7 +238,31 @@ pub fn parse_ox(
                 control.header.span,
             ));
         }
-        validate_block(&control.body, diagnostics);
+        if control.kind == ControlKind::Match {
+            for arm in &control.match_arms {
+                if let Err(error) = oxido_rust_backend::validate_pattern(&arm.pattern.text) {
+                    diagnostics.push(Diagnostic::error(
+                        "OX4001",
+                        format!("patrón de `coincidir` inválido: {error}"),
+                        arm.pattern.span,
+                    ));
+                }
+                if let Some(expression) = &arm.expression {
+                    if let Err(error) = oxido_rust_backend::validate_expression(&expression.text) {
+                        diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("expresión de brazo `coincidir` inválida: {error}"),
+                            expression.span,
+                        ));
+                    }
+                }
+                if let Some(block) = &arm.body {
+                    validate_block(block, diagnostics);
+                }
+            }
+        } else {
+            validate_block(&control.body, diagnostics);
+        }
         if let Some(alternative) = &control.alternative {
             match alternative {
                 ControlAlternative::Block(block) => validate_block(block, diagnostics),
@@ -306,6 +333,15 @@ pub fn parse_ox(
                             "OX4001",
                             format!("importación Rust inválida: {error}"),
                             item.tree.span,
+                        ));
+                    }
+                }
+                Item::IndentedContainer(container) => {
+                    if let Err(error) = oxido_rust_backend::validate_indented_container(container) {
+                        rust_diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("contenedor Rust inválido: {error}"),
+                            container.header.span,
                         ));
                     }
                 }

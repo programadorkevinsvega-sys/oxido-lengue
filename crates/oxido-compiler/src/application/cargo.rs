@@ -151,7 +151,7 @@ fn parse_cargo_diagnostics(
         .filter_map(|event| event.get("message"))
         .filter_map(|message| {
             let level = message.get("level")?.as_str()?.to_owned();
-            let text = message.get("message")?.as_str()?.to_owned();
+            let text = message.get("message")?.as_str()?;
             let code = message
                 .get("code")
                 .and_then(|value| value.get("code"))
@@ -171,14 +171,38 @@ fn parse_cargo_diagnostics(
                     let column = span.get("column_start")?.as_u64()? as usize;
                     source_map.map_generated(line, column)
                 });
+            let translated_message = translate_rustc_message(code.as_deref(), text);
             Some(MappedCargoDiagnostic {
                 level,
                 code,
-                message: text,
+                message: translated_message,
                 source,
             })
         })
         .collect()
+}
+
+fn translate_rustc_message(code: Option<&str>, message: &str) -> String {
+    let translated = match code {
+        Some("E0308") => "tipos incompatibles",
+        Some("E0425") => "no se encuentra el nombre",
+        Some("E0599") => "no existe ese método o elemento para este tipo",
+        Some("E0382") => "uso de un valor que ya se movió",
+        Some("E0502") => "conflicto entre préstamos mutables e inmutables",
+        Some("E0507") => "no se puede mover un valor prestado",
+        Some("E0277") => "no se cumple un requisito de trait",
+        Some("E0433") => "no se encuentra el módulo o crate",
+        Some("E0061") => "cantidad incorrecta de argumentos",
+        Some("E0063") => "faltan campos obligatorios",
+        Some("E0004") => "la coincidencia de patrones no cubre todos los casos",
+        Some("E0106") => "falta una duración de vida en esta referencia",
+        _ => return message.to_owned(),
+    };
+    let details = message
+        .split_once('\n')
+        .map(|(_, details)| format!("\n{details}"))
+        .unwrap_or_default();
+    format!("{translated}{details}")
 }
 
 #[cfg(test)]
@@ -217,5 +241,18 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code.as_deref(), Some("E0308"));
         assert_eq!(diagnostics[0].source.unwrap().start, 30);
+        assert_eq!(diagnostics[0].message, "tipos incompatibles");
+    }
+
+    #[test]
+    fn translates_known_rustc_codes_and_preserves_unknown_messages() {
+        assert_eq!(
+            translate_rustc_message(Some("E0599"), "no method named `x`"),
+            "no existe ese método o elemento para este tipo"
+        );
+        assert_eq!(
+            translate_rustc_message(Some("E9999"), "future diagnostic"),
+            "future diagnostic"
+        );
     }
 }

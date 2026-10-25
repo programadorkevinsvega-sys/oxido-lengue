@@ -54,7 +54,7 @@ En modo indentación, el `:` final solo abre un bloque después de un encabezado
 ```ebnf
 Statement        ::= LetStatement | ReturnStatement | BreakStatement
                    | ContinueStatement | ControlStatement | ExprLine ;
-LetStatement     ::= ("dejar" | "let") RustPattern [":" RustType]
+LetStatement     ::= ("dejar" | "variable" | "let") ["mutable" | "mut"] RustPattern [":" RustType]
                      "=" RustExpr [";"] ;
 ReturnStatement  ::= ("retornar" | "return") [RustExpr] [";"] ;
 BreakStatement   ::= ("romper" | "break") [RustLabel] [RustExpr] [";"] ;
@@ -93,12 +93,12 @@ MacroInvocation  ::= RustPath "!" BalancedGroup [";"] ;
 Attribute        ::= "#" ["!"] "[" OpaqueTokenTree* "]" ;
 ```
 
-Las invocaciones de macros y el contenido de atributos son opacos: no se traducen alias, identificadores, cadenas ni rutas internas. La sintaxis de macro invocation se basa en los árboles delimitados de Rust ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)). El nombre de macro también se preserva; Óxido 0.1 no define alias de macros.
+Los argumentos de macros y los atributos no allowlisted son opacos: no se traducen alias, identificadores, cadenas ni rutas internas. Los nombres de macros y los atributos allowlisted se detallan en [aliases](aliases.md). La sintaxis de invocación se basa en los árboles delimitados de Rust ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)).
 
 ## 7. Normalización antes de Syn
 
 1. Tokenizar sin alterar literales/comentarios y reconocer grupos balanceados.
-2. Reconocer alias solo como tokens de keyword no crudos y fuera de macro/attribute opacos.
+2. Reconocer keywords/prelude fuera de regiones opacas; normalizar solo nombres de macros y atributos allowlisted, nunca sus argumentos.
 3. Normalizar bloques indentados a grupos `{}` conservando un mapa de origen.
 4. Normalizar terminadores de instrucciones indentadas conforme a la sección 5.
 5. Construir Rust tokens/AST y parsear el archivo con Syn (`full`, `parsing`).

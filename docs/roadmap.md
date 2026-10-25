@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–7: completadas en sus alcances verificados. Fase 8 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y demuestra interoperabilidad con tipos y bibliotecas Rust. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
+**Fases 0–7: completadas en sus alcances verificados. Fase 8 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados, interoperabilidad y aliases iniciales de prelude/macros. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -178,24 +178,27 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Fase 7. Lenguaje inicial
 
-**Objetivo:** ampliar el subconjunto mediante capacidades con criterios independientes.
+**Objetivo:** ampliar el subconjunto mediante capacidades con criterios independientes. La ampliación de aliases de prelude y macros está en curso; no avanzar a Fase 8 hasta completar los criterios de salida revisados.
 
 ### Subfases
 
-1. **Variables y expresiones:** completadas para `let`/`dejar`, mutabilidad, literales, llamadas y expresiones Rust; pruebas positivas/negativas y de tipo.
-2. **Funciones:** completadas para parámetros, tipos, retorno, visibilidad y semicolon/tail.
+1. **Variables y expresiones:** completadas para `let`/`dejar`/`variable`, `variable mutable`, aliases `&mutable`, literales, llamadas y expresiones Rust; pruebas positivas/negativas y de tipo.
+2. **Funciones:** completadas para `funcion`, `principal`→`main`, parámetros, tipos, retorno, visibilidad y semicolon/tail.
 3. **Control:** condiciones y bucles iniciales en ambos modos, con equivalencia ejecutable verificada en Fase 6.
 4. **Tipos compuestos:** tuplas, arrays y primitivos preservados como Rust y probados en ejecución.
 5. **Items:** campos indentados de `struct`, variantes indentadas de `enum`; `impl` y métodos en passthrough Rust con llaves.
 6. **Referencias:** referencias y borrowing delegados a Rust, con prueba end-to-end.
 7. **Módulos e imports:** `use` indentado; módulos/imports Rust en modo llaves.
 8. **Errores y tipos comunes:** `Result`, `Option` y `?` probados mediante compilación y ejecución.
-9. **Colecciones:** `VecDeque` y métodos estándar conservan sus nombres Rust y se prueban end-to-end.
-10. **Pruebas diferenciales:** corpus positivo/negativo y matriz por característica actualizados con ejemplos reproducibles.
+9. **Aliases de prelude:** completada para tipos, variantes, primitivos, traits, métodos y rutas `std` enumerados en [aliases](aliases.md).
+10. **Macros/atributos:** completada para nombres/atributos allowlisted; argumentos/contenido opacos, pruebas de `matches!` y atributos en items Cargo.
+11. **Entrada principal y mutabilidad:** completada para `principal`→`main`, `variable`/`variable mutable` y `mutable` en referencias/parámetros, más colisión y escape `r#`.
+12. **Errores y diagnóstico:** completada para el inventario de códigos rustc común documentado; conserva códigos/spans JSON y no depende de salida humana.
+13. **Pruebas diferenciales:** completada con corpus positivo/negativo, ejecución end-to-end, aliases y matriz reproducibles.
 
-**Entregables:** completados para el subconjunto documentado en [informe de Fase 7](fase-7-lenguaje-inicial.md), con dos ejemplos ejecutables y matriz actualizada.
+**Entregables:** completados; informe, matriz y ejemplos ejecutables cubren las subfases. Formato, pruebas de workspace, Clippy y build de documentación verdes.
 
-**Criterio de salida:** cumplido para el subconjunto descrito; las características probadas generan Rust, pasan Cargo/rustc y tienen límites publicados. Los cuerpos indentados de `impl`/módulos y la sintaxis indentada de brazos `match` siguen pendientes de fases posteriores.
+**Criterio de salida:** cumplido para el alcance descrito; cada familia de alias publicada tiene pruebas de conversión y los ejemplos ejecutables pasan Cargo/rustc; argumentos de macros opacos; errores comunes mapeados desde JSON; documentación sin declarar compatibilidad general. Los cuerpos indentados de `impl`/módulos y la sintaxis indentada de brazos `match` quedan explícitamente fuera de esta fase.
 
 **Dependencia:** Fase 6; algunas características pueden desarrollarse en paralelo si no comparten gramática/backend.
 
@@ -385,10 +388,10 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados quedan en Fase 7 |
 | 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md), exportación, mapa, Cargo, diagnósticos, ejecución y vuelta reversible | Ninguno dentro del alcance verificado |
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | La ampliación de items quedó en Fase 7 |
-| 7 | Completada (lenguaje inicial) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), ejemplos end-to-end de items indentados e interoperabilidad Rust | Cuerpos indentados de `impl`/módulos y brazos indentados de `match` quedan fuera del alcance |
+| 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), aliases, macros, atributos, diagnóstico y ejemplos end-to-end | Cuerpos indentados de `impl`/módulos y brazos `match` quedan fuera del alcance |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
 | 8–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 1–7 están completadas en los alcances indicados arriba. Las verificaciones locales de Fase 7 incluyen formato, workspace tests y Clippy sin warnings; los checks remotos se registrarán con el PR de esta fase.
+Las fases 1–7 están completadas en los alcances indicados arriba. La Fase 8 puede iniciarse conforme a sus criterios y sin ampliar retroactivamente el alcance verificado de Fase 7.

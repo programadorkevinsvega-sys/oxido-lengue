@@ -189,6 +189,23 @@ fn diagnoses_reserved_aliases_used_as_function_and_binding_names() {
 }
 
 #[test]
+fn diagnoses_prelude_alias_collisions_and_accepts_raw_escape() {
+    let collision =
+        SourceFile::new("sintaxis indentacion\nfuncion principal():\n    variable Cadena = 1\n");
+    let parsed = oxido_language::domain::syntax::parse(&collision, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(parsed.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "OX3001" && diagnostic.message.contains("r#Cadena")
+    }));
+
+    let escaped = SourceFile::new(
+        "sintaxis indentacion\nfuncion principal():\n    variable r#Cadena = 1\n    imprimirln!(\"{}\", r#Cadena)\n",
+    );
+    let parsed = oxido_language::domain::syntax::parse(&escaped, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+}
+
+#[test]
 fn diagnoses_reserved_aliases_in_parameters_nested_patterns_and_for_bindings() {
     for source in [
         "sintaxis indentacion\nfuncion valida(tipo: i32):\n    retornar\n",

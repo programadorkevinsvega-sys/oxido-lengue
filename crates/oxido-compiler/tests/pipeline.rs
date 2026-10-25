@@ -126,6 +126,64 @@ fn compiles_and_runs_indented_structs_enums_and_collections() {
 }
 
 #[test]
+fn compiles_and_runs_spanish_prelude_aliases_and_macros() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(include_str!("../../../examples/fase_7_prelude_espanol.ox"));
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    for rust in [
+        "fn main()",
+        "Vec<String>",
+        "vec![",
+        ".push(",
+        ".len(",
+        "println!(",
+    ] {
+        assert!(
+            generated.rust.contains(rust),
+            "missing {rust}: {}",
+            generated.rust
+        );
+    }
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["Ada:4"]);
+}
+
+#[test]
+fn compiles_allowlisted_spanish_attributes_on_rust_items() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis llaves\n#[derivar(Clone, Defecto)] struct Dato;\n#[permitir(dead_code)] fn auxiliar() {}\n#[prueba] fn prueba_alias() { let _ = Dato; }\nfuncion principal() { let _ = Dato; }\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        generated.rust.contains("#[derive(Clone, Default)]"),
+        "{}",
+        generated.rust
+    );
+    assert!(
+        generated.rust.contains("#[allow(dead_code)]"),
+        "{}",
+        generated.rust
+    );
+    assert!(generated.rust.contains("#[test]"), "{}", generated.rust);
+    let checked = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        checked.success,
+        "{} {:?}",
+        checked.stderr, checked.diagnostics
+    );
+}
+
+#[test]
 fn rejects_malformed_indented_struct_fields_with_a_rust_syntax_diagnostic() {
     use oxido_language::domain::syntax::LexOptions;
 

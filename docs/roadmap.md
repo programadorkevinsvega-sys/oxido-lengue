@@ -84,7 +84,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ---
 
-## Fase 3. Lexer y fuentes
+## Fase 3. Fuentes y lexer inicial
 
 **Objetivo:** convertir texto fuente en tokens y rangos confiables.
 
@@ -108,7 +108,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ---
 
-## Fase 4. Parser y AST
+## Fase 4. Parser estructural inicial y AST
 
 **Objetivo:** analizar el subconjunto definido y producir una representación intermedia común.
 
@@ -133,17 +133,17 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Fase 5. Primer compilador funcional
 
-**Objetivo:** traducir un `.ox` real, compilarlo y ejecutarlo de forma reproducible.
+**Objetivo:** completar primero una rebanada vertical mínima: exportar, mapear, compilar y ejecutar un programa `.ox` «Hola, mundo». Después se amplía el subconjunto y se implementa la importación reversible.
 
-### Subfases
+### Tareas incrementales
 
-1. **Backend de tokens:** emitir Rust estándar mediante `quote`/`proc_macro2`; formatear con `prettyplease`.
-2. **Mapa de posiciones:** guardar relación de spans entre fuente `.ox` y archivo Rust generado.
-3. **Integración Cargo:** preparar proyecto temporal o estructura de salida segura; invocar procesos mediante `Command` y argumentos separados.
-4. **Diagnósticos Cargo:** leer `cargo --message-format=json` y mapear errores de Rust al origen `.ox`.
-5. **CLI mínima:** implementar verificar/compilar/ejecutar para el subconjunto aprobado.
-6. **Prueba end-to-end:** compilar y ejecutar un programa mínimo mediante Cargo y `rustc`.
-7. **Exportar/importar:** exportar `.ox` a `.rs` e importar el subconjunto reversible; probar `.ox → .rs → .ox` y documentar pérdidas.
+1. **Emisor mínimo:** generar con `quote`/`proc_macro2` y formatear con `prettyplease` las funciones, declaraciones y expresiones necesarias para «Hola, mundo». **Criterio:** el resultado se vuelve a parsear con Syn y un fixture prueba el subconjunto admitido.
+2. **Mapa de posiciones:** asociar spans `.ox` con rangos generados `.rs`. **Criterio:** una ubicación generada de prueba se resuelve al span fuente correspondiente.
+3. **Exportar:** añadir `oxido exportar <archivo.ox> --salida <archivo.rs>` para el subconjunto implementado; producir Rust inspeccionable y el mapa lateral. **Criterio:** el archivo exportado y su mapa existen y el Rust pasa Syn.
+4. **Adaptador Cargo:** preparar un proyecto de salida acotado y ejecutar `cargo` con `Command`, argumentos separados, rutas validadas y `--message-format=json`; nunca usar shell. **Criterio:** una prueba de integración observa argv/cwd y analiza un evento JSON real de Cargo.
+5. **Diagnósticos JSON:** parsear mensajes de Cargo, mapear ubicaciones generadas a `.ox` y conservar errores sin correspondencia como errores externos. **Criterio:** un error sintáctico y uno de tipos señalan el origen `.ox`.
+6. **Compilar y ejecutar:** añadir comandos explícitos para compilar y ejecutar; comprobar un «Hola, mundo» real de extremo a extremo y no ejecutar como efecto de `verificar`/`compilar`. **Criterio:** la salida coincide exactamente con el resultado esperado y un fallo de Cargo devuelve estado fallido.
+7. **Importar y vuelta redonda:** importar solo el subconjunto reversible. **Criterio:** una prueba `.ox → .rs → .ox` conserva la semántica del corpus reversible y construcciones no reversibles reciben diagnóstico claro.
 
 **Entregables:** programa `.ox` real compilado y ejecutado, Rust generado inspeccionable, diagnósticos mapeados y prueba de ida y vuelta del subconjunto reversible.
 
@@ -379,13 +379,13 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | Fase | Estado | Evidencia | Bloqueos |
 |---|---|---|---|
 | 0 | Completada | [Informe de auditoría](auditoria-fase-0.md); no había pruebas ejecutables | Ninguno para iniciar Fase 1 |
-| 1 | Completada y cerrada (100%, documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Ninguno dentro del alcance documental acordado |
-| 2 | Completada y cerrada (100%, alcance inicial) | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, parseo seguro de configuración, pipeline Rust y pruebas de integración | La CI remota está bloqueada por el límite de facturación; las verificaciones locales están aprobadas |
-| 3 | Completada y cerrada (100%, alcance inicial) | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | Ampliaciones posteriores de lenguaje siguen en fases futuras |
-| 4 | Completada y cerrada (100%, subconjunto inicial definido) | [Informe de Fase 4](fase-4-parser.md), AST estructural, parser, validación Syn, límites de anidamiento y pruebas pares de ambos modos | No genera Rust ni compila con Cargo; items indentados y normalización general de aliases pertenecen a fases posteriores |
-| Portal documental | En curso (sitio estático verificado) | [website/README.md](../website/README.md), Astro Starlight y páginas generadas desde Markdown canónico; build probado con Node 22.23.4 | Cloudflare Pages no conectado y dominio sin decidir; sitemap se habilitará al configurar `site`; queda aviso informativo en la ruta 404 generada por Starlight |
+| 1 | Completada (alcance documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Ninguno dentro del alcance acordado |
+| 2 | Completada (infraestructura inicial) | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, configuración declarativa, pipeline Rust y pruebas de integración | GitHub Actions no ejecuta jobs por el límite de facturación de esta cuenta; las verificaciones locales están aprobadas |
+| 3 | Completada (fuentes y lexer inicial) | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | No implica parser ni generación; ampliaciones de sintaxis siguen en fases posteriores |
+| 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados y normalización general de aliases son ampliaciones posteriores |
+| Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
 | 5–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
-Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada y cerrada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
+Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 1–4 están cerradas al 100% de sus alcances definidos. `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo clippy --workspace --all-targets --locked -- -D warnings` y `cargo test --workspace --locked` pasaron localmente. La CI de GitHub no ejecuta los pasos porque la cuenta está bloqueada por su límite de facturación; este bloqueo externo queda registrado y no impide el cierre local.
+Las fases 1–4 están completadas en los alcances indicados arriba. `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo clippy --workspace --all-targets --locked -- -D warnings` y `cargo test --workspace --locked` pasaron localmente. El repositorio es privado y GitHub Actions no inicia los jobs por el límite de facturación de la cuenta; las verificaciones locales no sustituyen una ejecución remota de CI. La configuración de CI sigue pendiente de restablecerse.

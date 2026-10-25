@@ -1,4 +1,4 @@
-# Fase 4: parser y AST
+# Fase 4: parser estructural inicial y AST
 
 **Estado:** completada para el subconjunto inicial que la fase entrega. El alcance se cierra aquí; las ampliaciones que aparecen como parciales en la matriz de compatibilidad no se presentan como implementadas.
 

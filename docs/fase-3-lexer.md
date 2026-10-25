@@ -1,4 +1,4 @@
-# Fase 3: fuentes y lexer
+# Fase 3: fuentes y lexer inicial
 
 **Estado:** completada. Al cierre de esta fase, la API producía tokens deterministas y diagnósticos con spans half-open de bytes UTF-8. El parser y AST se añadieron en Fase 4; la traducción `.ox → .rs` queda para Fase 5.
 
@@ -22,5 +22,5 @@
 
 - La clasificación de un alias como keyword es léxica; el parser de Fase 4 diagnostica nombres de función y bindings simples de `let`, y Fase 6 ampliará la comprobación a todos los contextos de identificador.
 - `OX1003` solo detecta mezcla de alfabeto latino con griego/cirílico; no implementa una tabla Unicode completa de confusables.
-- La gramática/contexto de macros, atributos, bloques y expresiones se resuelve en Fase 4.
+- El parser de Fase 4 reconoce el subconjunto inicial descrito en su informe; estructuras y formas de lenguaje fuera de ese alcance siguen pendientes de sus fases correspondientes.
 - El CLI todavía no expone un comando `lex` ni consume `.ox` en el flujo de compilación.

@@ -22,7 +22,7 @@ npm run preview
 
 Configura el directorio raíz del proyecto como `website`, el comando de build como `npm run build` y el directorio de salida como `dist`. Pages puede generar previews para cambios en ramas y pull requests. No hace falta backend ni runtime dinámico para esta documentación.
 
-La primera publicación debe hacerse cuando se configure el proyecto de Pages con la cuenta/dominio del mantenedor. El build local se verifica de forma independiente.
+El portal ya está publicado en Cloudflare Pages. En el proyecto de Pages, conserva la raíz `website`, el build `npm run build` y la salida `dist`; no configures `npx wrangler deploy`, que pertenece al flujo de Workers y busca una configuración distinta.
 
 ## Contenido y estado
 

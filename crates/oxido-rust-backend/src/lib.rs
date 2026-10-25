@@ -6,8 +6,8 @@ use oxido_language::{
     SourceFile,
     domain::{
         ast::{
-            Block, ControlAlternative, ControlExpression, ControlKind, File, Function, Item,
-            RustFragment, Statement,
+            AggregateKind, Block, ControlAlternative, ControlExpression, ControlKind, File,
+            Function, IndentedAggregate, IndentedUse, Item, RustFragment, Statement,
         },
         source::Span,
     },
@@ -88,6 +88,8 @@ pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynEr
         let source_span = match source_item {
             Item::Function(function) => function.span,
             Item::RustFragment(fragment) => fragment.span,
+            Item::IndentedAggregate(aggregate) => aggregate.span,
+            Item::IndentedUse(item) => item.span,
         };
         let generated_span = generated_item.span();
         if let Some(mapping) = make_mapping(
@@ -170,6 +172,88 @@ fn emit_item(item: &Item, mappings: &mut Vec<PendingMapping>) -> Result<TokenStr
             let items = parsed.items;
             Ok(quote! { #(#items)* })
         }
+        Item::IndentedAggregate(aggregate) => emit_indented_aggregate(aggregate, mappings),
+        Item::IndentedUse(item) => emit_indented_use(item, mappings),
+    }
+}
+
+fn emit_indented_use(
+    item: &IndentedUse,
+    mappings: &mut Vec<PendingMapping>,
+) -> Result<TokenStream, SynError> {
+    let mut attributes = Vec::new();
+    for attribute in &item.attributes {
+        let parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+        attributes.push(
+            parsed
+                .into_iter()
+                .next()
+                .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))?,
+        );
+        register_fragment(attribute, mappings)?;
+    }
+    let visibility = item
+        .visibility
+        .as_ref()
+        .map(|fragment| {
+            register_fragment(fragment, mappings)?;
+            syn::parse2::<syn::Visibility>(parse_tokens(&fragment.text)?)
+        })
+        .transpose()?;
+    let tree = parse_tokens(&item.tree.text)?;
+    register_fragment(&item.tree, mappings)?;
+    Ok(quote! { #(#attributes)* #visibility use #tree; })
+}
+
+fn emit_indented_aggregate(
+    aggregate: &IndentedAggregate,
+    mappings: &mut Vec<PendingMapping>,
+) -> Result<TokenStream, SynError> {
+    let mut attributes = Vec::new();
+    for attribute in &aggregate.attributes {
+        let parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+        attributes.push(
+            parsed
+                .into_iter()
+                .next()
+                .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))?,
+        );
+        register_fragment(attribute, mappings)?;
+    }
+    let visibility = aggregate
+        .visibility
+        .as_ref()
+        .map(|fragment| {
+            register_fragment(fragment, mappings)?;
+            syn::parse2::<syn::Visibility>(parse_tokens(&fragment.text)?)
+        })
+        .transpose()?;
+    let header = parse_tokens(&aggregate.header.text)?;
+    register_fragment(&aggregate.header, mappings)?;
+    let mut members = Vec::new();
+    for member in &aggregate.members {
+        let mut member_attributes = Vec::new();
+        for attribute in &member.attributes {
+            let parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+            member_attributes.push(
+                parsed
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))?,
+            );
+            register_fragment(attribute, mappings)?;
+        }
+        let value = parse_tokens(&member.value.text)?;
+        register_fragment(&member.value, mappings)?;
+        members.push(quote! { #(#member_attributes)* #value });
+    }
+    match aggregate.kind {
+        AggregateKind::Struct => Ok(quote! {
+            #(#attributes)* #visibility struct #header { #(#members,)* }
+        }),
+        AggregateKind::Enum => Ok(quote! {
+            #(#attributes)* #visibility enum #header { #(#members,)* }
+        }),
     }
 }
 
@@ -577,6 +661,18 @@ pub fn validate_visibility(fragment: &str) -> Result<(), SynError> {
 /// Valida un item Rust passthrough completo.
 pub fn validate_item(fragment: &str) -> Result<(), SynError> {
     syn::parse2::<syn::File>(parse_tokens(fragment)?).map(|_| ())
+}
+
+/// Valida una declaración estructural indentada en su contexto final de item.
+pub fn validate_indented_aggregate(aggregate: &IndentedAggregate) -> Result<(), SynError> {
+    let tokens = emit_indented_aggregate(aggregate, &mut Vec::new())?;
+    syn::parse2::<syn::Item>(tokens).map(|_| ())
+}
+
+/// Valida una importación estructural indentada.
+pub fn validate_indented_use(item: &IndentedUse) -> Result<(), SynError> {
+    let tokens = emit_indented_use(item, &mut Vec::new())?;
+    syn::parse2::<syn::Item>(tokens).map(|_| ())
 }
 
 #[cfg(test)]

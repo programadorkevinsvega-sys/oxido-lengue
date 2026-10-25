@@ -291,6 +291,24 @@ pub fn parse_ox(
                         ));
                     }
                 }
+                Item::IndentedAggregate(aggregate) => {
+                    if let Err(error) = oxido_rust_backend::validate_indented_aggregate(aggregate) {
+                        rust_diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("item estructural Rust inválido: {error}"),
+                            aggregate.header.span,
+                        ));
+                    }
+                }
+                Item::IndentedUse(item) => {
+                    if let Err(error) = oxido_rust_backend::validate_indented_use(item) {
+                        rust_diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("importación Rust inválida: {error}"),
+                            item.tree.span,
+                        ));
+                    }
+                }
             }
         }
         output.diagnostics.extend(rust_diagnostics);

@@ -4,7 +4,7 @@
 
 ## Estado
 
-El proyecto está en fase inicial. El lexer y el parser estructural `.ox` existen, y la Fase 5 ya exporta, compila y ejecuta el ejemplo mínimo documentado. La compatibilidad sigue limitada al subconjunto verificado; no es una herramienta lista para producción. La CLI lee `oxido.toml` como datos declarativos con campos cerrados. Consulta el [portal documental](docs/index.md), el [roadmap](docs/roadmap.md) y la [especificación](docs/language-spec.md). Para trabajar en el sitio Markdown, sigue [website/README.md](website/README.md).
+El proyecto está en fase inicial. Las Fases 5–7 ya exportan, compilan y ejecutan ejemplos de `.ox`, incluidos bloques indentados, estructuras iniciales e interoperabilidad con Rust. La compatibilidad sigue limitada al subconjunto verificado; no es una herramienta lista para producción. La CLI lee `oxido.toml` como datos declarativos con campos cerrados. Consulta el [portal documental](docs/index.md), el [roadmap](docs/roadmap.md) y la [especificación](docs/language-spec.md). Para trabajar en el sitio Markdown, sigue [website/README.md](website/README.md).
 
 ## Requisitos
 

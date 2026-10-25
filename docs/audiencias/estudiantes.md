@@ -2,17 +2,27 @@
 
 Óxido busca ofrecer una sintaxis bilingüe apoyándose en Rust. La meta es poder aprender estructuras de programación y, al mismo tiempo, encontrar las reglas reales de Rust para tipos, referencias, ownership y borrowing.
 
-> La rebanada inicial genera, compila y ejecuta `examples/hola_mundo.ox`. Los fragmentos siguientes son propuestas ilustrativas y no implican que toda la sintaxis esté implementada.
+> Puedes ejecutar los ejemplos de Fases 5 y 7. Cada ejemplo enseña un subconjunto concreto; consulta la matriz antes de asumir que otra sintaxis está disponible.
 
-## Una función propuesta
+## Programa indentado ejecutable
 
 ```ox
 sintaxis indentacion
-funcion saludar(nombre: &str) -> String:
-    format!("Hola, {nombre}")
+estructura Punto:
+    x: i32
+    y: i32
+
+enumeracion Estado:
+    Listo(i32)
 ```
 
-La expresión `format!` seguiría siendo una macro Rust y sus argumentos se conservarían sin traducir. La última expresión sin `;` sería el valor del bloque según la especificación.
+El programa ejecutable completo está en `examples/fase_7_estructuras.ox`. Sus bloques usan indentación; tipos, expresiones y macros siguen las reglas Rust. `coincidir` conserva los brazos con llaves Rust.
+
+Puedes ejecutarlo desde la raíz:
+
+```sh
+cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox
+```
 
 ## Ruta de aprendizaje
 
@@ -22,4 +32,4 @@ La expresión `format!` seguiría siendo una macro Rust y sus argumentos se cons
 4. Referencias, ownership y borrowing.
 5. Errores del compilador y lectura del Rust generado.
 
-Los tutoriales y ejercicios se habilitarán conforme cada característica tenga implementación y pruebas. Consulta [modos de sintaxis](/referencia/syntax-modes/), [alias](/referencia/aliases/) y [criterios de aceptación](/referencia/testing/).
+`examples/fase_7_interoperabilidad.ox` muestra tuplas, referencias, métodos, módulos, errores `Result`/`Option` y `VecDeque` en sintaxis Rust. Consulta [modos de sintaxis](/referencia/syntax-modes/), [alias](/referencia/aliases/) y [compatibilidad](/referencia/compatibility/).

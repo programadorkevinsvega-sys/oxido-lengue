@@ -11,6 +11,40 @@ pub struct File {
 pub enum Item {
     Function(Box<Function>),
     RustFragment(RustFragment),
+    IndentedAggregate(IndentedAggregate),
+    IndentedUse(IndentedUse),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndentedUse {
+    pub attributes: Vec<RustFragment>,
+    pub visibility: Option<RustFragment>,
+    pub tree: RustFragment,
+    pub span: Span,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AggregateKind {
+    Struct,
+    Enum,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndentedAggregate {
+    pub kind: AggregateKind,
+    pub attributes: Vec<RustFragment>,
+    pub visibility: Option<RustFragment>,
+    /// Nombre, genéricos y cláusula `where`, preservados como Rust.
+    pub header: RustFragment,
+    pub members: Vec<IndentedMember>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndentedMember {
+    pub attributes: Vec<RustFragment>,
+    /// Campo de struct o variante enum, sin coma final.
+    pub value: RustFragment,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

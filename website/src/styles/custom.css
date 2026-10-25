@@ -1,0 +1,23 @@
+:root {
+  --sl-color-accent-low: #f7ded7;
+  --sl-color-accent: #9b3828;
+  --sl-color-accent-high: #591f17;
+  --sl-color-white: #fffaf8;
+  --sl-color-gray-1: #f4efed;
+  --sl-color-gray-2: #d8ceca;
+  --sl-color-gray-3: #a99a95;
+  --sl-color-gray-4: #756660;
+  --sl-color-gray-5: #51443f;
+  --sl-color-gray-6: #342b28;
+  --sl-color-black: #1f1917;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #42251f;
+  --sl-color-accent: #ec8c76;
+  --sl-color-accent-high: #f7c4b7;
+}
+
+.sl-markdown-content :is(h1, h2, h3) {
+  letter-spacing: -0.02em;
+}

@@ -1,0 +1,16 @@
+[package]
+name = "oxido-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "oxido"
+path = "src/main.rs"
+
+[dependencies]
+oxido-language.workspace = true
+oxido-compiler.workspace = true
+
+[lints]
+workspace = true

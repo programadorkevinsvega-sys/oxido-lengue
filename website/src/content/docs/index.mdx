@@ -1,0 +1,29 @@
+---
+title: Óxido
+description: Documentación del lenguaje Óxido para desarrolladores, empresas y estudiantes.
+template: splash
+hero:
+  tagline: Sintaxis bilingüe, interoperabilidad con Rust y documentación basada en evidencia.
+  actions:
+    - text: Desarrolladores
+      link: /audiencias/desarrolladores/
+      icon: right-arrow
+    - text: Empresas
+      link: /audiencias/empresas/
+      variant: secondary
+    - text: Estudiantes
+      link: /audiencias/estudiantes/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard, Aside } from '@astrojs/starlight/components'
+
+<Aside type="caution" title="Estado actual">
+El lexer de archivos `.ox` está implementado. El parser y la compilación de `.ox` todavía están pendientes; los ejemplos de sintaxis se identifican como propuestas y no como programas ejecutables.
+</Aside>
+
+<CardGrid stagger>
+  <LinkCard title="Desarrolladores" href="/audiencias/desarrolladores/" description="Arquitectura, compatibilidad con Rust y cómo contribuir." />
+  <LinkCard title="Empresas" href="/audiencias/empresas/" description="Estado, controles existentes y criterios de evaluación." />
+  <LinkCard title="Estudiantes" href="/audiencias/estudiantes/" description="Ruta de aprendizaje, conceptos y ejemplos comentados." />
+</CardGrid>

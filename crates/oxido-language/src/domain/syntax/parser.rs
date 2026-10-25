@@ -71,6 +71,7 @@ impl Parser<'_> {
         {
             self.position += 1;
         }
+        let attributes = self.parse_file_inner_attributes();
         loop {
             self.skip_non_doc_trivia();
             if self.at_end() {
@@ -128,6 +129,7 @@ impl Parser<'_> {
         }
         File {
             mode: self.mode,
+            attributes,
             items,
             span: self
                 .source
@@ -291,7 +293,7 @@ impl Parser<'_> {
             self.error_current("OX2003", "se esperaba un salto de línea después de ':'");
             return None;
         }
-        self.skip_comments();
+        self.skip_trivia();
         if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
             self.error_current(
                 "OX2003",
@@ -951,7 +953,70 @@ impl Parser<'_> {
         }
         let text = self.source.slice(token.span).trim_start();
         (text.starts_with("///") && !text.starts_with("////"))
+            || (text.starts_with("//!") && !text.starts_with("////"))
             || (text.starts_with("/**") && !text.starts_with("/***"))
+            || (text.starts_with("/*!") && !text.starts_with("/*!*"))
+    }
+
+    fn parse_file_inner_attributes(&mut self) -> Vec<RustFragment> {
+        let mut attributes = Vec::new();
+        loop {
+            while self.is_kind(|kind| matches!(kind, TokenKind::Newline)) {
+                self.position += 1;
+            }
+            if self.is_kind(|kind| matches!(kind, TokenKind::Comment))
+                && self.is_inner_doc_comment(self.position)
+            {
+                let start = self.position;
+                self.position += 1;
+                attributes.push(self.fragment(start, self.position));
+                continue;
+            }
+            if !self.is_text("#")
+                || !matches!(self.tokens.get(self.position + 1), Some(token) if self.token_text(token) == "!")
+            {
+                break;
+            }
+            let start = self.position;
+            self.position += 2;
+            if !self.consume_text("[") {
+                self.error_current(
+                    "OX1001",
+                    "se esperaba '[' después de '#!' en atributo interno",
+                );
+                break;
+            }
+            let mut depth = 1usize;
+            while !self.at_end() && depth > 0 {
+                match self.current_text() {
+                    Some("[") => depth += 1,
+                    Some("]") => depth -= 1,
+                    _ => {}
+                }
+                self.position += 1;
+            }
+            if depth > 0 {
+                self.error(
+                    "OX1001",
+                    "atributo interno sin cerrar",
+                    self.tokens.get(start).map(|token| token.span),
+                );
+            }
+            attributes.push(self.fragment(start, self.position));
+        }
+        attributes
+    }
+
+    fn is_inner_doc_comment(&self, index: usize) -> bool {
+        let Some(token) = self.tokens.get(index) else {
+            return false;
+        };
+        if !matches!(token.kind, TokenKind::Comment) {
+            return false;
+        }
+        let text = self.source.slice(token.span).trim_start();
+        (text.starts_with("//!") && !text.starts_with("////"))
+            || (text.starts_with("/*!") && !text.starts_with("/*!*"))
     }
 
     fn skip_non_doc_trivia(&mut self) {
@@ -1319,7 +1384,14 @@ impl Parser<'_> {
         self.position = colon + 1;
         self.skip_comments();
         self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
-        self.skip_comments();
+        while self.is_kind(|kind| matches!(kind, TokenKind::Comment | TokenKind::Newline)) {
+            if self.is_doc_comment(self.position) && !self.is_inner_doc_comment(self.position) {
+                let comment = self.position;
+                self.deferred_doc_comments
+                    .push(self.fragment(comment, comment + 1));
+            }
+            self.position += 1;
+        }
         if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
             let message = if kind == ContainerKind::Impl {
                 "el bloque `implementar` no puede estar vacío"

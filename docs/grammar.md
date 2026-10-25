@@ -15,7 +15,7 @@ La gramática describe el alcance previsto de 0.1; no significa que todas las pr
 ## 2. Archivo y modo
 
 ```ebnf
-SourceFile       ::= [Shebang] [Header NL] {BlankOrComment | Item | NL} EOF ;
+SourceFile       ::= [Shebang] [Header NL] {FileInnerAttribute | BlankOrComment | Item | NL} EOF ;
 Header           ::= "sintaxis" Mode ;
 Mode             ::= "indentacion" | "llaves" ;
 Item             ::= Attribute* [Visibility] StructuralItem
@@ -49,7 +49,7 @@ IndentedModuleBody ::= ":" NL INDENT {StructuralItem | NL} DEDENT ;
 TraitMethod      ::= FunctionHeader ";" | FunctionHeader FunctionBody ;
 ```
 
-`RustFunctionHeader`, `RustItemHeader` y `RustUseTree` son secuencias de tokens Rust balanceadas hasta el delimitador estructural. En modo indentación, `impl`, `trait` y módulos admiten miembros estructurales y funciones con cuerpo indentado. Declaraciones de métodos de trait pueden terminar en `;`. Fuera de argumentos de macros y atributos no allowlisted, el frontend normaliza tokens keyword que tengan alias español. Syn valida el fragmento en su contexto final.
+`RustFunctionHeader`, `RustItemHeader` y `RustUseTree` son secuencias de tokens Rust balanceadas hasta el delimitador estructural. En modo indentación, `impl`, `trait` y módulos admiten miembros estructurales y funciones con cuerpo indentado. Declaraciones de métodos de trait pueden terminar en `;`. Fuera de macros estándar que procesan expresiones y atributos allowlisted, el frontend normaliza tokens keyword que tengan alias español. Syn valida el fragmento en su contexto final.
 
 En modo indentación, el `:` final solo abre un bloque después de un encabezado reconocido y al nivel de delimitadores cero. Los dos puntos de parámetros, tipos, paths y expresiones no abren bloques.
 
@@ -95,14 +95,15 @@ RustTokens       ::= Token {Token | BalancedGroup} ;
 BalancedGroup    ::= "(" TokenTree* ")" | "[" TokenTree* "]" | "{" TokenTree* "}" ;
 MacroInvocation  ::= RustPath "!" BalancedGroup [";"] ;
 Attribute        ::= "#" ["!"] "[" OpaqueTokenTree* "]" ;
+FileInnerAttribute ::= "#![" OpaqueTokenTree* "]" | InnerDocComment ;
 ```
 
-Los argumentos de macros y los atributos no allowlisted son opacos: no se traducen alias, identificadores, cadenas ni rutas internas. Los nombres de macros y los atributos allowlisted se detallan en [aliases](aliases.md). La sintaxis de invocación se basa en los árboles delimitados de Rust ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)).
+Los comentarios de documentación externos e internos (`///`, `/** */`, `//!`, `/*! */`) se emiten como atributos Rust `doc`. Los comentarios ordinarios no son atributos y no se conservan en la vuelta de importación. Los argumentos de macros externas/desconocidas y las DSL estándar de metaprogramación son opacos. En macros estándar allowlisted que reciben expresiones se normalizan recursivamente aliases de Óxido; literales y cadenas siguen intactos. Los nombres y excepciones se detallan en [aliases](aliases.md). La sintaxis de invocación se basa en los árboles delimitados de Rust ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)).
 
 ## 7. Normalización antes de Syn
 
 1. Tokenizar sin alterar literales/comentarios y reconocer grupos balanceados.
-2. Reconocer keywords/prelude fuera de regiones opacas; normalizar solo nombres de macros y atributos allowlisted, nunca sus argumentos.
+2. Reconocer keywords/prelude fuera de regiones opacas; normalizar nombres allowlisted de macros y solo los argumentos de macros estándar expresivas.
 3. Normalizar bloques indentados a grupos `{}` conservando un mapa de origen.
 4. Normalizar terminadores de instrucciones indentadas conforme a la sección 5.
 5. Construir Rust tokens/AST y parsear el archivo con Syn (`full`, `parsing`).

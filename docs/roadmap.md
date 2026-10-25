@@ -178,7 +178,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Fase 7. Lenguaje inicial
 
-**Objetivo:** ampliar el subconjunto mediante capacidades con criterios independientes. La ampliación de aliases de prelude y macros está en curso; no avanzar a Fase 8 hasta completar los criterios de salida revisados.
+**Objetivo:** ampliar el subconjunto mediante capacidades con criterios independientes. El alcance inicial de Fase 7 está cerrado; las extensiones posteriores se registran como cambios acotados sin reabrir criterios ya aceptados.
 
 ### Subfases
 
@@ -191,14 +191,14 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 7. **Módulos e imports:** `use` indentado; módulos/imports Rust en modo llaves.
 8. **Errores y tipos comunes:** `Result`, `Option` y `?` probados mediante compilación y ejecución.
 9. **Aliases de prelude:** completada para tipos, variantes, primitivos, traits, métodos y rutas `std` enumerados en [aliases](aliases.md).
-10. **Macros/atributos:** completada para nombres/atributos allowlisted; argumentos/contenido opacos, pruebas de `matches!` y atributos en items Cargo.
+10. **Macros/atributos:** completada para aliases estándar y atributos allowlisted; los nombres Rust originales siguen válidos, se recorren aliases anidados en macros estándar expresivas y las DSL externas permanecen opacas. Los aliases se prueban en normalización, sin expandir macros.
 11. **Entrada principal y mutabilidad:** completada para `principal`→`main`, `variable`/`variable mutable` y `mutable` en referencias/parámetros, más colisión y escape `r#`.
 12. **Errores y diagnóstico:** completada para el inventario de códigos rustc común documentado; conserva códigos/spans JSON y no depende de salida humana.
 13. **Pruebas diferenciales:** completada con corpus positivo/negativo, ejecución end-to-end, aliases y matriz reproducibles.
 
 **Entregables:** completados; informe, matriz y ejemplos ejecutables cubren las subfases. Formato, pruebas de workspace, Clippy y build de documentación verdes.
 
-**Criterio de salida:** cumplido para el alcance descrito; cada familia de alias publicada tiene pruebas de conversión y los ejemplos ejecutables pasan Cargo/rustc; argumentos de macros opacos; errores comunes mapeados desde JSON; documentación sin declarar compatibilidad general. La sintaxis indentada ampliada se implementa en Fase 8.
+**Criterio de salida:** cumplido para el alcance inicial; las familias de aliases tienen pruebas de conversión y ejemplos end-to-end para el subconjunto indicado. Los argumentos de macros estándar expresivas se normalizan selectivamente; las DSL externas permanecen opacas. Errores comunes se mapean desde JSON y no se declara compatibilidad general. La sintaxis indentada ampliada se implementa en Fase 8.
 
 **Dependencia:** Fase 6; algunas características pueden desarrollarse en paralelo si no comparten gramática/backend.
 

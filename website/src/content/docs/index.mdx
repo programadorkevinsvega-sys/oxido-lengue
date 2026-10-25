@@ -19,7 +19,7 @@ hero:
 import { Card, CardGrid, LinkCard, Aside } from '@astrojs/starlight/components'
 
 <Aside type="caution" title="Estado actual">
-El lexer y el parser/AST estructural inicial de archivos `.ox` están implementados. La generación de Rust y la compilación de `.ox` todavía están pendientes; los ejemplos de sintaxis se identifican como propuestas y no como programas ejecutables.
+Óxido ya exporta `.ox` a Rust y puede compilar y ejecutar programas del subconjunto inicial con Cargo/rustc. La sintaxis indentada de `impl`, `trait`, módulos y `coincidir` tiene cobertura inicial. El lenguaje sigue en desarrollo: consulta la [matriz de compatibilidad](/referencia/compatibility/) para distinguir capacidades probadas de límites pendientes; no se declara compatibilidad general ni uso de producción.
 </Aside>
 
 <CardGrid stagger>

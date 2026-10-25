@@ -62,6 +62,10 @@ fn exports_compiles_and_runs_the_hello_world_fixture() {
         "{}",
         String::from_utf8_lossy(&imported.stderr)
     );
+    let imported_ox = fs::read_to_string(work.join("hola-vuelta.ox")).unwrap();
+    assert!(imported_ox.contains("//! Documentación del crate del ejemplo."));
+    assert!(imported_ox.contains("doc = \"Punto de entrada del programa de ejemplo.\""));
+    assert!(!imported_ox.contains("comentario ordinario"));
     let exported_again = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&work)
         .args(["exportar", "hola-vuelta.ox", "--salida", "hola-vuelta.rs"])

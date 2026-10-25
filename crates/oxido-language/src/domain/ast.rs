@@ -3,6 +3,7 @@ use crate::domain::{source::Span, syntax::SyntaxMode};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct File {
     pub mode: SyntaxMode,
+    pub attributes: Vec<RustFragment>,
     pub items: Vec<Item>,
     pub span: Span,
 }

@@ -189,6 +189,49 @@ fn diagnoses_reserved_aliases_used_as_function_and_binding_names() {
 }
 
 #[test]
+fn future_reserved_aliases_are_rejected_as_names_with_raw_escape_suggestions() {
+    for alias in [
+        "abstracto",
+        "convertirse",
+        "caja",
+        "hacer",
+        "final",
+        "generar",
+        "macro",
+        "sobrescribir",
+        "privado",
+        "intentar",
+        "tipo_de",
+        "sin_tamano",
+        "virtual",
+        "ceder",
+    ] {
+        let source = SourceFile::new(format!(
+            "sintaxis indentacion\nfuncion {alias}():\n    retornar\n"
+        ));
+        let parsed = parse(&source, LexOptions::default());
+        let diagnostic = parsed
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "OX3001")
+            .unwrap_or_else(|| {
+                panic!(
+                    "{alias} debe permanecer reservado: {:?}",
+                    parsed.diagnostics
+                )
+            });
+        assert!(
+            diagnostic
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion.replacement == format!("r#{alias}")),
+            "{alias}: {:?}",
+            diagnostic.suggestions
+        );
+    }
+}
+
+#[test]
 fn diagnoses_prelude_alias_collisions_and_accepts_raw_escape() {
     let collision =
         SourceFile::new("sintaxis indentacion\nfuncion principal():\n    variable Cadena = 1\n");

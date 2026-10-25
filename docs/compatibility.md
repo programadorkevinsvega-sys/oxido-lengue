@@ -26,4 +26,4 @@ Esta matriz describe el **alcance verificado**, no compatibilidad general con Ru
 | Mensajes rustc en español | Traducción por código de diagnóstico JSON | Conjunto inicial de códigos; mensajes desconocidos conservan texto original y todos preservan código/span |
 | Sistema de tipos/runtime propios | No existen | Fuera de alcance |
 
-“Parcial” significa que existe evidencia para un subconjunto, no que cualquier programa de esa categoría funcione. La rebanada end-to-end actual se documenta en [Fase 5](fase-5-compilador.md). Syn valida sintaxis; solo Cargo/rustc comprueba tipos y compilación. Importar soporta funciones libres reversibles y no conserva comentarios ordinarios ni formato original.
+“Parcial” significa que existe evidencia para un subconjunto, no que cualquier programa de esa categoría funcione. La rebanada end-to-end actual se documenta en [Fase 5](fase-5-compilador.md). Syn valida sintaxis; solo Cargo/rustc comprueba tipos y compilación. Importar soporta funciones libres reversibles, conserva atributos `doc` y no conserva comentarios ordinarios ni formato original.

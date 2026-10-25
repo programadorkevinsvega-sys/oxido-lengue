@@ -65,6 +65,25 @@ fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
 }
 
 #[test]
+fn compiles_indented_declarative_macros_and_derive_attributes_as_rust() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nmacro_rules! mostrar { ($valor:expr) => {{ let interno = $valor; println!(\"valor={}\", interno); }}; }\n#[derive(Debug)]\nestructura Dato:\n    valor: i32\nfuncion main():\n    dejar dato = Dato { valor: 7 };\n    mostrar!(dato.valor);\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated.rust.contains("macro_rules! mostrar"));
+    assert!(generated.rust.contains("#[derive(Debug)]"));
+
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["valor=7"]);
+}
+
+#[test]
 fn bilingual_block_modes_compile_to_the_same_behavior() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

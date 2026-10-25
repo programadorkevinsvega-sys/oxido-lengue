@@ -12,14 +12,14 @@
 - Referencias y borrowing con la semántica estándar de Rust.
 - Imports `use`/`usar`, `Result`/`Resultado`, `Option`/`Opcion`, operador `?` y aliases iniciales de prelude descritos en [la tabla de aliases](aliases.md).
 - `principal` genera la función Rust `main`; `Vector<Cadena>`, `&texto`, métodos comunes y macros allowlisted tienen aliases probados.
-- Argumentos de macros opacos; solo se traduce una lista documentada de nombres de macros. `matches!` y macros de terceros permanecen sin cambios.
+- El backend incorpora aliases para macros estándar y recorrido de tokens anidados en macros estándar que reciben expresiones. Falta la matriz de compilación por alias; hasta completarla no se declara compatibilidad probada para la lista ampliada. Las macros externas/desconocidas y DSLs de metaprogramación conservan sus argumentos opacos; los nombres Rust originales siguen válidos.
 - Atributos allowlisted `#[prueba]`, `#[permitir(...)]` y `#[derivar(...)]` pasan generación y validación Cargo; las colisiones de alias del prelude sugieren escape `r#`.
 - Un conjunto inicial de mensajes rustc se traduce a español desde eventos JSON sin perder código ni span; los códigos desconocidos conservan el mensaje original.
 - Pruebas end-to-end compilan y ejecutan [el ejemplo indentado](../examples/fase_7_estructuras.ox) y [el ejemplo de interoperabilidad](../examples/fase_7_interoperabilidad.ox). También hay un caso negativo para campos mal formados y matriz actualizada.
 
 ## Forma admitida para items indentados
 
-Los campos y variantes usan líneas independientes, y el normalizador inserta las comas necesarias antes de validarlos con Syn. Las expresiones/tipos siguen tokens Rust y aliases documentados. Los aliases no se traducen en argumentos de macros ni en atributos desconocidos.
+Los campos y variantes usan líneas independientes, y el normalizador inserta las comas necesarias antes de validarlos con Syn. Las expresiones/tipos siguen tokens Rust y aliases documentados. Las macros externas mantienen sus argumentos opacos; los aliases no se traducen en atributos desconocidos.
 
 Las importaciones `usar` pueden omitir el punto y coma de Rust; el backend lo emite al generar el item.
 

@@ -567,8 +567,8 @@ fn parse_attribute_fragment(fragment: &str) -> Result<syn::Attribute, SynError> 
         .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo Rust vacío"))
 }
 
-/// Normaliza nombres de Óxido. Los argumentos de macros y atributos desconocidos
-/// permanecen opacos para no alterar DSLs de terceros.
+/// Normaliza nombres de Óxido. Solo recorre argumentos de macros estándar con
+/// expresiones Rust; las DSL de macros desconocidas/externas permanecen opacas.
 fn normalize_aliases(tokens: TokenStream) -> TokenStream {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut normalized = TokenStream::new();
@@ -593,18 +593,47 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
         if matches!(trees.get(index), Some(TokenTree::Ident(_)))
             && matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
         {
-            let macro_name = match &trees[index] {
+            let spelling = match &trees[index] {
                 TokenTree::Ident(ident) if !ident.to_string().starts_with("r#") => {
-                    oxido_language::domain::syntax::macro_translation(&ident.to_string())
-                        .map(|name| TokenTree::Ident(proc_macro2::Ident::new(name, ident.span())))
-                        .unwrap_or_else(|| trees[index].clone())
+                    Some(ident.to_string())
+                }
+                _ => None,
+            };
+            let qualified = index >= 2
+                && matches!(&trees[index - 1], TokenTree::Punct(punct) if punct.as_char() == ':')
+                && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':');
+            let standard_path = !qualified
+                || (index >= 3
+                    && matches!(&trees[index - 3], TokenTree::Ident(parent) if parent == "std")
+                    && (index == 3
+                        || !matches!(&trees[index - 4], TokenTree::Punct(punct) if punct.as_char() == ':')));
+            let canonical = spelling.as_deref().and_then(|name| {
+                if !standard_path {
+                    return None;
+                }
+                oxido_language::domain::syntax::macro_translation(name)
+                    .or_else(|| is_standard_macro_name(name).then_some(name))
+            });
+            let macro_name = match (&trees[index], spelling.as_deref(), canonical) {
+                (TokenTree::Ident(ident), Some(_), Some(canonical)) => {
+                    TokenTree::Ident(proc_macro2::Ident::new(canonical, ident.span()))
                 }
                 _ => trees[index].clone(),
             };
             normalized.extend([macro_name, trees[index + 1].clone()]);
             index += 2;
-            if matches!(trees.get(index), Some(TokenTree::Group(_))) {
-                normalized.extend([trees[index].clone()]);
+            if let Some(TokenTree::Group(group)) = trees.get(index) {
+                let arguments = if canonical.is_some_and(macro_arguments_are_expressions) {
+                    let mut mapped = proc_macro2::Group::new(
+                        group.delimiter(),
+                        normalize_aliases(group.stream()),
+                    );
+                    mapped.set_span(group.span());
+                    TokenTree::Group(mapped)
+                } else {
+                    TokenTree::Group(group.clone())
+                };
+                normalized.extend([arguments]);
                 index += 1;
             }
             continue;
@@ -654,6 +683,74 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
         index += 1;
     }
     normalized
+}
+
+fn is_standard_macro_name(name: &str) -> bool {
+    matches!(
+        name,
+        "println"
+            | "print"
+            | "eprintln"
+            | "eprint"
+            | "format"
+            | "format_args"
+            | "write"
+            | "writeln"
+            | "vec"
+            | "panic"
+            | "assert"
+            | "assert_eq"
+            | "assert_ne"
+            | "debug_assert"
+            | "debug_assert_eq"
+            | "debug_assert_ne"
+            | "dbg"
+            | "todo"
+            | "unimplemented"
+            | "unreachable"
+            | "matches"
+            | "include_str"
+            | "include_bytes"
+            | "env"
+            | "option_env"
+            | "concat"
+            | "stringify"
+            | "line"
+            | "file"
+            | "column"
+            | "cfg"
+            | "compile_error"
+            | "thread_local"
+    )
+}
+
+/// Estos macros reciben expresiones o argumentos de formato con expresiones.
+/// Las macros de metaprogramación y de compilación conservan el árbol opaco.
+fn macro_arguments_are_expressions(name: &str) -> bool {
+    matches!(
+        name,
+        "println"
+            | "print"
+            | "eprintln"
+            | "eprint"
+            | "format"
+            | "format_args"
+            | "write"
+            | "writeln"
+            | "vec"
+            | "panic"
+            | "assert"
+            | "assert_eq"
+            | "assert_ne"
+            | "debug_assert"
+            | "debug_assert_eq"
+            | "debug_assert_ne"
+            | "dbg"
+            | "todo"
+            | "unimplemented"
+            | "unreachable"
+            | "matches"
+    )
 }
 
 fn normalize_known_attribute(group: &proc_macro2::Group) -> TokenTree {
@@ -906,7 +1003,7 @@ mod generation_tests {
     }
 
     #[test]
-    fn normalizes_aliases_in_rust_fragments_but_keeps_macros_and_raw_identifiers_opaque() {
+    fn normalizes_standard_macro_arguments_but_keeps_raw_identifiers_opaque() {
         let source = SourceFile::new(
             "sintaxis indentacion\n#[permitir(tipo)]\nfuncion principal():\n    variable activo = verdadero\n    afirmar_igual!(verdadero, r#tipo);\n    activo\n",
         );
@@ -919,7 +1016,7 @@ mod generation_tests {
             generated.code
         );
         assert!(
-            generated.code.contains("assert_eq!(verdadero, r#tipo);"),
+            generated.code.contains("assert_eq!(true, r#tipo);"),
             "{}",
             generated.code
         );
@@ -953,7 +1050,7 @@ mod generation_tests {
     }
 
     #[test]
-    fn known_attributes_translate_but_unknown_attributes_and_macro_arguments_stay_opaque() {
+    fn known_attributes_translate_and_external_macro_arguments_stay_opaque() {
         assert!(
             parse_tokens("#[prueba]")
                 .unwrap()
@@ -974,7 +1071,7 @@ mod generation_tests {
             parse_tokens("afirmar_igual!(verdadero)")
                 .unwrap()
                 .to_string(),
-            "assert_eq ! (verdadero)"
+            "assert_eq ! (true)"
         );
         let std_path = parse_tokens("std::colecciones::HashMap<String, Vector<texto>>")
             .unwrap()
@@ -990,24 +1087,69 @@ mod generation_tests {
     fn every_published_macro_and_std_module_alias_is_registered() {
         let macros = [
             ("imprimirln", "println"),
+            ("imprimir_error", "eprintln"),
+            ("imprimir_error_sin_salto", "eprint"),
             ("imprimir", "print"),
+            ("imprimir_sin_salto", "print"),
             ("formato", "format"),
+            ("formatear", "format"),
+            ("argumentos_formato", "format_args"),
+            ("escribir", "write"),
+            ("escribir_linea", "writeln"),
             ("vector", "vec"),
             ("panico", "panic"),
+            ("entrar_en_panico", "panic"),
             ("afirmar", "assert"),
             ("afirmar_igual", "assert_eq"),
+            ("afirmar_distinto", "assert_ne"),
+            ("afirmar_debug", "debug_assert"),
+            ("afirmar_igual_debug", "debug_assert_eq"),
+            ("afirmar_distinto_debug", "debug_assert_ne"),
             ("pendiente", "todo"),
             ("no_implementado", "unimplemented"),
+            ("sin_implementar", "unimplemented"),
             ("inalcanzable", "unreachable"),
             ("depurar", "dbg"),
+            ("coincide", "matches"),
+            ("incluir_texto", "include_str"),
+            ("incluir_bytes", "include_bytes"),
+            ("entorno", "env"),
+            ("entorno_opcional", "option_env"),
+            ("concatenar", "concat"),
+            ("a_texto", "stringify"),
+            ("linea", "line"),
+            ("archivo", "file"),
+            ("columna", "column"),
+            ("config", "cfg"),
+            ("error_de_compilacion", "compile_error"),
+            ("local_del_hilo", "thread_local"),
         ];
         for (alias, rust) in macros {
             let normalized = parse_tokens(&format!("{alias}!()")).unwrap().to_string();
             assert!(normalized.starts_with(rust), "{alias}: {normalized}");
+            assert_eq!(
+                parse_tokens(&format!("{rust}!()")).unwrap().to_string(),
+                format!("{rust} ! ()"),
+                "el nombre Rust original {rust} debe seguir funcionando"
+            );
         }
         assert_eq!(
             parse_tokens("matches!(true, true)").unwrap().to_string(),
             "matches ! (true , true)"
+        );
+        assert_eq!(
+            parse_tokens("afirmar!(verdadero == vector![1].len() == 1)")
+                .unwrap()
+                .to_string(),
+            "assert ! (true == vec ! [1] . len () == 1)"
+        );
+        assert_eq!(
+            parse_tokens("serde_json::json!(tipo)").unwrap().to_string(),
+            "serde_json :: json ! (tipo)"
+        );
+        assert_eq!(
+            parse_tokens("concatenar!(tipo)").unwrap().to_string(),
+            "concat ! (tipo)"
         );
 
         for (alias, rust) in [

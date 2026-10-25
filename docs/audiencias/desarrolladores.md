@@ -27,7 +27,7 @@ edition = "2024"
 version = "1.0"
 ```
 
-Para una dependencia local, declara `path = "vendor/mi_crate"` en vez de `version`; no se admiten fuentes git ni URL. Antes de compilar por primera vez ejecuta `oxido descargar-dependencias archivo.ox`, que resuelve y persiste `Cargo.lock`. `compilar` y `ejecutar` requieren ese lock para crates del registry, y siempre usan `--locked --offline`; `oxido descargar-dependencias archivo.ox --actualizar` es la operación explícita que puede actualizarlo. Cargo puede ejecutar `build.rs` o macros procedurales al resolver/compilar; revisa y confía el proyecto antes de esas operaciones.
+Por defecto declara dependencias de crates.io con `version`. `oxido descargar-dependencias archivo.ox` muestra el diff del lockfile y las crates fijadas. Puede consultar el índice, pero no descarga paquetes ni guarda el lockfile; añade `--confirmar` después de revisar para ejecutar únicamente `cargo fetch --locked`. `--actualizar` prepara una nueva resolución y también requiere `--confirmar`. Una dependencia local `path` solo se acepta en esta acción con `--permitir-rutas-locales`; git y URL no están soportadas. `compilar`/`ejecutar` usan `--locked --offline`, requieren `Cargo.lock` para cualquier dependencia y fallan con `OX7001` si falta. Si hay dependencias, añade `--confiar-dependencias` solo después de revisar el proyecto: Cargo puede ejecutar `build.rs` y macros procedurales durante la compilación. Ese flag expresa confianza, no sandbox.
 
 `oxido auditar-unsafe archivo.ox` informa tokens `inseguro`; añade `--rechazar` para que el comando falle al encontrar alguno. El análisis es léxico, no compila ni ejecuta el proyecto y no detecta toda la superficie de riesgo.
 

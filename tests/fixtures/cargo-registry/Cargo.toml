@@ -1,0 +1,10 @@
+[package]
+name = "oxido_generated"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+futures-executor = "0.3.32"
+itoa = "1.0"

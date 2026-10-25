@@ -34,6 +34,8 @@ Los offsets internos son bytes UTF-8. El render CLI muestra línea/columna 1-bas
 | `OX5001` | Error interno de generación/parseo del Rust generado |
 | `OX5002` | Diagnóstico Rust no pudo mapearse al origen `.ox` |
 | `OX6001` | Límite de tamaño/profundidad/tiempo excedido |
+| `OX7001` | Falta `Cargo.lock` para dependencias del proyecto; revisar el plan de `oxido descargar-dependencias` |
+| `OX7002` | La compilación de dependencias requiere confianza explícita del operador |
 
 Los errores de Rust conservan su código (por ejemplo `E0308`) y se presentan junto con el mensaje de Óxido. No se traducen ni esconden errores sin conservar el original.
 

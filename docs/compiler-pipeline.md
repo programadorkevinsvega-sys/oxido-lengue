@@ -10,7 +10,7 @@
 6. **Validación sintáctica:** generar token stream/AST; Syn `parse_file` valida el Rust resultante con `full` + `parsing`.
 7. **Backend:** emitir Rust estándar con `proc_macro2`/`quote`; formatear estructuralmente con `prettyplease`. No interpolar input como texto.
 8. **Mapa:** asociar spans de fragmentos fuente y generado; conservar rangos de item para tokens sintéticos.
-9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias locales `path` y de crates.io `version` declaradas en `oxido.toml`. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`. `oxido descargar-dependencias` resuelve y persiste el lockfile mediante una acción explícita; las fuentes git/URL no se admiten. Cargo puede ejecutar `build.rs` o macros procedurales al resolver o compilar dependencias.
+9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias de crates.io `version` y `path` solo con autorización CLI. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`. `oxido descargar-dependencias` muestra un plan y requiere `--confirmar` para `cargo fetch --locked` y persistir el lockfile; no ejecuta build/check/run. `compilar`/`ejecutar` requieren `--confiar-dependencias` si hay dependencias. Git/URL no se admiten. Cargo puede ejecutar `build.rs` o macros procedurales al compilar.
 10. **Diagnósticos:** parsear JSON, convertir spans generados a `.ox`, conservar errores externos no mapeables.
 11. **Resultado:** devolver estado/código de salida real. No ejecutar binario salvo comando explícito `ejecutar` o `probar`.
 

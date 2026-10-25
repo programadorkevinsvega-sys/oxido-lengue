@@ -123,3 +123,20 @@ fn rejects_dependencies_that_mix_registry_and_path_sources() {
     .expect_err("una dependencia no puede mezclar path y version");
     assert!(error.contains("exactamente uno"), "{error}");
 }
+
+#[test]
+fn rejects_git_url_and_custom_registry_sources() {
+    for unsupported_source in [
+        "git='https://example.invalid/repo.git'",
+        "url='https://example.invalid/crate'",
+        "registry='empresa'",
+    ] {
+        let input = format!(
+            "[language]\nedition='2024'\n[dependencies.crate_ejemplo]\nversion='1'\n{unsupported_source}\n"
+        );
+        assert!(
+            ProjectConfig::parse(&input).is_err(),
+            "fuente Cargo no soportada: {unsupported_source}"
+        );
+    }
+}

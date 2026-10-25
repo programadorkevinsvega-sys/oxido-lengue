@@ -14,7 +14,7 @@ No debe adoptarse para cargas de producción hasta que esos criterios estén imp
 - `oxido.toml` se parsea como TOML de datos, con campos cerrados; no ejecuta comandos.
 - El workspace Rust del propio repositorio tiene lockfile; la CLI usa `--locked` en su workspace temporal.
 
-Óxido admite experimentalmente dependencias Cargo locales por ruta y de crates.io por versión. `oxido descargar-dependencias` escribe el lockfile explícitamente; `compilar`/`ejecutar` lo requieren y usan `--locked --offline`. Cargo puede ejecutar `build.rs` o macros procedurales durante resolver/compilar; `--offline` evita descargas de Cargo, pero no bloquea por sí solo el acceso a red del código de build. La CLI no sandboxa esas operaciones; el operador debe confiar el proyecto antes de ejecutarlas. Workspace Trust para compilaciones iniciadas desde el editor, sandbox, fuzzing del parser y seguridad de lanzamiento siguen pendientes.
+Óxido admite experimentalmente crates de crates.io; las dependencias locales `path` exigen `--permitir-rutas-locales`. La descarga muestra antes el plan y requiere `--confirmar`; solo usa `cargo fetch`, nunca compila. `compilar`/`ejecutar` exigen `--locked --offline` y `--confiar-dependencias`. Cargo puede ejecutar `build.rs` o macros procedurales durante compilación; el flag registra confianza del operador, no aísla código ni bloquea su acceso a red. Workspace Trust para compilaciones iniciadas desde el editor, sandbox, fuzzing de parser y seguridad de lanzamiento siguen pendientes.
 
 ## Casos de evaluación
 

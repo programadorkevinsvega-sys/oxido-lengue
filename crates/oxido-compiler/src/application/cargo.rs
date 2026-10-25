@@ -1,6 +1,7 @@
 use super::source_map::{SourceLocation, SourceMap};
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
@@ -13,9 +14,21 @@ const MAX_LOCKFILE_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CargoAction {
+    /// Compile without user dependencies.
     Check,
+    /// Compile after the operator explicitly trusts declared dependencies.
+    CheckTrusted,
+    /// Run without user dependencies.
     Run,
+    /// Run after the operator explicitly trusts declared dependencies.
+    RunTrusted,
+    /// Resolve and display a lockfile/download plan without fetching crates.
+    FetchPlan,
+    /// Fetch crates for an already reviewed plan and persist the lockfile.
     Fetch,
+    /// Resolve and display an updated lockfile plan without fetching crates.
+    FetchUpdatePlan,
+    /// Apply an explicitly confirmed updated plan and persist its lockfile.
     FetchUpdate,
 }
 
@@ -37,6 +50,144 @@ pub struct CargoBuildResult {
     pub stderr: String,
 }
 
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct LockPackage {
+    name: String,
+    version: String,
+    source: Option<String>,
+    checksum: Option<String>,
+    dependencies: Vec<String>,
+}
+
+fn lock_packages(contents: &str) -> io::Result<BTreeSet<LockPackage>> {
+    let lock: toml::Value = toml::from_str(contents)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let packages = lock
+        .get("package")
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Cargo.lock no tiene package"))?;
+    let mut result = BTreeSet::new();
+    for package in packages {
+        let Some(name) = package.get("name").and_then(toml::Value::as_str) else {
+            continue;
+        };
+        let Some(version) = package.get("version").and_then(toml::Value::as_str) else {
+            continue;
+        };
+        let source = package
+            .get("source")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned);
+        let checksum = package
+            .get("checksum")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned);
+        let mut dependencies = package
+            .get("dependencies")
+            .and_then(toml::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(toml::Value::as_str)
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        dependencies.sort();
+        result.insert(LockPackage {
+            name: name.to_owned(),
+            version: version.to_owned(),
+            source,
+            checksum,
+            dependencies,
+        });
+    }
+    Ok(result)
+}
+
+fn render_lock_plan(previous: Option<&str>, generated: &str) -> io::Result<String> {
+    let next = lock_packages(generated)?;
+    let previous_contents = previous;
+    let previous_packages = previous.map(lock_packages).transpose()?.unwrap_or_default();
+    let next_lock: toml::Value = toml::from_str(generated)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let next_version = next_lock
+        .get("version")
+        .and_then(toml::Value::as_integer)
+        .unwrap_or_default();
+    let previous_version = previous_contents
+        .map(toml::from_str::<toml::Value>)
+        .transpose()
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?
+        .and_then(|lock| lock.get("version").and_then(toml::Value::as_integer));
+    let mut output =
+        vec!["Plan de dependencias Cargo (no se ejecutará código de crates):".to_owned()];
+    let previous_version =
+        previous_version.map_or_else(|| "sin lockfile".into(), |version| version.to_string());
+    output.push(format!(
+        "  Formato Cargo.lock: {previous_version} -> {next_version}"
+    ));
+    let removed = previous_packages.difference(&next).collect::<Vec<_>>();
+    let added = next.difference(&previous_packages).collect::<Vec<_>>();
+    if removed.is_empty() && added.is_empty() {
+        output.push("  Cargo.lock: sin cambios".into());
+    } else {
+        output.push("  Cambios en Cargo.lock:".into());
+        for package in removed {
+            output.push(format!("  - {}", display_lock_package(package)));
+        }
+        for package in added {
+            output.push(format!("  + {}", display_lock_package(package)));
+        }
+    }
+    output.push("  Crates de crates.io fijadas (Cargo descargará las que falten):".into());
+    let mut registry_packages = next
+        .iter()
+        .filter(|package| {
+            package.source.as_deref().is_some_and(|value| {
+                value.starts_with("registry+https://github.com/rust-lang/crates.io-index")
+            })
+        })
+        .map(|package| format!("{}@{}", package.name, package.version))
+        .collect::<Vec<_>>();
+    registry_packages.sort();
+    if registry_packages.is_empty() {
+        output.push("    (ninguna)".into());
+    } else {
+        output.extend(
+            registry_packages
+                .into_iter()
+                .map(|package| format!("    {package}")),
+        );
+    }
+    Ok(output.join("\n"))
+}
+
+fn display_lock_package(package: &LockPackage) -> String {
+    let checksum = package
+        .checksum
+        .as_deref()
+        .map(|checksum| format!(" checksum={checksum}"))
+        .unwrap_or_default();
+    let dependencies = if package.dependencies.is_empty() {
+        String::new()
+    } else {
+        format!(" deps=[{}]", package.dependencies.join(", "))
+    };
+    format!(
+        "{}@{} [{}]{checksum}{dependencies}",
+        package.name,
+        package.version,
+        lock_source(package.source.as_deref())
+    )
+}
+
+fn lock_source(source: Option<&str>) -> &'static str {
+    match source {
+        Some(value) if value.starts_with("registry+") => "registry",
+        Some(value) if value.starts_with("git+") => "git",
+        Some(_) => "otra fuente",
+        None => "local/workspace",
+    }
+}
+
 pub fn build_generated(
     rust: &str,
     source_map: &SourceMap,
@@ -52,7 +203,25 @@ pub fn build_generated_with_dependencies(
     persistent_lockfile: Option<&Path>,
     action: CargoAction,
 ) -> io::Result<CargoBuildResult> {
-    let update_lock = action == CargoAction::FetchUpdate;
+    if !dependencies.is_empty() && matches!(action, CargoAction::Check | CargoAction::Run) {
+        return Ok(CargoBuildResult {
+            success: false,
+            timed_out: false,
+            exit_code: None,
+            diagnostics: vec![MappedCargoDiagnostic {
+                level: "error".into(),
+                code: Some("OX7002".into()),
+                message: "la compilación puede ejecutar build.rs y macros procedurales; revisa las dependencias y usa explícitamente `--confiar-dependencias`".into(),
+                source: None,
+            }],
+            program_output: Vec::new(),
+            stderr: String::new(),
+        });
+    }
+    let update_lock = matches!(
+        action,
+        CargoAction::FetchUpdatePlan | CargoAction::FetchUpdate
+    );
     let workspace = create_workspace(
         rust,
         source_map,
@@ -61,39 +230,82 @@ pub fn build_generated_with_dependencies(
         !update_lock,
     )?;
     let lock_path = workspace.path().join("Cargo.lock");
-    if matches!(action, CargoAction::Fetch | CargoAction::FetchUpdate) {
-        let mut args = vec![OsString::from("fetch")];
-        if lock_path.is_file() {
-            args.push(OsString::from("--locked"));
-        }
-        let output = oxido_cargo::run(workspace.path(), &args)?;
-        if output.success {
-            if let Some(persistent_lockfile) = persistent_lockfile {
-                persist_lockfile(&lock_path, persistent_lockfile, update_lock)?;
+    if matches!(
+        action,
+        CargoAction::FetchPlan
+            | CargoAction::Fetch
+            | CargoAction::FetchUpdatePlan
+            | CargoAction::FetchUpdate
+    ) {
+        if !lock_path.is_file() || update_lock {
+            let output =
+                oxido_cargo::run(workspace.path(), &[OsString::from("generate-lockfile")])?;
+            if !output.success {
+                return Ok(CargoBuildResult {
+                    success: false,
+                    timed_out: output.timed_out,
+                    exit_code: output.exit_code,
+                    diagnostics: Vec::new(),
+                    program_output: output.non_json_stdout,
+                    stderr: output.stderr,
+                });
             }
         }
+        let generated_lock = fs::read_to_string(&lock_path)?;
+        let previous_lock = persistent_lockfile
+            .filter(|path| path.is_file())
+            .map(fs::read_to_string)
+            .transpose()?;
+        let plan = render_lock_plan(previous_lock.as_deref(), &generated_lock)?;
+        if matches!(
+            action,
+            CargoAction::FetchPlan | CargoAction::FetchUpdatePlan
+        ) {
+            return Ok(CargoBuildResult {
+                success: true,
+                timed_out: false,
+                exit_code: Some(0),
+                diagnostics: Vec::new(),
+                program_output: plan.lines().map(str::to_owned).collect(),
+                stderr: String::new(),
+            });
+        }
+
+        let output = oxido_cargo::run(
+            workspace.path(),
+            &[OsString::from("fetch"), OsString::from("--locked")],
+        )?;
+        if output.success
+            && let Some(persistent_lockfile) = persistent_lockfile
+            && (update_lock || !persistent_lockfile.exists())
+        {
+            persist_lockfile(&lock_path, persistent_lockfile, update_lock)?;
+        }
+        let mut program_output = plan.lines().map(str::to_owned).collect::<Vec<_>>();
+        program_output.extend(output.non_json_stdout);
         return Ok(CargoBuildResult {
             success: output.success,
             timed_out: output.timed_out,
             exit_code: output.exit_code,
             diagnostics: Vec::new(),
-            program_output: output.non_json_stdout,
+            program_output,
             stderr: output.stderr,
         });
     }
     if !lock_path.is_file() {
-        if persistent_lockfile.is_some()
-            && dependencies
-                .iter()
-                .any(|dependency| dependency.version.is_some())
-        {
+        if persistent_lockfile.is_some() && !dependencies.is_empty() {
             return Ok(CargoBuildResult {
                 success: false,
                 timed_out: false,
                 exit_code: None,
-                diagnostics: Vec::new(),
+                diagnostics: vec![MappedCargoDiagnostic {
+                    level: "error".into(),
+                    code: Some("OX7001".into()),
+                    message: "falta Cargo.lock para las dependencias del proyecto; ejecuta `oxido descargar-dependencias <archivo.ox>`, revisa el plan y luego usa `--confirmar`".into(),
+                    source: None,
+                }],
                 program_output: Vec::new(),
-                stderr: "falta Cargo.lock; ejecuta `oxido descargar-dependencias <archivo.ox>` de forma explícita".into(),
+                stderr: String::new(),
             });
         }
         let lock = oxido_cargo::run(
@@ -116,15 +328,20 @@ pub fn build_generated_with_dependencies(
     }
 
     let args = match action {
-        CargoAction::Check => vec!["check", "--locked", "--offline", "--message-format=json"],
-        CargoAction::Run => vec![
+        CargoAction::Check | CargoAction::CheckTrusted => {
+            vec!["check", "--locked", "--offline", "--message-format=json"]
+        }
+        CargoAction::Run | CargoAction::RunTrusted => vec![
             "run",
             "--locked",
             "--offline",
             "--message-format=json",
             "--quiet",
         ],
-        CargoAction::Fetch | CargoAction::FetchUpdate => {
+        CargoAction::FetchPlan
+        | CargoAction::Fetch
+        | CargoAction::FetchUpdatePlan
+        | CargoAction::FetchUpdate => {
             return Err(io::Error::other(
                 "la acción fetch debió terminar antes de compilar",
             ));

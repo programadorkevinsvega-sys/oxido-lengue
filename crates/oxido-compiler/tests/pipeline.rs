@@ -114,6 +114,70 @@ fn normalizes_aliases_in_visibility_signatures_and_passthrough_items() {
 }
 
 #[test]
+fn compiles_and_runs_indented_structs_enums_and_collections() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(include_str!("../../../examples/fase_7_estructuras.ox"));
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["5:1"]);
+}
+
+#[test]
+fn rejects_malformed_indented_struct_fields_with_a_rust_syntax_diagnostic() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new("sintaxis indentacion\nestructura Punto:\n    x i32\n");
+    let parsed = oxido_compiler::parse_ox(&source, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(parsed.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "OX4001"
+            && diagnostic
+                .message
+                .contains("item estructural Rust inválido")
+    }));
+}
+
+#[test]
+fn maps_a_rust_type_error_in_an_indented_struct_field_back_to_ox() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nestructura Punto:\n    x: TipoInexistente\nfuncion main():\n    dejar _punto = Punto { x: 1 }\n",
+    );
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(!result.success);
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code.as_deref() == Some("E0425"))
+        .unwrap_or_else(|| panic!("diagnóstico no esperado: {:?}", result.diagnostics));
+    let mapped = diagnostic
+        .source
+        .expect("el campo generado debe mapear a su ubicación .ox");
+    let span = source.span(mapped.start, mapped.end).unwrap();
+    assert!(source.slice(span).contains("TipoInexistente"));
+}
+
+#[test]
+fn runs_initial_rust_interop_features_through_the_braces_mode() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(include_str!(
+        "../../../examples/fase_7_interoperabilidad.ox"
+    ));
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["5:1:3:5"]);
+}
+
+#[test]
 fn maps_rustc_type_errors_back_to_the_ox_expression() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

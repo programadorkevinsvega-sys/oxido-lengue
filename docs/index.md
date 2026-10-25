@@ -2,7 +2,7 @@
 
 Una sintaxis en español e inglés que busca generar Rust estándar y conservar su semántica, interoperabilidad y herramientas.
 
-> **Estado del proyecto:** lexer, parser/AST inicial, generación Rust y compilación/ejecución de los modos de bloques para el subconjunto de funciones/control están implementados. Las Fases 5 y 6 tienen pruebas end-to-end; el lenguaje sigue limitado al subconjunto de la [matriz de compatibilidad](./compatibility).
+> **Estado del proyecto:** lexer, parser/AST inicial, generación Rust, modos de bloques, items indentados iniciales e interoperabilidad con Rust están implementados para el subconjunto de Fases 5–7. Sus ejemplos tienen pruebas end-to-end; consulta la [matriz de compatibilidad](./compatibility).
 
 <div class="audience-grid">
   <a class="audience-card" href="/audiencias/desarrolladores"><strong>Desarrolladores</strong><span>Arquitectura, compatibilidad con Rust y estado de la toolchain.</span></a>

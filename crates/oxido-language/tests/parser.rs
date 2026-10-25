@@ -227,6 +227,38 @@ fn diagnoses_reserved_aliases_in_rust_passthrough_member_names() {
 }
 
 #[test]
+fn parses_indented_struct_enum_and_use_items_as_valid_rust_fragments() {
+    let source = SourceFile::new(
+        "sintaxis indentacion\nestructura Punto: // campos\n    x: i32\n    y: i32\nenumeracion Estado:\n    Activo\n    Pausado(i32)\nusar std::fmt\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.unwrap();
+    assert_eq!(file.items.len(), 3);
+    let Item::IndentedAggregate(structure) = &file.items[0] else {
+        panic!("struct se representa en el AST estructural")
+    };
+    assert_eq!(
+        structure.kind,
+        oxido_language::domain::ast::AggregateKind::Struct
+    );
+    assert_eq!(structure.members.len(), 2);
+    assert_eq!(structure.members[0].value.text, "x: i32");
+    let Item::IndentedAggregate(enumeration) = &file.items[1] else {
+        panic!("enum se representa en el AST estructural")
+    };
+    assert_eq!(
+        enumeration.kind,
+        oxido_language::domain::ast::AggregateKind::Enum
+    );
+    assert_eq!(enumeration.members[1].value.text, "Pausado(i32)");
+    let Item::IndentedUse(import) = &file.items[2] else {
+        panic!("use se representa como importación estructural")
+    };
+    assert_eq!(import.tree.text, "std::fmt");
+}
+
+#[test]
 fn diagnoses_missing_function_names_and_malformed_declarations() {
     for source in [
         "sintaxis llaves\nfn () {}\n",

@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–6: completadas en sus alcances verificados. Fase 7 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para el subconjunto de funciones; items con cuerpos indentados pertenecen a Fase 7. El portal documental se inició transversalmente y se consolidará en Fase 13. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
+**Fases 0–7: completadas en sus alcances verificados. Fase 8 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y demuestra interoperabilidad con tipos y bibliotecas Rust. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -182,20 +182,20 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ### Subfases
 
-1. Variables, mutabilidad, literales y expresiones.
-2. Funciones, parámetros, retorno y visibilidad.
-3. Condiciones y bucles.
-4. Tuplas, arrays y tipos primitivos.
-5. Estructuras, enumeraciones y métodos.
-6. Referencias y sintaxis de borrowing delegada a Rust.
-7. Módulos e importaciones.
-8. Manejo de errores y tipos comunes.
-9. Colecciones y biblioteca estándar, manteniendo nombres de tipos/métodos Rust.
-10. Pruebas diferenciales y matriz de soporte por característica.
+1. **Variables y expresiones:** completadas para `let`/`dejar`, mutabilidad, literales, llamadas y expresiones Rust; pruebas positivas/negativas y de tipo.
+2. **Funciones:** completadas para parámetros, tipos, retorno, visibilidad y semicolon/tail.
+3. **Control:** condiciones y bucles iniciales en ambos modos, con equivalencia ejecutable verificada en Fase 6.
+4. **Tipos compuestos:** tuplas, arrays y primitivos preservados como Rust y probados en ejecución.
+5. **Items:** campos indentados de `struct`, variantes indentadas de `enum`; `impl` y métodos en passthrough Rust con llaves.
+6. **Referencias:** referencias y borrowing delegados a Rust, con prueba end-to-end.
+7. **Módulos e imports:** `use` indentado; módulos/imports Rust en modo llaves.
+8. **Errores y tipos comunes:** `Result`, `Option` y `?` probados mediante compilación y ejecución.
+9. **Colecciones:** `VecDeque` y métodos estándar conservan sus nombres Rust y se prueban end-to-end.
+10. **Pruebas diferenciales:** corpus positivo/negativo y matriz por característica actualizados con ejemplos reproducibles.
 
-**Entregables:** subconjunto inicial definido y matriz actualizada.
+**Entregables:** completados para el subconjunto documentado en [informe de Fase 7](fase-7-lenguaje-inicial.md), con dos ejemplos ejecutables y matriz actualizada.
 
-**Criterio de salida:** cada característica tiene pruebas positivas, negativas, generación inspeccionada y compatibilidad documentada.
+**Criterio de salida:** cumplido para el subconjunto descrito; las características probadas generan Rust, pasan Cargo/rustc y tienen límites publicados. Los cuerpos indentados de `impl`/módulos y la sintaxis indentada de brazos `match` siguen pendientes de fases posteriores.
 
 **Dependencia:** Fase 6; algunas características pueden desarrollarse en paralelo si no comparten gramática/backend.
 
@@ -384,10 +384,11 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 3 | Completada (fuentes y lexer inicial) | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | No implica parser ni generación; ampliaciones de sintaxis siguen en fases posteriores |
 | 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados quedan en Fase 7 |
 | 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md), exportación, mapa, Cargo, diagnósticos, ejecución y vuelta reversible | Ninguno dentro del alcance verificado |
-| 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | Items indentados y sintaxis adicional quedan en Fase 7 |
+| 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | La ampliación de items quedó en Fase 7 |
+| 7 | Completada (lenguaje inicial) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), ejemplos end-to-end de items indentados e interoperabilidad Rust | Cuerpos indentados de `impl`/módulos y brazos indentados de `match` quedan fuera del alcance |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 7–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
+| 8–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 1–6 están completadas en los alcances indicados arriba. Las verificaciones locales de Fase 6 incluyen formato, workspace tests, Clippy sin warnings y build del portal. El PR anterior de Fase 5 pasó los checks remotos de Rust y Cloudflare Pages; se comprobarán de nuevo en el PR de Fase 6.
+Las fases 1–7 están completadas en los alcances indicados arriba. Las verificaciones locales de Fase 7 incluyen formato, workspace tests y Clippy sin warnings; los checks remotos se registrarán con el PR de esta fase.

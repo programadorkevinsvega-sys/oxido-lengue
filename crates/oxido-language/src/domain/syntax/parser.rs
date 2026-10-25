@@ -1,7 +1,8 @@
 use crate::domain::{
     ast::{
-        Block, BlockStyle, ControlAlternative, ControlExpression, ControlKind, ControlStatement,
-        Expression, File, Function, Item, LetStatement, RustFragment, Statement,
+        AggregateKind, Block, BlockStyle, ControlAlternative, ControlExpression, ControlKind,
+        ControlStatement, Expression, File, Function, IndentedAggregate, IndentedMember,
+        IndentedUse, Item, LetStatement, RustFragment, Statement,
     },
     diagnostics::{Diagnostic, DiagnosticSuggestion},
     source::{SourceFile, Span},
@@ -97,6 +98,13 @@ impl Parser<'_> {
                 self.position = before;
                 if let Some(item) = self.parse_passthrough_item() {
                     items.push(Item::RustFragment(item));
+                    saw_item = true;
+                    continue;
+                }
+            } else {
+                self.position = before;
+                if let Some(item) = self.parse_indented_item() {
+                    items.push(item);
                     saw_item = true;
                     continue;
                 }
@@ -822,6 +830,205 @@ impl Parser<'_> {
         }
     }
 
+    /// Admite items Rust simples y AST propio de struct/enum indentados.
+    fn parse_indented_item(&mut self) -> Option<Item> {
+        let start = self.position;
+        let attributes = self.parse_attributes();
+        self.skip_comments();
+        let visibility = self.parse_visibility();
+        self.skip_comments();
+        let item_start = self.position;
+        let token = self.current()?;
+        let first = self.token_text(token);
+        let aggregate_kind = match first {
+            "struct" | "estructura" => Some(AggregateKind::Struct),
+            "enum" | "enumeracion" => Some(AggregateKind::Enum),
+            _ => None,
+        };
+        let simple = matches!(
+            first,
+            "use"
+                | "usar"
+                | "type"
+                | "tipo"
+                | "const"
+                | "constante"
+                | "static"
+                | "estatico"
+                | "mod"
+                | "modulo"
+                | "extern"
+                | "externo"
+        );
+        let macro_call = self.is_macro_invocation_start(item_start);
+        if aggregate_kind.is_none() && !simple && !macro_call {
+            self.position = start;
+            return None;
+        }
+        if aggregate_kind.is_none() {
+            let mut end = item_start;
+            while end < self.tokens.len()
+                && !matches!(
+                    self.tokens[end].kind,
+                    TokenKind::Newline | TokenKind::Dedent
+                )
+            {
+                end += 1;
+            }
+            if end == item_start {
+                self.position = start;
+                return None;
+            }
+            if matches!(first, "use" | "usar") {
+                let mut tree_end = end;
+                if self.token_text(&self.tokens[end - 1]) == ";" {
+                    tree_end -= 1;
+                }
+                if item_start + 1 >= tree_end {
+                    self.error_current("OX2003", "se esperaba una ruta después de `usar`");
+                    self.position = end;
+                    self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+                    return None;
+                }
+                let tree = self.fragment(item_start + 1, tree_end);
+                let span = self.source.span(
+                    self.tokens[start].span.start(),
+                    self.tokens[end - 1].span.end(),
+                )?;
+                self.check_passthrough_identifier_collisions(start, end);
+                self.position = end;
+                self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+                return Some(Item::IndentedUse(IndentedUse {
+                    attributes,
+                    visibility,
+                    tree,
+                    span,
+                }));
+            }
+            if matches!(
+                first,
+                "type" | "tipo" | "const" | "constante" | "static" | "estatico"
+            ) && self.token_text(&self.tokens[end - 1]) != ";"
+            {
+                self.error(
+                    "OX2003",
+                    "los items Rust terminados con ';' deben conservar el terminador en modo indentación",
+                    Some(self.tokens[end - 1].span),
+                );
+            }
+            self.check_passthrough_identifier_collisions(start, end);
+            let item = self.fragment(start, end);
+            self.position = end;
+            self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+            return Some(Item::RustFragment(item));
+        }
+
+        let mut depth = 0usize;
+        let mut colon = None;
+        for index in item_start..self.tokens.len() {
+            let token = &self.tokens[index];
+            if matches!(token.kind, TokenKind::Newline | TokenKind::Dedent) {
+                break;
+            }
+            let text = self.token_text(token);
+            if depth == 0 && text == ":" {
+                colon = Some(index);
+                break;
+            }
+            match text {
+                "(" | "[" | "{" => depth += 1,
+                ")" | "]" | "}" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        let Some(colon) = colon else {
+            self.position = start;
+            return None;
+        };
+        if self.next_significant_text(colon + 1) != Some("\n") {
+            self.position = start;
+            return None;
+        }
+        let header = self.fragment(item_start + 1, colon);
+        if matches!(
+            self.tokens.get(item_start + 1).map(|token| &token.kind),
+            Some(TokenKind::Keyword { .. })
+        ) {
+            self.report_reserved_identifier(item_start + 1);
+        }
+        self.position = colon + 1;
+        self.skip_comments();
+        self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+        self.skip_comments();
+        if !self.consume_kind(|kind| matches!(kind, TokenKind::Indent)) {
+            self.error_current("OX2003", "se esperaba un cuerpo indentado para struct/enum");
+            return None;
+        }
+        let mut members = Vec::new();
+        let mut pending_attributes = Vec::new();
+        while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            self.skip_trivia();
+            if self.at_end() || self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+                break;
+            }
+            let member_start = self.position;
+            let member_end = self.line_fragment_end(member_start);
+            if member_end == member_start {
+                self.position += 1;
+                continue;
+            }
+            let fragment = self.fragment(member_start, member_end);
+            if self.is_standalone_attribute(member_start, member_end) {
+                pending_attributes.push(fragment);
+            } else {
+                if aggregate_kind == Some(AggregateKind::Enum)
+                    && matches!(self.tokens[member_start].kind, TokenKind::Keyword { .. })
+                {
+                    self.report_reserved_identifier(member_start);
+                }
+                members.push(IndentedMember {
+                    attributes: std::mem::take(&mut pending_attributes),
+                    value: fragment,
+                });
+            }
+            self.position = member_end;
+            self.consume_kind(|kind| matches!(kind, TokenKind::Newline));
+        }
+        let end = self.current().map_or_else(
+            || self.tokens.last().map_or(0, |token| token.span.end()),
+            |token| token.span.end(),
+        );
+        self.consume_kind(|kind| matches!(kind, TokenKind::Dedent));
+        let span = self.source.span(self.tokens[start].span.start(), end)?;
+        self.check_passthrough_identifier_collisions(start, self.position);
+        Some(Item::IndentedAggregate(IndentedAggregate {
+            kind: aggregate_kind?,
+            attributes,
+            visibility,
+            header,
+            members,
+            span,
+        }))
+    }
+
+    fn line_fragment_end(&self, start: usize) -> usize {
+        let mut end = start;
+        let mut group_depth = 0usize;
+        while end < self.tokens.len() {
+            let token = &self.tokens[end];
+            if group_depth == 0 && matches!(token.kind, TokenKind::Newline | TokenKind::Dedent) {
+                break;
+            }
+            match self.token_text(token) {
+                "(" | "[" | "{" => group_depth += 1,
+                ")" | "]" | "}" => group_depth = group_depth.saturating_sub(1),
+                _ => {}
+            }
+            end += 1;
+        }
+        end
+    }
+
     fn passthrough_item_start(&self, start: usize) -> Option<usize> {
         let mut index = start;
         loop {
@@ -1067,6 +1274,25 @@ impl Parser<'_> {
                 self.report_reserved_identifier(index);
             }
         }
+    }
+
+    fn is_standalone_attribute(&self, start: usize, end: usize) -> bool {
+        if self
+            .tokens
+            .get(start)
+            .is_none_or(|token| self.token_text(token) != "#")
+        {
+            return false;
+        }
+        let mut bracket = start + 1;
+        if self
+            .tokens
+            .get(bracket)
+            .is_some_and(|token| self.token_text(token) == "!")
+        {
+            bracket += 1;
+        }
+        self.skip_balanced_tokens(bracket, "[", "]") == Some(end)
     }
 
     fn report_reserved_identifier(&mut self, token_index: usize) {

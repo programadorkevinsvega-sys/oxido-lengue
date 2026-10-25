@@ -14,7 +14,7 @@
 
 ## Límites que pasan a Fase 7
 
-Items con cuerpo indentado (`struct`, `enum`, `impl`, `trait`, módulos), sintaxis indentada para brazos de `match`, nuevos items/lenguaje y colisiones de identificadores en contextos Rust aún no estructurados por el parser siguen fuera del alcance. En modo llaves, los items Rust passthrough admitidos se conservan y se normalizan fuera de grupos opacos.
+Al cerrar Fase 6, los items con cuerpo indentado y las nuevas formas de lenguaje quedaron para Fase 7. Fase 7 implementa cuerpos indentados iniciales para `struct` y `enum`; `impl`, `trait` y módulos con cuerpo indentado, además de sintaxis indentada para brazos de `match`, siguen fuera de ese subconjunto. En modo llaves, los items Rust passthrough admitidos se conservan y se normalizan fuera de grupos opacos.
 
 La normalización no traduce aliases dentro de macros ni atributos. Los nombres de tipos y métodos de biblioteca estándar tampoco tienen alias españoles.
 

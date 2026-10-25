@@ -2,7 +2,7 @@
 
 **Versión:** Óxido 0.1. Las producciones son normativas para estructura propia. `RustTokens` representa un fragmento balanceado preservado y validado con Syn/rustc; no pretende redefinir la gramática de Rust.
 
-La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado está enumerado en los informes de [Fase 4](fase-4-parser.md) y [Fase 6](fase-6-sintaxis-bilinguismo.md), además de la matriz de [compatibilidad](compatibility.md). La equivalencia de funciones/bloques y la normalización de aliases para este subconjunto están implementadas; items con cuerpos indentados siguen pendientes de Fase 7.
+La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado está enumerado en los informes de [Fase 4](fase-4-parser.md), [Fase 6](fase-6-sintaxis-bilinguismo.md) y [Fase 7](fase-7-lenguaje-inicial.md), además de la matriz de [compatibilidad](compatibility.md). Fase 7 admite cuerpos indentados iniciales de `struct` y `enum`; cuerpos indentados de `impl`, `trait` y módulos siguen pendientes.
 
 ## 1. Convenciones
 

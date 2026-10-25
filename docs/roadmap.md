@@ -210,7 +210,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ### Subfases
 
-1. **Estructura indentada:** completada con `impl` y métodos, `trait` con firmas/defaults, módulos anidados y `coincidir` con brazos de expresión o bloque; pruebas positivas/negativas y ejecución Cargo.
+1. **Estructura indentada:** completada para el alcance inicial con `impl` y métodos, `trait` con firmas/defaults, módulos anidados y `coincidir` con brazos de expresión o bloque. La cobertura incluye receivers y funciones asociadas, genéricos/`donde`, varios bloques por tipo, visibilidad/atributos/docs, items asociados, bloque vacío e indentación inválida, regla del `;` final, equivalencia con llaves y mapeo de errores rustc a `.ox`.
 2. Dependencias Cargo reales y configuración reproducible.
 3. Genéricos, traits y lifetimes dentro del alcance del frontend.
 4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend.

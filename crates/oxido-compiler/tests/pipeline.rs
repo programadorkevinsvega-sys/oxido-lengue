@@ -351,6 +351,58 @@ fn maps_rustc_errors_inside_indented_methods_to_the_method_line() {
 }
 
 #[test]
+fn preserves_outer_and_inner_documentation_comments_at_indented_block_boundaries() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        r#"sintaxis indentacion
+#![forbid(unsafe_code)]
+//! Documentación del crate.
+/*! Segunda línea de documentación del crate. */
+estructura Punto:
+    x: i32
+implementar Punto: // comentario al abrir el bloque
+    /// Documentación del primer método.
+
+    #[inline]
+    funcion primero(&mismo) -> i32:
+        mismo.x
+    /**
+     * Documentación del método intermedio.
+     */
+    funcion segundo(&mismo) -> i32:
+        mismo.x
+    /// Documentación del último método.
+    funcion ultimo(&mismo) -> i32:
+        mismo.x
+    // Comentario ordinario al final del bloque.
+funcion principal():
+    variable punto = Punto { x: 1 }
+    imprimirln!("{}", punto.ultimo())
+"#,
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+
+    for documentation in [
+        "#![forbid(unsafe_code)]",
+        "//!Documentación del crate.",
+        "//!Segunda línea de documentación del crate.",
+        "Documentación del primer método.",
+        "Documentación del método intermedio.",
+        "Documentación del último método.",
+    ] {
+        assert!(
+            generated.rust.contains(documentation),
+            "falta {documentation}: {}",
+            generated.rust
+        );
+    }
+    assert!(!generated.rust.contains("comentario ordinario al final"));
+    assert!(!generated.rust.contains("comentario al abrir el bloque"));
+}
+
+#[test]
 fn rejects_indented_match_arms_without_a_pattern_separator() {
     use oxido_language::domain::syntax::LexOptions;
 

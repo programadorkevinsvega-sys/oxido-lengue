@@ -27,6 +27,7 @@
 - Inspecciona el estado, las instrucciones y los cambios preexistentes antes de editar. Mantén los cambios acotados y conserva el trabajo del usuario.
 - Ejecuta las verificaciones pertinentes al cambio cuando estén autorizadas y disponibles. Informa exactamente cuáles se ejecutaron, cuáles fallaron y cuáles no se ejecutaron.
 - No ocultes diagnósticos ni debilites pruebas para conseguir un resultado verde. No declares completa una fase con criterios pendientes.
+- En el código interno de Óxido no silencies warnings ni resultados: no uses `#[allow(unused_*)]`, `#[expect(unused_*)]` ni `let _ =` para descartar valores/errores. Maneja los resultados o reporta explícitamente el fallo. Los fixtures `.ox` pueden probar esas construcciones como sintaxis del usuario.
 - No publiques, despliegues, cobres, ejecutes migraciones destructivas ni borres datos sin autorización explícita.
 - Mantén `README.md` como orientación general y coloca especificaciones detalladas en los documentos propietarios existentes; evita duplicar documentación.
 - `docs/` es la fuente canónica de especificaciones e informes. `website/src/content/docs/referencia/` y `audiencias/` son artefactos generados: edita los Markdown fuente, nunca las copias que prepara el build.

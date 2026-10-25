@@ -14,7 +14,7 @@
 - Mapeo de diagnósticos `rustc` a expresiones y cabeceras de control `.ox`; errores sin ubicación mapeable se conservan como externos.
 - Comandos CLI `exportar`, `importar`, `compilar` y `ejecutar`. Solo `ejecutar` corre el binario generado.
 - Configuración `oxido.toml` de datos declarativos para resolver el modo del archivo.
-- Importación restringida a funciones libres admitidas. Se rechazan items y modificadores que no pueden volver de forma reversible. Los comentarios ordinarios y el formato original no se conservan.
+- Importación restringida a funciones libres admitidas. Se rechazan items y modificadores que no pueden volver de forma reversible. Los atributos y la documentación Rust (`//!`, `///`, `/** */`) se conservan semánticamente como atributos `doc`; los comentarios ordinarios y el formato original no se conservan. La prueba CLI de ida y vuelta comprueba ambas cosas.
 
 ## Límites pendientes
 

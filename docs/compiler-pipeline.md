@@ -25,4 +25,4 @@ El parser Syn no es borrow checker ni type checker. `build.rs` y macros procedur
 
 ## Importar/exportar
 
-Exportar emite el `.rs` generado y un mapa lateral sin rutas absolutas. Importar acepta funciones libres que parsean y regeneran el mismo Rust formateado; rechaza otros items y modificadores fuera del subconjunto. Preserva atributos y macros dentro de las funciones admitidas, pero los comentarios ordinarios y el formato de origen no se conservan.
+Exportar emite el `.rs` generado y un mapa lateral sin rutas absolutas. Importar acepta funciones libres que parsean y regeneran el mismo Rust formateado; rechaza otros items y modificadores fuera del subconjunto. Preserva atributos y documentación Rust como atributos `doc`, también en el ámbito de crate; los comentarios ordinarios y el formato de origen no se conservan. La prueba de ida y vuelta comprueba la documentación conservada y la pérdida de comentarios ordinarios.

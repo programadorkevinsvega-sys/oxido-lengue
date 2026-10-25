@@ -30,7 +30,7 @@ Una construcción solo se anuncia como soportada cuando aparece en la matriz de 
 
 La especificación define dos modos de bloques: `indentation` y `braces`. Un proyecto usa un modo; un archivo no puede cambiarlo. Ambos se traducen a un AST común y al mismo backend.
 
-El frontend propio analiza la selección del modo, alias, balance de grupos, elementos estructurales de Óxido y bloques. En el subconjunto verificado, los aliases fuera de macros/atributos opacos se normalizan a tokens Rust; Syn valida la sintaxis y `rustc` el programa completo. La gramática de expresiones, tipos y patrones sigue siendo Rust, no una gramática española independiente.
+El frontend propio analiza la selección del modo, alias, balance de grupos, elementos estructurales de Óxido y bloques. En el subconjunto implementado, los aliases se normalizan a tokens Rust fuera de DSL opacas; macros estándar de expresiones admiten aliases anidados. Syn valida la sintaxis y `rustc` el programa completo. La gramática de expresiones, tipos y patrones sigue siendo Rust, no una gramática española independiente.
 
 ## 4. Configuración
 
@@ -50,7 +50,7 @@ edition = "2024"
 
 1. Los alias son tokens de keyword, no reemplazos de texto.
 2. Identificadores de usuario, cadenas, comentarios, documentación, rutas y nombres de crates se conservan.
-3. Los argumentos de macros y atributos se conservan como árboles opacos, salvo su delimitación exterior; no se traducen alias dentro de ellos.
+3. Los argumentos de macros desconocidas/externas y DSL de metaprogramación se conservan opacos. Los macros estándar expresivos allowlisted pueden normalizar recursivamente aliases en sus expresiones; las cadenas y literales no se cambian.
 4. Un identificador crudo `r#nombre` es un identificador de usuario cuyo nombre es `nombre`, incluso cuando coincide con un alias Óxido. No activa una keyword.
 5. En bloques indentados, la expresión final sin `;` es el valor del bloque. Añadir `;` la convierte en instrucción y el bloque vale `()`.
 6. En modo llaves, los terminadores siguen las reglas Rust; no se infieren puntos y coma por saltos de línea.
@@ -61,7 +61,7 @@ edition = "2024"
 
 - Traducir nombres de tipos, métodos, funciones de bibliotecas o crates.
 - Un prelude de aliases de tipos/métodos.
-- Alias de invocaciones de macro.
+- Expansión propia de macros y traducción de DSLs de macros externas.
 - Un type checker o borrow checker propio.
 - Aceptar automáticamente toda gramática Rust dentro de bloques indentados.
 - Telemetría remota por defecto.

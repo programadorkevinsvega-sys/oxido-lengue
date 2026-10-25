@@ -14,7 +14,7 @@ La sintaxis indentada inicial admite:
 - `coincidir expresion:` como expresión independiente o inicializador `variable x = coincidir ...:`.
 - Brazos `patron => expresion` y `patron =>` seguido de un bloque indentado.
 
-Los encabezados, patrones, tipos y expresiones siguen tokens Rust con aliases Óxido documentados. Los macros conservan sus argumentos opacos. Syn valida cada item/contexto y Cargo/rustc mantiene la validación semántica.
+Los encabezados, patrones, tipos y expresiones siguen tokens Rust con aliases Óxido documentados. Los argumentos de macros estándar que reciben expresiones pueden normalizar aliases anidados; las DSL externas y macros no allowlisted conservan sus tokens opacos. Syn valida cada item/contexto y Cargo/rustc mantiene la validación semántica.
 
 Ejemplo combinado: [fase_8_estructura_indentada.ox](../examples/fase_8_estructura_indentada.ox). Se ejecuta con `cargo run --locked -p oxido-cli -- ejecutar examples/fase_8_estructura_indentada.ox`.
 
@@ -22,11 +22,13 @@ Validación local de esta entrega: el ejemplo se compiló y ejecutó con Cargo; 
 
 La cobertura de regresión de los bloques `implementar` verifica receivers `mismo`, `&mismo` y `&mutable mismo`; funciones asociadas sin receiver; genéricos y `donde` junto al `:` que abre el bloque; varios bloques para el mismo tipo; visibilidad `publico`; atributos y comentarios `///`; constantes asociadas y tipos asociados en traits/implementaciones. También comprueba el rechazo de bloques `implementar` vacíos, la mala indentación, la regla del `;` final, el mismo resultado al compilar formas indentadas y con llaves, y el mapeo de errores de rustc a la línea original `.ox`.
 
+La regresión de documentación compara el Rust generado para comentarios `///` antes del primer, intermedio y último método; `///` con líneas en blanco y `#[inline]`; bloques `/** ... */`; comentarios internos `//!`/`/*! ... */`; comentarios ordinarios al cerrar el bloque y comentarios al final de su encabezado. La prueba de importación/exportación de Fase 5 confirma que la documentación se conserva como `doc` y que comentarios ordinarios se pierden de forma documentada.
+
 ## Límites de esta entrega
 
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
-- Los argumentos de invocaciones de macros permanecen Rust opaco.
+- Las macros externas y las DSL no allowlisted permanecen opacas; los aliases de macros estándar y sus expresiones anidadas se describen en [aliases](aliases.md).
 - `async`, macros declarativas, closures, lifetimes complejos, dependencias Cargo de proyectos reales e interoperabilidad general siguen en subfases posteriores.
 
 La decisión arquitectónica está en [ADR 0004](adr/0004-estructura-indentada-rust.md). La aceptación global de Fase 8 requiere cerrar las subfases restantes en el [roadmap](roadmap.md), con pruebas y límites por característica.

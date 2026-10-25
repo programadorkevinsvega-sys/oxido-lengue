@@ -49,12 +49,20 @@ struct PendingMapping {
 /// Emite Rust desde el AST Óxido, conserva correspondencias de tokens y formatea el resultado.
 pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynError> {
     let mut pending = Vec::new();
+    let attributes = file
+        .attributes
+        .iter()
+        .map(|attribute| {
+            register_fragment(attribute, &mut pending)?;
+            parse_attribute_fragment(&attribute.text)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let items = file
         .items
         .iter()
         .map(|item| emit_item(item, &mut pending))
         .collect::<Result<Vec<_>, _>>()?;
-    let tokens = quote! { #(#items)* };
+    let tokens = quote! { #(#attributes)* #(#items)* };
     let parsed = syn::parse2::<syn::File>(tokens)?;
     let code = prettyplease::unparse(&parsed);
     let reparsed = syn::parse_file(&code)?;
@@ -117,6 +125,23 @@ pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynEr
 pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     let file = syn::parse_file(source.text())?;
     let mut output = String::from("sintaxis llaves\n");
+    for attribute in &file.attrs {
+        if let syn::Meta::NameValue(name_value) = &attribute.meta {
+            if name_value.path.is_ident("doc")
+                && let syn::Expr::Lit(expression) = &name_value.value
+                && let syn::Lit::Str(documentation) = &expression.lit
+            {
+                for line in documentation.value().lines() {
+                    output.push_str("//! ");
+                    output.push_str(line);
+                    output.push('\n');
+                }
+                continue;
+            }
+        }
+        output.push_str(&quote! { #attribute }.to_string());
+        output.push('\n');
+    }
     for item in &file.items {
         let syn::Item::Fn(function) = item else {
             return Err(SynError::new(
@@ -532,8 +557,15 @@ fn parse_tokens(fragment: &str) -> Result<TokenStream, SynError> {
 
 fn parse_attribute_fragment(fragment: &str) -> Result<syn::Attribute, SynError> {
     let trimmed = fragment.trim_start();
+    let inner_doc =
+        trimmed.starts_with("//!") || trimmed.starts_with("/*!") || trimmed.starts_with("#!");
     let doc = if let Some(content) = trimmed
         .strip_prefix("///")
+        .filter(|_| !trimmed.starts_with("////"))
+    {
+        Some(content.strip_prefix(' ').unwrap_or(content).to_owned())
+    } else if let Some(content) = trimmed
+        .strip_prefix("//!")
         .filter(|_| !trimmed.starts_with("////"))
     {
         Some(content.strip_prefix(' ').unwrap_or(content).to_owned())
@@ -548,17 +580,42 @@ fn parse_attribute_fragment(fragment: &str) -> Result<syn::Attribute, SynError> 
                     .trim()
                     .to_owned()
             })
+            .or_else(|| {
+                trimmed
+                    .strip_prefix("/*!")
+                    .filter(|_| !trimmed.starts_with("/*!*"))
+                    .map(|content| {
+                        content
+                            .strip_suffix("*/")
+                            .unwrap_or(content)
+                            .trim()
+                            .to_owned()
+                    })
+            })
     };
     if let Some(doc) = doc {
         let literal = syn::LitStr::new(&doc, RustSpan::call_site());
-        let tokens = quote! { #[doc = #literal] };
-        return syn::Attribute::parse_outer
-            .parse2(tokens)?
+        let tokens = if inner_doc {
+            quote! { #![doc = #literal] }
+        } else {
+            quote! { #[doc = #literal] }
+        };
+        return if inner_doc {
+            syn::Attribute::parse_inner
+        } else {
+            syn::Attribute::parse_outer
+        }
+        .parse2(tokens)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| SynError::new(RustSpan::call_site(), "comentario de documentación vacío"));
+    }
+    if trimmed.starts_with("#!") {
+        return syn::parse2::<syn::File>(parse_tokens(fragment)?)?
+            .attrs
             .into_iter()
             .next()
-            .ok_or_else(|| {
-                SynError::new(RustSpan::call_site(), "comentario de documentación vacío")
-            });
+            .ok_or_else(|| SynError::new(RustSpan::call_site(), "atributo interno Rust vacío"));
     }
     syn::Attribute::parse_outer
         .parse2(parse_tokens(fragment)?)?

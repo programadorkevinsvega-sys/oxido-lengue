@@ -356,7 +356,7 @@ fn preserves_outer_and_inner_documentation_comments_at_indented_block_boundaries
 
     let source = SourceFile::new(
         r#"sintaxis indentacion
-#![allow(dead_code)]
+#![forbid(unsafe_code)]
 //! Documentación del crate.
 /*! Segunda línea de documentación del crate. */
 estructura Punto:
@@ -385,7 +385,7 @@ funcion principal():
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
 
     for documentation in [
-        "#![allow(dead_code)]",
+        "#![forbid(unsafe_code)]",
         "//!Documentación del crate.",
         "//!Segunda línea de documentación del crate.",
         "Documentación del primer método.",

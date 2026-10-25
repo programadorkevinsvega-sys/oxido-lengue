@@ -20,7 +20,12 @@ impl TestDirectory {
 
 impl Drop for TestDirectory {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        if let Err(error) = fs::remove_dir_all(&self.0) {
+            eprintln!(
+                "no se pudo limpiar el directorio temporal `{}`: {error}",
+                self.0.display()
+            );
+        }
     }
 }
 

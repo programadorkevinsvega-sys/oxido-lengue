@@ -86,8 +86,13 @@ fn export_ox(args: &[OsString]) -> Result<(), String> {
         .map_err(|error| format!("no se pudo serializar el mapa: {error}"))?;
     write_new(&output_path, generated.rust.as_bytes())?;
     if let Err(error) = write_new(&map_path, &map_bytes) {
-        let _ = fs::remove_file(&output_path);
-        return Err(error);
+        return match fs::remove_file(&output_path) {
+            Ok(()) => Err(error),
+            Err(cleanup_error) => Err(format!(
+                "{error}; además, no se pudo retirar el Rust parcial `{}`: {cleanup_error}",
+                output_path.display()
+            )),
+        };
     }
     println!("Rust exportado a {}", output_path.display());
     println!("Mapa de posiciones exportado a {}", map_path.display());

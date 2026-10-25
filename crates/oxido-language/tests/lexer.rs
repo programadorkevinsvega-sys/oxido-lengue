@@ -34,6 +34,51 @@ fn tracks_utf8_spans_and_line_columns() {
 }
 
 #[test]
+fn repeated_lexing_of_identical_input_is_deterministic() {
+    let source = SourceFile::new(
+        "sintaxis indentacion\nfuncion sumar(a: i32, b: i32) -> i32:\n    dejar resultado = a + b\n    resultado\n",
+    );
+    let options = LexOptions::default();
+    let first = lex(&source, options);
+    let second = lex(&source, options);
+    assert_eq!(first.mode, second.mode);
+    assert_eq!(first.tokens, second.tokens);
+    assert_eq!(first.diagnostics, second.diagnostics);
+}
+
+#[test]
+fn indentation_mode_continues_after_operators_without_changing_block_depth() {
+    let source = SourceFile::new(
+        "sintaxis indentacion\nfuncion sumar() -> i32:\n    dejar resultado = 1 +\n                2\n    resultado\n",
+    );
+    let output = lex(&source, LexOptions::default());
+    assert!(!output.has_errors(), "{:?}", output.diagnostics);
+    let tokens = texts(&source, &output.tokens);
+    let plus = tokens.iter().position(|text| *text == "+").unwrap();
+    assert_eq!(tokens.get(plus + 1), Some(&"2"));
+    assert_eq!(
+        output
+            .tokens
+            .iter()
+            .filter(|token| matches!(token.kind, TokenKind::Indent))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn indentation_mode_continues_when_the_next_line_starts_with_member_access() {
+    let source = SourceFile::new(
+        "sintaxis indentacion\nfuncion leer() -> i32:\n    objeto\n        .campo\n",
+    );
+    let output = lex(&source, LexOptions::default());
+    assert!(!output.has_errors(), "{:?}", output.diagnostics);
+    let tokens = texts(&source, &output.tokens);
+    let objeto = tokens.iter().position(|text| *text == "objeto").unwrap();
+    assert_eq!(tokens.get(objeto + 1), Some(&"."));
+}
+
+#[test]
 fn recognizes_aliases_raw_identifiers_and_indentation() {
     let source = SourceFile::new(
         "// cabecera\nsintaxis indentacion\nfuncion calcular() -> i32:\n    dejar r#tipo: i32 = 7\n    r#tipo\n",
@@ -160,6 +205,66 @@ fn enforces_source_and_group_limits_with_diagnostics() {
     ));
     let output = lex(&nested, LexOptions::default());
     assert!(output.diagnostics.iter().any(|diag| diag.code == "OX6001"));
+
+    let maximum_indentation = SourceFile::new(format!(
+        "sintaxis indentacion\nx\n{}",
+        (1..=128)
+            .map(|level| format!("{}x\n", " ".repeat(level * 4)))
+            .collect::<String>()
+    ));
+    let within_limit = lex(&maximum_indentation, LexOptions::default());
+    assert!(
+        !within_limit
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "OX6001")
+    );
+
+    let excessive_indentation = SourceFile::new(format!(
+        "sintaxis indentacion\nx\n{}",
+        (1..=129)
+            .map(|level| format!("{}x\n", " ".repeat(level * 4)))
+            .collect::<String>()
+    ));
+    let over_limit = lex(&excessive_indentation, LexOptions::default());
+    assert!(
+        over_limit
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "OX6001")
+    );
+}
+
+#[test]
+fn enforces_the_token_limit_without_rejecting_the_exact_boundary() {
+    let at_limit = SourceFile::new("x ".repeat(1_000_000));
+    let accepted = lex(
+        &at_limit,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    assert_eq!(accepted.tokens.len(), 1_000_000);
+    assert!(
+        !accepted
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "OX6001")
+    );
+
+    let over_limit = SourceFile::new("x ".repeat(1_000_001));
+    let rejected = lex(
+        &over_limit,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    assert!(
+        rejected
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "OX6001")
+    );
 }
 
 #[test]

@@ -10,10 +10,11 @@ Esta matriz describe el **alcance de la implementación inicial**, no funcionali
 | Valor del bloque | Última expresión sin `;` retorna valor; con `;` devuelve `()` | Parcial: AST distingue `tail` y terminador; falta código generado |
 | `if/else`, `loop`, `while`, `for` | Keywords bilingües y bloques en ambos modos | Parcial: estructura y cabeceras validadas con Syn |
 | Tipos y referencias | Sintaxis Rust preservada y parseada; semántica a `rustc` | Parcial: fragmentos de tipo validados con Syn en `let` |
-| `struct`, `enum`, `impl`, `trait`, `mod`, `use` | Rust passthrough en braces; soporte indentado solo para bloques estructurales listados en gramática | Parcial: passthrough opaco en modo llaves; no en indentación |
+| `struct`, `enum`, `impl`, `trait`, `mod`, `use` | Rust passthrough en braces; soporte indentado solo para bloques estructurales listados en gramática | Parcial: escritura Rust con atributos/visibilidad y macros se conservan y validan en modo llaves; aliases y cuerpos indentados siguen pendientes |
 | Expresiones, patrones y genéricos | Tokens Rust; parser Syn; `rustc` hace validación semántica | Parcial: expresiones/patrones/firma validados en el subconjunto parseado |
 | `match` | Keywords traducibles; brazos se escriben con `{}` también en modo indentation | No implementado |
 | Macros/atributos | Árboles opacos; no se traducen nombre, argumentos ni contenido | Parcial: conservación en modo llaves; no expansión ni traducción |
+| Identificadores reservados y escape | `r#nombre` fuerza identificador; colisiones de alias reciben `OX3001` cuando corresponda | Parcial: `fn` y bindings simples de `let` sugieren `r#...`; patrones anidados y todos los contextos se amplían en Fase 6 |
 | Macros procedurales | Cargo/rustc pueden ejecutarlas; no las analiza ni expande Óxido | No implementado |
 | `async`/`await` | Alias reservados; solo se aceptan donde el Rust resultante compila | No implementado |
 | `unsafe` | Semántica Rust intacta; el compilador Óxido prohíbe `unsafe` en su propio código y ofrecerá política para rechazarlo en fuente analizada | No implementado |

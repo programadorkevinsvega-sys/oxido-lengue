@@ -47,6 +47,24 @@ fn semicolon_turns_the_final_expression_into_a_statement() {
 }
 
 #[test]
+fn both_block_styles_keep_the_same_tail_and_semicolon_semantics() {
+    for (source, expected_tail) in [
+        ("sintaxis indentacion\nfn valor():\n    42\n", true),
+        ("sintaxis indentacion\nfn valor():\n    42;\n", false),
+        ("sintaxis llaves\nfn valor() { 42 }\n", true),
+        ("sintaxis llaves\nfn valor() { 42; }\n", false),
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+        let Item::Function(function) = &parsed.file.unwrap().items[0] else {
+            panic!("se esperaba función")
+        };
+        assert_eq!(function.body.tail.is_some(), expected_tail, "{source}");
+        assert_eq!(function.body.statements.len(), usize::from(!expected_tail));
+    }
+}
+
+#[test]
 fn parses_braced_function_and_nested_if_else_with_shared_ast() {
     let source =
         SourceFile::new("sintaxis llaves\nfn elegir(x: bool) -> i32 { if x { 1 } else { 2 } }\n");
@@ -67,7 +85,7 @@ fn parses_braced_function_and_nested_if_else_with_shared_ast() {
 #[test]
 fn parses_visibility_attributes_async_and_rust_passthrough_items() {
     let source = SourceFile::new(
-        "sintaxis llaves\n#[inline]\npub async fn cargar() {}\nstruct Dato { valor: i32 }\nuse crate::modulo;\n",
+        "sintaxis llaves\n#[inline]\npub async fn cargar() {}\n#[derive(Clone)]\npub struct Dato { valor: i32 }\npub(crate) use crate::modulo;\n",
     );
     let parsed = parse(&source, LexOptions::default());
     assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
@@ -79,13 +97,44 @@ fn parses_visibility_attributes_async_and_rust_passthrough_items() {
     assert!(function.asynchronous);
     assert_eq!(function.attributes.len(), 1);
     assert_eq!(function.visibility.as_ref().unwrap().text, "pub");
-    assert!(matches!(file.items[1], Item::RustFragment(_)));
-    assert!(matches!(file.items[2], Item::RustFragment(_)));
+    assert_eq!(
+        function.span.start(),
+        source.text().find("#[inline]").unwrap()
+    );
+    let Item::RustFragment(structure) = &file.items[1] else {
+        panic!("se esperaba struct passthrough")
+    };
+    assert!(structure.text.starts_with("#[derive(Clone)]"));
+    assert!(structure.text.contains("pub struct Dato"));
+    let Item::RustFragment(import) = &file.items[2] else {
+        panic!("se esperaba use passthrough")
+    };
+    assert!(import.text.starts_with("pub(crate) use"));
+}
+
+#[test]
+fn parses_every_initial_control_form_in_both_block_styles() {
+    for source in [
+        "sintaxis indentacion\nfuncion recorrer(xs: &[i32]):\n    para x en xs:\n        mientras *x > 0:\n            si *x == 1:\n                romper\n            sino:\n                continuar\n    bucle:\n        romper\n",
+        "sintaxis llaves\nfn recorrer(xs: &[i32]) { for x in xs { while *x > 0 { if *x == 1 { break; } else { continue; } } } loop { break; } }\n",
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+        let Item::Function(function) = &parsed.file.unwrap().items[0] else {
+            panic!("se esperaba función")
+        };
+        assert!(function.body.statements.iter().any(|statement| matches!(
+            statement,
+            Statement::Control(control) if control.kind == oxido_language::domain::ast::ControlKind::For
+        )));
+    }
 }
 
 #[test]
 fn parser_reports_incomplete_headers_and_recovers_to_next_function() {
-    let source = SourceFile::new("sintaxis indentacion\nfuncion rota(\nfuncion bien():\n    1\n");
+    let source = SourceFile::new(
+        "sintaxis indentacion\nfuncion rota(\nfuncion bien():\n    1\nfuncion otra(\n",
+    );
     let parsed = parse(&source, LexOptions::default());
     assert!(parsed.has_errors());
     assert!(
@@ -93,6 +142,98 @@ fn parser_reports_incomplete_headers_and_recovers_to_next_function() {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "OX2003")
+    );
+    assert!(parsed.diagnostics.len() >= 2, "{:?}", parsed.diagnostics);
+    assert!(parsed.file.is_none());
+}
+
+#[test]
+fn rejects_function_bodies_with_delimiters_from_the_other_mode() {
+    for source in [
+        "sintaxis llaves\nfn llaves() :\n    1\n",
+        "sintaxis indentacion\nfn indentado() { 1 }\n",
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        assert!(parsed.has_errors());
+        assert!(parsed.file.is_none());
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "OX2002")
+        );
+    }
+}
+
+#[test]
+fn diagnoses_reserved_aliases_used_as_function_and_binding_names() {
+    for source in [
+        "sintaxis indentacion\nfuncion tipo():\n    1\n",
+        "sintaxis indentacion\nfuncion valida():\n    dejar tipo = 1\n",
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        assert!(parsed.has_errors(), "{source}");
+        let reserved: Vec<_> = parsed
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "OX3001")
+            .collect();
+        assert_eq!(reserved.len(), 1, "{:?}", parsed.diagnostics);
+        assert!(
+            reserved[0]
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion.replacement == "r#tipo")
+        );
+    }
+}
+
+#[test]
+fn diagnoses_missing_function_names_and_malformed_declarations() {
+    for source in [
+        "sintaxis llaves\nfn () {}\n",
+        "sintaxis llaves\nfn invalida() { let = 1; }\n",
+        "sintaxis llaves\nfn invalida() { let x: = 1; }\n",
+        "sintaxis llaves\nfn invalida() { if true {} else }\n",
+        "sintaxis llaves\nfn invalida() { ; }\n",
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        assert!(parsed.has_errors(), "{source}: {:?}", parsed.diagnostics);
+        assert!(parsed.file.is_none(), "{source}");
+    }
+}
+
+#[test]
+fn parser_limits_recursive_block_depth_with_a_diagnostic() {
+    let source = SourceFile::new(format!(
+        "sintaxis llaves\nfn profunda() {{ {}0; {} }}\n",
+        "if true { ".repeat(140),
+        "}".repeat(140)
+    ));
+    let parsed = parse(&source, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "OX6001")
+    );
+    assert!(parsed.file.is_none());
+}
+
+#[test]
+fn parser_limits_recursive_else_if_depth_with_a_diagnostic() {
+    let source = SourceFile::new(format!(
+        "sintaxis llaves\nfn profunda() {{ {} }}\n",
+        "if true {} else ".repeat(140) + "if true {}"
+    ));
+    let parsed = parse(&source, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "OX6001")
     );
     assert!(parsed.file.is_none());
 }

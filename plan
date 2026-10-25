@@ -199,13 +199,13 @@ El modo de llaves debe resultar familiar a los desarrolladores de Rust, pero no 
 
 El modo debe definirse mediante una configuración explícita.
 
-La configuración del proyecto será el valor predeterminado. Como diseño propuesto, el archivo `oxido.toml` puede contener:
+La configuración del proyecto será el valor predeterminado. El archivo `oxido.toml` contendrá solo datos declarativos y el bloque de lenguaje usará este esquema normativo:
 
     [language]
     syntax = "indentation"
     edition = "2024"
 
-Los valores admitidos para `syntax` serán `indentation` y `braces`.
+Los valores admitidos para `syntax` son `indentation` y `braces`; `edition` admite `2024` en la versión inicial. `syntax` es opcional únicamente cuando todos los archivos declaran su modo al inicio. Las claves y restricciones exactas están en [`docs/language-spec.md`](docs/language-spec.md).
 
 Una declaración inicial por archivo puede reiterar el modo del proyecto, por ejemplo:
 
@@ -289,114 +289,23 @@ No es obligatorio traducir absolutamente todas las palabras de Rust. Es preferib
 
 ---
 
-# 6. Lista inicial de alias lingüísticos
+# 6. Alias, identificadores y compatibilidad con Rust
 
-Esta es la propuesta inicial que debes formalizar, revisar contra la edición de Rust elegida y convertir en una especificación verificable.
+La especificación normativa, cerrada para Óxido 0.1 con Rust 2024, está en [`docs/aliases.md`](docs/aliases.md). Ese documento mantiene un único inventario de keywords estrictas, keywords reservadas sin semántica Óxido, palabras contextuales y reglas de identificadores crudos. Las tablas allí son normativas; no quedan listas de alias pendientes de revisión en este plan.
 
-No consideres automáticamente definitiva ninguna equivalencia que tenga una traducción ambigua.
+## 6.1. Reglas obligatorias
 
-## 6.1. Palabras clave estrictas
+- Los alias se reconocen por tokens y contexto; no se reemplaza texto globalmente.
+- `crate` corresponde a `paquete`; no se admite `crata`.
+- Los identificadores de usuario no se traducen. Un alias reservado en posición de identificador requiere `r#nombre` cuando Rust lo permita; de lo contrario se diagnostica y se propone renombrar.
+- Se conservan las distinciones de mayúsculas (`mismo`/`Mismo`) y las restricciones de raw identifiers de Rust.
+- Cadenas, comentarios, documentación, rutas, nombres de crates y tokens de macro/atributo no se normalizan.
+- Las palabras reservadas de Rust 2024 permanecen reservadas y no adquieren semántica por tener alias.
+- No se traducen automáticamente nombres de funciones, métodos, tipos ni bibliotecas. Alias de tipos/métodos y prelude quedan fuera de 0.1.
 
-| Rust | Alias de Óxido |
-|---|---|
-| `as` | `como` |
-| `async` | `asincrono` |
-| `await` | `esperar` |
-| `break` | `romper` |
-| `const` | `constante` |
-| `continue` | `continuar` |
-| `crate` | `paquete` |
-| `dyn` | `dinamico` |
-| `else` | `sino` |
-| `enum` | `enumeracion` |
-| `extern` | `externo` |
-| `false` | `falso` |
-| `fn` | `funcion` |
-| `for` | `para` |
-| `if` | `si` |
-| `impl` | `implementar` |
-| `in` | `en` |
-| `let` | `dejar` |
-| `loop` | `bucle` |
-| `match` | `coincidir` |
-| `mod` | `modulo` |
-| `move` | `mover` |
-| `mut` | `mutable` |
-| `pub` | `publico` |
-| `ref` | `referencia` |
-| `return` | `retornar` |
-| `self` | `mismo` |
-| `Self` | `Mismo` |
-| `static` | `estatico` |
-| `struct` | `estructura` |
-| `super` | `superior` |
-| `trait` | `rasgo` |
-| `true` | `verdadero` |
-| `type` | `tipo` |
-| `unsafe` | `inseguro` |
-| `use` | `usar` |
-| `where` | `donde` |
-| `while` | `mientras` |
+## 6.2. Macros y atributos
 
-El token `_` debe conservarse sin traducción.
-
-El alias de `crate` es `paquete`, no `crata`; por ejemplo, `paquete::` representa la ruta `crate::` de Rust. Revisa los posibles conflictos de `dinamico`, `mismo`, `Mismo`, `tipo` y `en` con la gramática y los identificadores.
-
-Los alias no deben cambiar la semántica ni habilitar construcciones de Rust que el lenguaje reserve para otros propósitos.
-
-## 6.2. Identificadores reservados y escape
-
-Los alias de palabras clave son reservados en Óxido donde sus equivalentes Rust son palabras clave. Un identificador de usuario que coincida con un alias reservado se escribe como identificador crudo, por ejemplo `r#tipo`; el lexer lo conserva como identificador y no como palabra clave. Si la palabra también está reservada en Rust y no puede emitirse válidamente, el compilador la rechaza con un diagnóstico claro.
-
-Sin escape, el diagnóstico identifica la palabra reservada y sugiere `r#<identificador>` o cambiar el nombre. Ejemplo: «`tipo` es palabra reservada de Óxido; usa `r#tipo` o cámbialo». Esta regla debe probarse para `tipo`, `en`, `como`, `para`, `donde`, `mismo` y `referencia`, en nombres de variables, funciones, módulos y campos cuando aplique.
-
-## 6.3. Palabras reservadas de Rust
-
-Mantén un inventario independiente de las palabras reservadas de la versión de Rust seleccionada.
-
-Como propuestas iniciales:
-
-| Rust | Alias propuesto |
-|---|---|
-| `abstract` | `abstracto` |
-| `become` | `convertirse` |
-| `box` | `caja` |
-| `do` | `hacer` |
-| `final` | `final` |
-| `gen` | `generar` |
-| `macro` | `macro` |
-| `override` | `sobrescribir` |
-| `priv` | `privado` |
-| `try` | `intentar` |
-| `typeof` | `tipo_de` |
-| `unsized` | `sin_tamano` |
-| `virtual` | `virtual` |
-| `yield` | `ceder` |
-
-Esta tabla es una propuesta de vocabulario, no una autorización para implementar funciones inexistentes.
-
-Las palabras reservadas deben seguir reservadas si así corresponde en la edición elegida. Su alias no debe habilitarlas por accidente.
-
-Verifica qué palabras se reservan en cada edición de Rust y cómo afecta eso a los identificadores y al código generado.
-
-## 6.4. Palabras contextuales
-
-Conserva inicialmente las formas originales cuando su sintaxis sea especial o contextual, incluyendo:
-
-- `'static`
-- `macro_rules`
-- `raw`
-- `safe`
-- `union`
-
-La lista debe revisarse contra la referencia oficial de Rust y actualizarse conforme a la edición y al alcance de compatibilidad de Óxido.
-
-## 6.5. Macros y atributos
-
-Óxido 0.1 no define alias de invocaciones de macros. Se conservan el nombre de la macro y sus argumentos como árboles de tokens opacos; no se traducen keywords ni identificadores dentro de ellos. Los atributos también se conservan sin traducción interna. Esto mantiene compatibles `matches!`, macros de Serde y macros externas sin que el frontend tenga que conocer su gramática. La decisión y sus criterios están en [docs/language-spec.md](docs/language-spec.md), [docs/grammar.md](docs/grammar.md) y [docs/testing.md](docs/testing.md).
-
-No se traducen automáticamente nombres de funciones, métodos, tipos ni bibliotecas. Alias de tipos/métodos y cualquier prelude quedan fuera de 0.1 y requieren una decisión versionada.
-
+Óxido 0.1 no define alias de invocaciones de macros. Se conservan el nombre y los argumentos como árboles de tokens opacos; tampoco se traducen aliases dentro de argumentos o atributos. Esta política y sus casos de aceptación están definidos en [`docs/aliases.md`](docs/aliases.md), [`docs/grammar.md`](docs/grammar.md) y [`docs/testing.md`](docs/testing.md).
 
 # 7. Especificación formal de la gramática
 

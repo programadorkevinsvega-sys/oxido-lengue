@@ -4,6 +4,8 @@
 **Resultado:** Fase 0 completada; el proyecto está en etapa documental.  
 **Siguiente fase:** Fase 1 — Especificación.
 
+Este informe es una fotografía del repositorio en la fecha indicada. Sus afirmaciones sobre rama, archivos, CI y capacidades describen ese estado inicial, no el estado actual del proyecto.
+
 ## 1. Estado del repositorio
 
 - Ruta de trabajo: `oxido-lengue`.
@@ -74,3 +76,5 @@ Estas son decisiones escritas en documentos, no capacidades probadas ni una gram
 La auditoría está completa como unidad documental: el estado real, las decisiones previas, los componentes inexistentes, los riesgos y la siguiente fase están identificados. No se declara implementada ninguna capacidad del lenguaje.
 
 Fase 1 puede empezar sin bloqueo externo. Debe cerrar la gramática inicial, el alcance exacto del parser, alias/reservadas, semántica de bloques, compatibilidad, diagnósticos y criterios de aceptación antes de crear el workspace funcional.
+
+El cierre de Fase 0 no se reabre por la evolución posterior del repositorio: este informe es deliberadamente histórico. Los estados actuales se registran en [`roadmap.md`](roadmap.md) y cada fase enlaza su evidencia correspondiente.

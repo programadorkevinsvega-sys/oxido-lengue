@@ -18,3 +18,10 @@ fn rejects_unknown_fields_and_unsupported_editions() {
     );
     assert!(ProjectConfig::parse("[language]\nsyntax = 'braces'\nedition = '2021'\n").is_err());
 }
+
+#[test]
+fn rejects_configuration_larger_than_the_resource_limit() {
+    let input = " ".repeat(64 * 1024 + 1);
+    let error = ProjectConfig::parse(&input).unwrap_err();
+    assert!(error.contains("64 KiB"));
+}

@@ -2,11 +2,11 @@
 
 ## Representación
 
-Todo diagnóstico interno incluye:
+Todo diagnóstico interno usa la estructura `Diagnostic` con:
 
 - `code`: identificador estable `OX` + categoría + secuencia.
 - `severity`: `error`, `warning`, `info` o `hint`.
-- `message`: mensaje principal en el idioma seleccionado (español por defecto; inglés disponible).
+- `message`: mensaje principal legible. Los mensajes propios actuales están en español; selector/traducción al inglés queda pendiente de la capa CLI/LSP.
 - `primary_span`: rango primario half-open `[start,end)` en bytes UTF-8 de `.ox`.
 - `labels[]`: rangos secundarios y explicación corta.
 - `notes[]`: contexto, incluyendo edición/modo si aplica.

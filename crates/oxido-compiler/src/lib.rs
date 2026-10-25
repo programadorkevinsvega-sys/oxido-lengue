@@ -77,7 +77,31 @@ pub fn parse_ox(
                         }
                     }
                 }
-                Statement::Break(_) | Statement::Continue(_) | Statement::RustItem(_) => {}
+                Statement::Break(statement) => {
+                    if let Err(error) = oxido_rust_backend::validate_jump(
+                        "break",
+                        statement.value.as_ref().map(|value| value.text.as_str()),
+                    ) {
+                        diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("sentencia `break` inválida: {error}"),
+                            statement.span,
+                        ));
+                    }
+                }
+                Statement::Continue(statement) => {
+                    if let Err(error) = oxido_rust_backend::validate_jump(
+                        "continue",
+                        statement.value.as_ref().map(|value| value.text.as_str()),
+                    ) {
+                        diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("sentencia `continue` inválida: {error}"),
+                            statement.span,
+                        ));
+                    }
+                }
+                Statement::RustItem(_) => {}
                 Statement::Expression(expression) => {
                     if let Err(error) =
                         oxido_rust_backend::validate_expression(&expression.value.text)
@@ -135,6 +159,27 @@ pub fn parse_ox(
         for item in &file.items {
             match item {
                 Item::Function(function) => {
+                    for attribute in &function.attributes {
+                        if let Err(error) = oxido_rust_backend::validate_attribute(&attribute.text)
+                        {
+                            rust_diagnostics.push(Diagnostic::error(
+                                "OX4001",
+                                format!("atributo Rust inválido: {error}"),
+                                attribute.span,
+                            ));
+                        }
+                    }
+                    if let Some(visibility) = &function.visibility {
+                        if let Err(error) =
+                            oxido_rust_backend::validate_visibility(&visibility.text)
+                        {
+                            rust_diagnostics.push(Diagnostic::error(
+                                "OX4001",
+                                format!("visibilidad Rust inválida: {error}"),
+                                visibility.span,
+                            ));
+                        }
+                    }
                     if let Err(error) =
                         oxido_rust_backend::validate_signature(&function.signature.text)
                     {

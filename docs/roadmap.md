@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–4: completadas en sus alcances definidos. Fase 5 en adelante: pendiente. El portal de documentación se inició transversalmente y se consolidará en Fase 13.** En el momento de la auditoría de Fase 0 aún no había `Cargo.toml`, código fuente ni pruebas ejecutables; las Fases 2–4 añadieron la base Rust, el lexer y el parser/AST inicial. La Fase 4 no genera ni compila Rust. Consulta [el informe de Fase 0](auditoria-fase-0.md) y los documentos normativos de lenguaje enlazados abajo.
+**Fases 0–4: completadas en sus alcances verificados. Fase 5 en adelante: pendiente.** El portal documental se inició transversalmente y se consolidará en Fase 13. El informe de Fase 0 es una fotografía histórica; las fases siguientes añadieron workspace, lexer y parser/AST inicial. La Fase 4 no genera ni compila Rust. Consulta [el informe de Fase 0](auditoria-fase-0.md) y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -125,7 +125,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Entregables:** [parser/AST inicial](fase-4-parser.md) para el subconjunto definido.
 
-**Criterio de salida:** corpus válido/inválido cubre AST, spans, recuperación, macros y semicolon/tail; ambos modos comparten semántica interna. Cumplido para el alcance inicial, con límites registrados en el informe de Fase 4.
+**Criterio de salida:** el corpus válido/inválido cubre AST, spans, recuperación, passthrough con atributos/visibilidad, macros, controles, nombres reservados y semicolon/tail en ambos modos; se verifican diagnósticos Syn y límites de recursión. Cumplido para el subconjunto inicial documentado en [fase-4-parser.md](fase-4-parser.md); las formas fuera de ese subconjunto permanecen parciales o pendientes en compatibilidad.
 
 **Dependencia:** Fase 3.
 
@@ -379,11 +379,11 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | Fase | Estado | Evidencia | Bloqueos |
 |---|---|---|---|
 | 0 | Completada | [Informe de auditoría](auditoria-fase-0.md); no había pruebas ejecutables | Ninguno para iniciar Fase 1 |
-| 1 | Completada (documental) | Especificación y criterios normativos: [language-spec.md](language-spec.md), [grammar.md](grammar.md), [syntax-modes.md](syntax-modes.md), [aliases.md](aliases.md), [compatibility.md](compatibility.md), [diagnostics.md](diagnostics.md), [compiler-pipeline.md](compiler-pipeline.md), [testing.md](testing.md); arquitectura: [ARCHITECTURE_RULES.md](../ARCHITECTURE_RULES.md) y [architecture.md](architecture.md) | Ninguno para iniciar Fase 2; aceptación de implementación aún pendiente |
+| 1 | Completada (documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Las pruebas de aceptación se implementan en su fase dueña; no son deuda documental de Fase 1 |
 | 2 | Completada | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, parseo seguro de configuración, CI y pruebas del pipeline Rust inicial | El parser/AST `.ox` pertenece a Fase 4 |
-| 3 | Completada | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer y 13 pruebas específicas | El parser/AST pertenece a Fase 4 |
-| 4 | Completada (subconjunto inicial) | [Informe de Fase 4](fase-4-parser.md), AST estructural, parser, validación sintáctica de fragmentos con Syn y pruebas de parser/pipeline | No genera Rust ni compila con Cargo; la expansión de sintaxis queda para fases posteriores |
-| Portal documental | En curso (base creada) | [website/README.md](../website/README.md), Astro Starlight, páginas por audiencia, referencia generada desde `docs/`; build estático local verificado | No conectado ni publicado aún en la cuenta de Cloudflare Pages; falta decidir dominio |
+| 3 | Completada | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | El parser/AST pertenece a Fase 4 |
+| 4 | Completada (subconjunto inicial) | [Informe de Fase 4](fase-4-parser.md), AST estructural, parser, validación Syn, límites de anidamiento y pruebas pares de ambos modos | No genera Rust ni compila con Cargo; items indentados y normalización general de aliases son ampliaciones explícitamente posteriores |
+| Portal documental | En curso (sitio estático verificado) | [website/README.md](../website/README.md), Astro Starlight y páginas generadas desde Markdown canónico; build probado con Node 22.23.4 | Cloudflare Pages no conectado y dominio sin decidir; sitemap se habilitará al configurar `site`; queda aviso informativo en la ruta 404 generada por Starlight |
 | 5–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.

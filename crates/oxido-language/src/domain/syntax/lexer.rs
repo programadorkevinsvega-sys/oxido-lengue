@@ -7,6 +7,7 @@ use unicode_ident::{is_xid_continue, is_xid_start};
 
 const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_GROUP_DEPTH: usize = 256;
+const MAX_INDENT_DEPTH: usize = 128;
 const MAX_TOKENS: usize = 1_000_000;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -57,6 +58,7 @@ pub fn lex(source: &SourceFile, options: LexOptions) -> LexOutput {
         line_start: 0,
         prefix_done: false,
         pending_indent: None,
+        continued_line: false,
         indent_stack: vec![0],
         groups: Vec::new(),
         mode: None,
@@ -91,6 +93,7 @@ struct Scanner<'a> {
     line_start: usize,
     prefix_done: bool,
     pending_indent: Option<(usize, Span)>,
+    continued_line: bool,
     indent_stack: Vec<usize>,
     groups: Vec<Group>,
     mode: Option<SyntaxMode>,
@@ -181,11 +184,14 @@ impl Scanner<'_> {
                 self.span(start, self.position),
             );
         }
-        if self.tokens.len() >= MAX_TOKENS {
+        let remainder_is_ascii_whitespace = self.text.as_bytes()[self.position..]
+            .iter()
+            .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'));
+        if self.tokens.len() >= MAX_TOKENS && !remainder_is_ascii_whitespace {
             self.error(
                 "OX6001",
                 "la fuente supera el límite de un millón de tokens",
-                self.span(self.position, self.position),
+                self.span(self.position, (self.position + 1).min(self.text.len())),
             );
         }
         if !self.groups.is_empty() {
@@ -236,6 +242,11 @@ impl Scanner<'_> {
         }
         self.prefix_done = true;
         let prefix_span = self.span(start, self.position);
+        if self.continued_line {
+            self.continued_line = false;
+            self.pending_indent = None;
+            return;
+        }
         self.pending_indent = Some((spaces, prefix_span));
         if self.position >= self.text.len() {
             return;
@@ -275,6 +286,15 @@ impl Scanner<'_> {
         }
         let current = *self.indent_stack.last().unwrap_or(&0);
         if width > current {
+            if self.indent_stack.len() > MAX_INDENT_DEPTH {
+                self.error(
+                    "OX6001",
+                    "la indentación supera la profundidad máxima de 128 niveles",
+                    span,
+                );
+                self.position = self.text.len();
+                return;
+            }
             if width != current + 4 {
                 self.error("OX2001", "la indentación no puede saltar niveles", span);
             }
@@ -643,10 +663,74 @@ impl Scanner<'_> {
         } else {
             self.position += 1;
         }
-        self.emit(TokenKind::Newline, start, self.position);
+        let continues = self.mode == Some(SyntaxMode::Indentation)
+            && self.groups.is_empty()
+            && (self.last_token_continues_line() || self.next_line_starts_continuation());
+        if continues {
+            self.continued_line = true;
+        } else {
+            self.emit(TokenKind::Newline, start, self.position);
+        }
         self.line_start = self.position;
         self.prefix_done = false;
         self.pending_indent = None;
+    }
+
+    fn last_token_continues_line(&self) -> bool {
+        let Some(token) = self
+            .tokens
+            .iter()
+            .rev()
+            .find(|token| !matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+        else {
+            return false;
+        };
+        let text = self.source.slice(token.span);
+        matches!(
+            text,
+            "=" | ","
+                | "."
+                | "::"
+                | "->"
+                | "=>"
+                | "+"
+                | "-"
+                | "*"
+                | "/"
+                | "%"
+                | "&&"
+                | "||"
+                | "&"
+                | "|"
+                | "^"
+                | "<"
+                | ">"
+                | "<="
+                | ">="
+                | "=="
+                | "!="
+                | "as"
+                | "como"
+                | "donde"
+                | "where"
+        )
+    }
+
+    fn next_line_starts_continuation(&self) -> bool {
+        let mut position = self.position;
+        while position < self.text.len() {
+            let line_end = self.text[position..]
+                .find('\n')
+                .map_or(self.text.len(), |offset| position + offset);
+            let line = self.text[position..line_end].trim_start_matches([' ', '\t', '\r']);
+            if line.is_empty() || line.starts_with("//") {
+                position =
+                    (line_end + usize::from(line_end < self.text.len())).min(self.text.len());
+                continue;
+            }
+            return line.starts_with('.') || line.starts_with("::");
+        }
+        false
     }
 
     fn reset_line_state_after_multiline(&mut self, start: usize) {

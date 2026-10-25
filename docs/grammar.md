@@ -2,6 +2,8 @@
 
 **Versión:** Óxido 0.1. Las producciones son normativas para estructura propia. `RustTokens` representa un fragmento balanceado preservado y validado con Syn/rustc; no pretende redefinir la gramática de Rust.
 
+La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado por el parser de Fase 4 está enumerado en [fase-4-parser.md](fase-4-parser.md) y en la matriz de [compatibilidad](compatibility.md). Los items estructurales con cuerpo indentado y la normalización general de aliases se completan en fases posteriores; mientras tanto deben aparecer como parciales o pendientes, nunca como soportados.
+
 ## 1. Convenciones
 
 - `A ::= B` significa producción.

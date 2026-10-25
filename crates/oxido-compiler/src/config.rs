@@ -2,6 +2,8 @@
 
 use serde::Deserialize;
 
+const MAX_CONFIG_BYTES: usize = 64 * 1024;
+
 /// Configuración admitida durante el arranque del proyecto.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +30,9 @@ pub enum SyntaxMode {
 impl ProjectConfig {
     /// Parsea TOML declarativo y rechaza claves o ediciones no admitidas.
     pub fn parse(input: &str) -> Result<Self, String> {
+        if input.len() > MAX_CONFIG_BYTES {
+            return Err("oxido.toml supera el límite de 64 KiB".into());
+        }
         let config: Self = toml::from_str(input).map_err(|error| error.to_string())?;
         if config.language.edition != "2024" {
             return Err(format!(

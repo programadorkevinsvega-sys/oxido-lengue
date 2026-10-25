@@ -1,6 +1,16 @@
 # Criterios de aceptación de Fase 1
 
-Estos son casos de prueba redactados para implementar en Fases 2–5. No son pruebas ejecutadas y no afirman que exista compilador.
+Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.md](roadmap.md). Son contratos de aceptación, no evidencia de que exista una función ni pruebas ejecutadas. Las pruebas que dependen de generación, Cargo, aliases ampliados o LSP se implementan en sus fases correspondientes.
+
+| Área del contrato | Fases responsables |
+|---|---|
+| Configuración declarativa | 2; descubrimiento e integración con fuentes, 5 |
+| Tokens, modo, Unicode e indentación | 3 |
+| AST, bloques, controles y recuperación | 4 |
+| Generación, semántica `rustc`, mapas y ida/vuelta | 5 |
+| Normalización completa de aliases, colisiones y equivalencia de modos | 6 |
+| Corpus de conformidad, fuzzing y CI extendido | 10 y 12 |
+| Semantic tokens, diagnósticos y Workspace Trust en VS Code/LSP | 11 |
 
 ## Configuración y modo
 
@@ -55,6 +65,6 @@ Estos son casos de prueba redactados para implementar en Fases 2–5. No son pru
 - Un fixture del subconjunto reversible hace `.ox → .rs → .ox` y conserva AST/semántica.
 - Fixture con macro, atributo o sintaxis no reversible falla sin pérdida silenciosa y explica el motivo.
 
-## Criterio para cerrar Fase 1
+## Criterio documental de Fase 1
 
-La gramática, modos, alias/reservadas, política de macros, compatibilidad, errores, mapeo y pipeline tienen decisiones no ambiguas; esta lista tiene casos que cubren cada decisión. Cerrar la fase documental no requiere fingir que estas pruebas ya se ejecutaron. La implementación de fixtures/harness comienza en Fase 2.
+La gramática, modos, alias/reservadas, política de macros, compatibilidad, errores, mapeo y pipeline tienen decisiones no ambiguas, y cada decisión tiene un criterio de aceptación asignado a una fase. Cerrar la fase documental no afirma que esos casos se hayan ejecutado. El harness inicial comienza en Fase 2 y se amplía en las fases siguientes.

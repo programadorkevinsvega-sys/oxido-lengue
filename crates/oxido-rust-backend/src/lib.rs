@@ -41,6 +41,25 @@ pub fn validate_for_header(fragment: &str) -> Result<(), SynError> {
     syn::parse2::<syn::Expr>(expression).map(|_| ())
 }
 
+/// Valida argumentos opcionales de `break` o `continue` como una expresión Rust.
+pub fn validate_jump(kind: &str, fragment: Option<&str>) -> Result<(), SynError> {
+    let argument = fragment
+        .unwrap_or_default()
+        .parse::<proc_macro2::TokenStream>()
+        .map_err(|error| SynError::new(proc_macro2::Span::call_site(), error.to_string()))?;
+    let statement = match kind {
+        "break" => quote::quote! { break #argument; },
+        "continue" => quote::quote! { continue #argument; },
+        _ => {
+            return Err(SynError::new(
+                proc_macro2::Span::call_site(),
+                "se esperaba `break` o `continue`",
+            ));
+        }
+    };
+    syn::parse2::<syn::Stmt>(statement).map(|_| ())
+}
+
 /// Valida un fragmento de tipo Rust.
 pub fn validate_type(fragment: &str) -> Result<(), SynError> {
     syn::parse_str::<syn::Type>(fragment).map(|_| ())
@@ -56,6 +75,17 @@ pub fn validate_pattern(fragment: &str) -> Result<(), SynError> {
 pub fn validate_signature(fragment: &str) -> Result<(), SynError> {
     let item = format!("fn {fragment}");
     syn::parse_str::<syn::Signature>(&item).map(|_| ())
+}
+
+/// Valida un atributo Rust preservado como fragmento opaco.
+pub fn validate_attribute(fragment: &str) -> Result<(), SynError> {
+    use syn::parse::Parser;
+    syn::Attribute::parse_outer.parse_str(fragment).map(|_| ())
+}
+
+/// Valida una visibilidad Rust, incluida `pub(...)`.
+pub fn validate_visibility(fragment: &str) -> Result<(), SynError> {
+    syn::parse_str::<syn::Visibility>(fragment).map(|_| ())
 }
 
 /// Valida un item Rust passthrough completo.

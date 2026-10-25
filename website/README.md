@@ -4,7 +4,7 @@ Sitio estático en Astro Starlight. Las páginas de audiencia y referencia se es
 
 ## Desarrollo local
 
-Requiere Node.js 22.23.4 (fijado en `.node-version` y `.nvmrc`).
+Requiere Node.js 22.23.4 o superior; `.nvmrc` fija la versión recomendada para desarrollo local.
 
 ```sh
 npm ci

@@ -3,10 +3,12 @@ use crate::domain::{
         Block, BlockStyle, ControlAlternative, ControlExpression, ControlKind, ControlStatement,
         Expression, File, Function, Item, LetStatement, RustFragment, Statement,
     },
-    diagnostics::Diagnostic,
+    diagnostics::{Diagnostic, DiagnosticSuggestion},
     source::{SourceFile, Span},
     syntax::{LexOptions, SyntaxMode, Token, TokenKind, lex},
 };
+
+const MAX_BLOCK_DEPTH: usize = 128;
 
 #[derive(Clone, Debug)]
 pub struct ParseOutput {
@@ -30,6 +32,8 @@ pub fn parse(source: &SourceFile, options: LexOptions) -> ParseOutput {
         source,
         tokens: lexed.tokens,
         position: 0,
+        block_depth: 0,
+        control_depth: 0,
         diagnostics: lexed.diagnostics,
         mode: lexed.mode.unwrap_or(SyntaxMode::Braces),
     };
@@ -45,6 +49,8 @@ struct Parser<'a> {
     source: &'a SourceFile,
     tokens: Vec<Token>,
     position: usize,
+    block_depth: usize,
+    control_depth: usize,
     diagnostics: Vec<Diagnostic>,
     mode: SyntaxMode,
 }
@@ -128,17 +134,32 @@ impl Parser<'_> {
         let header_start = self.position;
         let body_open = self.find_function_body_open()?;
         let header_end = body_open;
-        let name_token = self.tokens[header_start..header_end]
-            .iter()
-            .find(|token| matches!(token.kind, TokenKind::Identifier { .. }))?;
+        let Some(name_token) = self.tokens.get(header_start) else {
+            self.error("OX2003", "se esperaba el nombre de la función", None);
+            return None;
+        };
+        if !matches!(name_token.kind, TokenKind::Identifier { .. }) {
+            if matches!(name_token.kind, TokenKind::Keyword { .. }) {
+                self.report_reserved_identifier(header_start);
+            } else {
+                self.error(
+                    "OX2003",
+                    "se esperaba un identificador como nombre de la función",
+                    Some(name_token.span),
+                );
+            }
+            return None;
+        }
         let name = self.source.slice(name_token.span).to_string();
         let signature = self.fragment(header_start, header_end);
         self.position = body_open;
         let body = self.parse_block()?;
         let span = self.join_spans(
-            visibility
-                .as_ref()
-                .map_or(fn_token.span, |fragment| fragment.span),
+            attributes
+                .first()
+                .map(|fragment| fragment.span)
+                .or_else(|| visibility.as_ref().map(|fragment| fragment.span))
+                .unwrap_or(fn_token.span),
             body.span,
         );
         Some(Function {
@@ -168,6 +189,27 @@ impl Parser<'_> {
                 {
                     return Some(index);
                 }
+                if self.mode == SyntaxMode::Braces
+                    && self.token_text(token) == ":"
+                    && self
+                        .next_significant_text(index + 1)
+                        .is_none_or(|text| text == "\n")
+                {
+                    self.error(
+                        "OX2002",
+                        "un bloque con ':' no es válido en modo llaves",
+                        Some(token.span),
+                    );
+                    return None;
+                }
+                if self.mode == SyntaxMode::Indentation && self.token_text(token) == "{" {
+                    self.error(
+                        "OX2002",
+                        "un bloque con llaves no es válido en modo indentación",
+                        Some(token.span),
+                    );
+                    return None;
+                }
                 if matches!(token.kind, TokenKind::Newline) && self.mode == SyntaxMode::Braces {
                     // Rust signatures may span lines; do not treat a newline as the item boundary.
                 }
@@ -187,10 +229,20 @@ impl Parser<'_> {
     }
 
     fn parse_block(&mut self) -> Option<Block> {
-        match self.mode {
+        if self.block_depth >= MAX_BLOCK_DEPTH {
+            self.error_current(
+                "OX6001",
+                format!("los bloques superan la profundidad máxima de {MAX_BLOCK_DEPTH}"),
+            );
+            return None;
+        }
+        self.block_depth += 1;
+        let parsed = match self.mode {
             SyntaxMode::Indentation => self.parse_indented_block(),
             SyntaxMode::Braces => self.parse_braced_block(),
-        }
+        };
+        self.block_depth -= 1;
+        parsed
     }
 
     fn parse_indented_block(&mut self) -> Option<Block> {
@@ -280,6 +332,16 @@ impl Parser<'_> {
         {
             return None;
         }
+        if self.is_text(";") {
+            let span = self.current().map(|token| token.span);
+            self.error(
+                "OX4001",
+                "no se admite una instrucción vacía; elimina este ';'",
+                span,
+            );
+            self.position += 1;
+            return None;
+        }
         if self.is_keyword("let") {
             return self.parse_let(style).map(Statement::Let);
         }
@@ -314,17 +376,51 @@ impl Parser<'_> {
             return None;
         };
         let left = &parts[..equal];
+        if left.is_empty() {
+            self.error(
+                "OX1001",
+                "falta el patrón de la declaración `dejar`",
+                self.span_for_indices(&parts),
+            );
+            return None;
+        }
         let pattern_start = left.first().copied()?;
         let colon = self.find_colon_in_slice(left);
         let pattern_end = colon.unwrap_or(left.len());
-        let pattern = self.fragment(pattern_start, *left.get(pattern_end.saturating_sub(1))? + 1);
+        let pattern_last = *left.get(pattern_end.saturating_sub(1))?;
+        self.check_pattern_keyword_identifier(pattern_start, pattern_last + 1);
+        let pattern = self.fragment(pattern_start, pattern_last + 1);
         let type_annotation = colon.and_then(|colon| {
             let type_start = left.get(colon + 1).copied()?;
             let type_end = *left.last()? + 1;
             (type_start < type_end).then(|| self.fragment(type_start, type_end))
         });
-        let initializer_start = parts.get(equal + 1).copied()?;
-        let initializer_end = parts.get(equal + 1..)?.last().copied()? + 1;
+        if colon.is_some() && type_annotation.is_none() {
+            self.error(
+                "OX1001",
+                "falta el tipo después de ':' en la declaración",
+                self.span_for_indices(left),
+            );
+            return None;
+        }
+        let Some(initializer_start) = parts.get(equal + 1).copied() else {
+            self.error(
+                "OX1001",
+                "falta expresión inicializadora",
+                self.span_for_indices(&parts),
+            );
+            return None;
+        };
+        let Some(initializer_end) = parts.get(equal + 1..).and_then(|rest| rest.last()).copied()
+        else {
+            self.error(
+                "OX1001",
+                "falta expresión inicializadora",
+                self.span_for_indices(&parts),
+            );
+            return None;
+        };
+        let initializer_end = initializer_end + 1;
         if initializer_start >= initializer_end {
             self.error(
                 "OX1001",
@@ -365,6 +461,26 @@ impl Parser<'_> {
         style: BlockStyle,
         kind: ControlKind,
     ) -> Option<ControlExpression> {
+        if self.control_depth >= MAX_BLOCK_DEPTH {
+            self.error_current(
+                "OX6001",
+                format!(
+                    "las expresiones de control superan la profundidad máxima de {MAX_BLOCK_DEPTH}"
+                ),
+            );
+            return None;
+        }
+        self.control_depth += 1;
+        let control = self.parse_control_expression_inner(style, kind);
+        self.control_depth -= 1;
+        control
+    }
+
+    fn parse_control_expression_inner(
+        &mut self,
+        style: BlockStyle,
+        kind: ControlKind,
+    ) -> Option<ControlExpression> {
         let start = self.current()?.span;
         self.position += 1;
         let open = self.find_control_body_open(style)?;
@@ -376,12 +492,17 @@ impl Parser<'_> {
             if self.is_keyword("else") {
                 self.position += 1;
                 self.skip_comments();
-                if self.is_keyword("if") {
+                let alternative = if self.is_keyword("if") {
                     self.parse_control_expression(style, ControlKind::If)
                         .map(|nested| ControlAlternative::ElseIf(Box::new(nested)))
                 } else {
                     self.parse_block().map(ControlAlternative::Block)
+                };
+                if alternative.is_none() {
+                    self.error_current("OX2003", "se esperaba un bloque después de `sino`");
+                    return None;
                 }
+                alternative
             } else {
                 None
             }
@@ -416,6 +537,27 @@ impl Parser<'_> {
                     if next.is_none_or(|text| text == "\n") {
                         return Some(index);
                     }
+                }
+                if style == BlockStyle::Braces
+                    && self.token_text(token) == ":"
+                    && self
+                        .next_significant_text(index + 1)
+                        .is_none_or(|text| text == "\n")
+                {
+                    self.error(
+                        "OX2002",
+                        "un bloque con ':' no es válido en modo llaves",
+                        Some(token.span),
+                    );
+                    return None;
+                }
+                if style == BlockStyle::Indentation && self.token_text(token) == "{" {
+                    self.error(
+                        "OX2002",
+                        "un bloque con llaves no es válido en modo indentación",
+                        Some(token.span),
+                    );
+                    return None;
                 }
                 if style == BlockStyle::Indentation && matches!(token.kind, TokenKind::Newline) {
                     self.error(
@@ -602,7 +744,8 @@ impl Parser<'_> {
 
     fn parse_passthrough_item(&mut self) -> Option<RustFragment> {
         let start = self.position;
-        let first = self.current_text()?;
+        let item_start = self.passthrough_item_start(start)?;
+        let first = self.token_text(self.tokens.get(item_start)?);
         let item_keyword = matches!(
             first,
             "struct"
@@ -628,10 +771,7 @@ impl Parser<'_> {
                 | "union"
                 | "macro_rules"
         );
-        let macro_call = self
-            .tokens
-            .get(start + 1)
-            .is_some_and(|token| self.token_text(token) == "!");
+        let macro_call = self.is_macro_invocation_start(item_start);
         if !item_keyword && !macro_call {
             return None;
         }
@@ -639,7 +779,11 @@ impl Parser<'_> {
         let mut consumed = false;
         while let Some(token) = self.current() {
             let text = self.token_text(token);
-            if consumed && depth == 0 && matches!(token.kind, TokenKind::Newline) {
+            if consumed
+                && self.position >= item_start
+                && depth == 0
+                && matches!(token.kind, TokenKind::Newline)
+            {
                 break;
             }
             if depth == 0 && text == ";" {
@@ -667,6 +811,102 @@ impl Parser<'_> {
         } else {
             None
         }
+    }
+
+    fn passthrough_item_start(&self, start: usize) -> Option<usize> {
+        let mut index = start;
+        loop {
+            while self
+                .tokens
+                .get(index)
+                .is_some_and(|token| matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+            {
+                index += 1;
+            }
+            if self
+                .tokens
+                .get(index)
+                .is_none_or(|token| self.token_text(token) != "#")
+            {
+                break;
+            }
+            index += 1;
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|token| self.token_text(token) == "!")
+            {
+                index += 1;
+            }
+            if self
+                .tokens
+                .get(index)
+                .is_none_or(|token| self.token_text(token) != "[")
+            {
+                return None;
+            }
+            index = self.skip_balanced_tokens(index, "[", "]")?;
+        }
+        while self
+            .tokens
+            .get(index)
+            .is_some_and(|token| matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+        {
+            index += 1;
+        }
+        if self
+            .tokens
+            .get(index)
+            .is_some_and(|token| self.token_text(token) == "pub")
+        {
+            index += 1;
+            while self
+                .tokens
+                .get(index)
+                .is_some_and(|token| matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+            {
+                index += 1;
+            }
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|token| self.token_text(token) == "(")
+            {
+                index = self.skip_balanced_tokens(index, "(", ")")?;
+            }
+        }
+        Some(index)
+    }
+
+    fn skip_balanced_tokens(&self, open_index: usize, open: &str, close: &str) -> Option<usize> {
+        let mut depth = 0usize;
+        for index in open_index..self.tokens.len() {
+            match self.token_text(&self.tokens[index]) {
+                text if text == open => depth += 1,
+                text if text == close => {
+                    depth = depth.checked_sub(1)?;
+                    if depth == 0 {
+                        return Some(index + 1);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn is_macro_invocation_start(&self, start: usize) -> bool {
+        for token in self.tokens.iter().skip(start + 1) {
+            if matches!(token.kind, TokenKind::Newline)
+                || matches!(self.token_text(token), ";" | "{" | "}" | "(")
+            {
+                return false;
+            }
+            if self.token_text(token) == "!" {
+                return true;
+            }
+        }
+        false
     }
 
     fn recover_to_next_item(&mut self) {
@@ -731,6 +971,68 @@ impl Parser<'_> {
 
     fn find_colon_in_slice(&self, indices: &[usize]) -> Option<usize> {
         self.find_top_level_text(indices, ":")
+    }
+
+    fn check_pattern_keyword_identifier(&mut self, start: usize, end: usize) {
+        if end <= start {
+            return;
+        }
+        let candidate = if end == start + 1 {
+            let token = &self.tokens[start];
+            match token.kind {
+                TokenKind::Keyword {
+                    rust_keyword: "true" | "false" | "mut" | "ref",
+                    ..
+                } => None,
+                TokenKind::Keyword { .. } => Some(start),
+                _ => None,
+            }
+        } else if matches!(
+            self.tokens.get(start).map(|token| &token.kind),
+            Some(TokenKind::Keyword {
+                rust_keyword: "mut" | "ref",
+                ..
+            })
+        ) && matches!(
+            self.tokens.get(start + 1).map(|token| &token.kind),
+            Some(TokenKind::Keyword { .. })
+        ) {
+            Some(start + 1)
+        } else {
+            None
+        };
+        if let Some(index) = candidate {
+            self.report_reserved_identifier(index);
+        }
+    }
+
+    fn report_reserved_identifier(&mut self, token_index: usize) {
+        let Some(token) = self.tokens.get(token_index) else {
+            return;
+        };
+        if !matches!(token.kind, TokenKind::Keyword { .. }) {
+            return;
+        }
+        let span = token.span;
+        let spelling = self.source.slice(span).to_string();
+        let raw_identifier_allowed =
+            !matches!(spelling.as_str(), "crate" | "self" | "Self" | "super");
+        let message = if raw_identifier_allowed {
+            format!(
+                "`{spelling}` es palabra reservada de Óxido; usa `r#{spelling}` o cambia el nombre"
+            )
+        } else {
+            format!("`{spelling}` es palabra reservada de Rust; cambia el nombre")
+        };
+        let mut diagnostic = Diagnostic::error("OX3001", message, span);
+        if raw_identifier_allowed {
+            diagnostic.suggestions.push(DiagnosticSuggestion {
+                span,
+                replacement: format!("r#{spelling}"),
+                message: "escapar el identificador".into(),
+            });
+        }
+        self.diagnostics.push(diagnostic);
     }
 
     fn fragment(&self, start: usize, end: usize) -> RustFragment {

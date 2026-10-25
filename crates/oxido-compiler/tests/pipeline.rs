@@ -154,6 +154,52 @@ fn compiles_and_runs_spanish_prelude_aliases_and_macros() {
 }
 
 #[test]
+fn compiles_and_runs_indented_impl_traits_modules_and_match_arms() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(include_str!(
+        "../../../examples/fase_8_estructura_indentada.ox"
+    ));
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    for rust in [
+        "impl Contador",
+        "trait Describible",
+        "mod utilidades",
+        "mod operaciones",
+        "match contador.leer()",
+    ] {
+        assert!(
+            generated.rust.contains(rust),
+            "missing {rust}: {}",
+            generated.rust
+        );
+    }
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["valor 4: cuatro"]);
+}
+
+#[test]
+fn rejects_indented_match_arms_without_a_pattern_separator() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis indentacion\nfuncion principal():\n    coincidir 1:\n        1 \"uno\"\n",
+    );
+    let parsed = oxido_compiler::parse_ox(&source, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == "OX2003" && diagnostic.message.contains("=>") })
+    );
+}
+
+#[test]
 fn compiles_allowlisted_spanish_attributes_on_rust_items() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

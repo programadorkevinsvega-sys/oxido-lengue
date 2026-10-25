@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–7: completadas en sus alcances verificados. Fase 8 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados, interoperabilidad y aliases iniciales de prelude/macros. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
+**Fases 0–7: completadas en sus alcances verificados. Fase 8: en curso. Fase 9 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y aliases de prelude/macros. Fase 8 amplía la sintaxis estructural indentada y la interoperabilidad con Rust. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -198,7 +198,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Entregables:** completados; informe, matriz y ejemplos ejecutables cubren las subfases. Formato, pruebas de workspace, Clippy y build de documentación verdes.
 
-**Criterio de salida:** cumplido para el alcance descrito; cada familia de alias publicada tiene pruebas de conversión y los ejemplos ejecutables pasan Cargo/rustc; argumentos de macros opacos; errores comunes mapeados desde JSON; documentación sin declarar compatibilidad general. Los cuerpos indentados de `impl`/módulos y la sintaxis indentada de brazos `match` quedan explícitamente fuera de esta fase.
+**Criterio de salida:** cumplido para el alcance descrito; cada familia de alias publicada tiene pruebas de conversión y los ejemplos ejecutables pasan Cargo/rustc; argumentos de macros opacos; errores comunes mapeados desde JSON; documentación sin declarar compatibilidad general. La sintaxis indentada ampliada se implementa en Fase 8.
 
 **Dependencia:** Fase 6; algunas características pueden desarrollarse en paralelo si no comparten gramática/backend.
 
@@ -206,22 +206,23 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Fase 8. Integración con Rust
 
-**Objetivo:** ampliar compatibilidad e interoperabilidad gradualmente.
+**Objetivo:** ampliar la sintaxis estructural indentada y la interoperabilidad con Rust, preservando una sola semántica Rust.
 
 ### Subfases
 
-1. Dependencias Cargo reales y configuración reproducible.
-2. Genéricos, traits y lifetimes dentro del alcance del frontend.
-3. Pattern matching, closures e iteradores.
-4. Macros declarativas y atributos, preservando árboles de tokens.
-5. `async`/`await` y concurrencia según compatibilidad validada.
-6. Bibliotecas externas de referencia y pruebas de conformidad.
-7. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie.
-8. Actualizar matriz con límites por versión/edición de Rust.
+1. **Estructura indentada:** completada con `impl` y métodos, `trait` con firmas/defaults, módulos anidados y `coincidir` con brazos de expresión o bloque; pruebas positivas/negativas y ejecución Cargo.
+2. Dependencias Cargo reales y configuración reproducible.
+3. Genéricos, traits y lifetimes dentro del alcance del frontend.
+4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend.
+5. Macros declarativas y atributos, preservando árboles de tokens.
+6. `async`/`await` y concurrencia según compatibilidad validada.
+7. Bibliotecas externas de referencia y pruebas de conformidad.
+8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie.
+9. Actualizar matriz con límites por versión/edición de Rust.
 
-**Entregables:** suites de conformidad y proyectos de referencia versionados.
+**Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.
 
-**Criterio de salida:** ninguna característica se marca soportada sin pruebas con Rust/Cargo reales y limitaciones registradas.
+**Criterio de salida:** ninguna característica se marca soportada sin pruebas con Rust/Cargo reales, límites documentados y cobertura de errores. No se inicia Fase 9 hasta cerrar todas las subfases de Fase 8.
 
 **Dependencia:** Fase 7.
 
@@ -388,10 +389,11 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados quedan en Fase 7 |
 | 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md), exportación, mapa, Cargo, diagnósticos, ejecución y vuelta reversible | Ninguno dentro del alcance verificado |
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | La ampliación de items quedó en Fase 7 |
-| 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), aliases, macros, atributos, diagnóstico y ejemplos end-to-end | Cuerpos indentados de `impl`/módulos y brazos `match` quedan fuera del alcance |
+| 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), aliases, macros, atributos, diagnóstico y ejemplos end-to-end | Alcance histórico ampliado en la subfase 1 de Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 8–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
+| 8 | En curso (integración con Rust) | [Informe de Fase 8](fase-8-integracion-rust.md), subfase 1 completada y verificada localmente | Subfases 2–9 pendientes; cerrar CI/conformidad antes de Fase 9 |
+| 9–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 1–7 están completadas en los alcances indicados arriba. La Fase 8 puede iniciarse conforme a sus criterios y sin ampliar retroactivamente el alcance verificado de Fase 7.
+Las fases 1–7 están completadas en los alcances indicados arriba. La Fase 8 es la fase activa; no avanzar a Fase 9 mientras sus subfases sigan abiertas.

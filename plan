@@ -207,7 +207,7 @@ La configuración del proyecto será el valor predeterminado. Como diseño propu
 
 Los valores admitidos para `syntax` serán `indentation` y `braces`.
 
-También se debe evaluar una declaración inicial por archivo, por ejemplo:
+Una declaración inicial por archivo puede reiterar el modo del proyecto, por ejemplo:
 
     sintaxis indentacion
 
@@ -215,22 +215,28 @@ o:
 
     sintaxis llaves
 
-Debes especificar cuál de estas formas será normativa, cómo interactúa con la configuración del proyecto y si se permitirá sobrescribir el modo por archivo.
+La configuración del proyecto es normativa. Una declaración por archivo solo puede coincidir con ella; no se permite sobrescribir el modo del proyecto en esta versión. Si el modo no está configurado en el proyecto, cada archivo debe declararlo al inicio. No se infiere el modo automáticamente.
 
 Reglas obligatorias:
 
 1. No debe existir detección automática del estilo.
 2. El modo debe conocerse antes de analizar el cuerpo del archivo.
 3. No se puede cambiar de modo a mitad de un archivo.
-4. Si una declaración por archivo está admitida, solo podrá aparecer en la posición establecida por la gramática.
-5. Una declaración que contradiga una política estricta del proyecto debe producir un error.
+4. La declaración por archivo, cuando se use, debe ser la primera declaración, tras comentarios iniciales permitidos.
+5. Una declaración que contradiga el modo del proyecto produce un error que muestra ambos valores y la ubicación.
 6. No deben existir ambigüedades entre indentación y llaves como delimitadores de bloques.
 7. Ambos estilos deben compartir AST, validaciones y backend.
 8. El formateador no debe cambiar de estilo silenciosamente.
 
-Si se decide admitir archivos de estilos diferentes dentro de un mismo proyecto, cada archivo debe declarar o heredar un modo inequívoco. Si se decide que el proyecto sea estricto, todos los archivos deberán cumplir el modo configurado. Esta decisión debe documentarse y probarse antes de implementar excepciones.
+Todos los archivos `.ox` de un proyecto usan el mismo modo configurado. No se admiten excepciones por archivo en esta versión.
 
-## 4.4. Pruebas obligatorias de los dos modos
+## 4.4. Terminadores y valor de bloque en modo indentación
+
+La gramática distingue una instrucción terminada de la expresión final de un bloque. La última expresión sin `;` es el valor del bloque; con `;`, es una instrucción y el valor del bloque es `()`. La dedentación cierra el bloque, pero no determina por sí sola el valor. Las continuaciones multilínea no pueden confundirse con expresiones finales.
+
+Cada regla debe tener pruebas que comparen ambas variantes, sus tipos inferidos y el comportamiento generado.
+
+## 4.5. Pruebas obligatorias de los dos modos
 
 Crea pruebas que verifiquen:
 
@@ -243,6 +249,8 @@ Crea pruebas que verifiquen:
 - La equivalencia de comportamiento de programas equivalentes.
 - Que los bloques anidados no se confundan.
 - Que las llaves legítimas en macros y expresiones no se rechacen incorrectamente.
+- Que la expresión final sin `;` devuelva el valor y tipo esperado.
+- Que agregar `;` cambie el valor del bloque a `()` y se diagnostique correctamente en contexto.
 
 ---
 
@@ -297,7 +305,7 @@ No consideres automáticamente definitiva ninguna equivalencia que tenga una tra
 | `break` | `romper` |
 | `const` | `constante` |
 | `continue` | `continuar` |
-| `crate` | `crata` |
+| `crate` | `paquete` |
 | `dyn` | `dinamico` |
 | `else` | `sino` |
 | `enum` | `enumeracion` |
@@ -332,11 +340,17 @@ No consideres automáticamente definitiva ninguna equivalencia que tenga una tra
 
 El token `_` debe conservarse sin traducción.
 
-Importante: revisa especialmente alias como `crata`, `dinamico`, `mismo`, `Mismo`, `tipo` y `en`. Si una traducción resulta confusa o entra en conflicto con una construcción de Rust, documenta la alternativa recomendada antes de modificar la especificación.
+El alias de `crate` es `paquete`, no `crata`; por ejemplo, `paquete::` representa la ruta `crate::` de Rust. Revisa los posibles conflictos de `dinamico`, `mismo`, `Mismo`, `tipo` y `en` con la gramática y los identificadores.
 
 Los alias no deben cambiar la semántica ni habilitar construcciones de Rust que el lenguaje reserve para otros propósitos.
 
-## 6.2. Palabras reservadas de Rust
+## 6.2. Identificadores reservados y escape
+
+Los alias de palabras clave son reservados en Óxido donde sus equivalentes Rust son palabras clave. Un identificador de usuario que coincida con un alias reservado se escribe como identificador crudo, por ejemplo `r#tipo`; el lexer lo conserva como identificador y no como palabra clave. Si la palabra también está reservada en Rust y no puede emitirse válidamente, el compilador la rechaza con un diagnóstico claro.
+
+Sin escape, el diagnóstico identifica la palabra reservada y sugiere `r#<identificador>` o cambiar el nombre. Ejemplo: «`tipo` es palabra reservada de Óxido; usa `r#tipo` o cámbialo». Esta regla debe probarse para `tipo`, `en`, `como`, `para`, `donde`, `mismo` y `referencia`, en nombres de variables, funciones, módulos y campos cuando aplique.
+
+## 6.3. Palabras reservadas de Rust
 
 Mantén un inventario independiente de las palabras reservadas de la versión de Rust seleccionada.
 
@@ -365,7 +379,7 @@ Las palabras reservadas deben seguir reservadas si así corresponde en la edici�
 
 Verifica qué palabras se reservan en cada edición de Rust y cómo afecta eso a los identificadores y al código generado.
 
-## 6.3. Palabras contextuales
+## 6.4. Palabras contextuales
 
 Conserva inicialmente las formas originales cuando su sintaxis sea especial o contextual, incluyendo:
 
@@ -377,75 +391,18 @@ Conserva inicialmente las formas originales cuando su sintaxis sea especial o co
 
 La lista debe revisarse contra la referencia oficial de Rust y actualizarse conforme a la edición y al alcance de compatibilidad de Óxido.
 
-## 6.4. Alias opcionales para macros
+## 6.5. Macros y atributos
 
-Evalúa alias opcionales para macros de uso habitual:
+Óxido 0.1 no define alias de invocaciones de macros. Se conservan el nombre de la macro y sus argumentos como árboles de tokens opacos; no se traducen keywords ni identificadores dentro de ellos. Los atributos también se conservan sin traducción interna. Esto mantiene compatibles `matches!`, macros de Serde y macros externas sin que el frontend tenga que conocer su gramática. La decisión y sus criterios están en [docs/language-spec.md](docs/language-spec.md), [docs/grammar.md](docs/grammar.md) y [docs/testing.md](docs/testing.md).
 
-| Macro de Rust | Alias propuesto |
-|---|---|
-| `println!` | `imprimir!` |
-| `print!` | `imprimir_sin_salto!` |
-| `eprintln!` | `imprimir_error!` |
-| `eprint!` | `imprimir_error_sin_salto!` |
-| `format!` | `formatear!` |
-| `vec!` | `vector!` |
-| `panic!` | `entrar_en_panico!` |
-| `assert!` | `afirmar!` |
-| `assert_eq!` | `afirmar_igual!` |
-| `assert_ne!` | `afirmar_distinto!` |
-| `debug_assert!` | `afirmar_debug!` |
-| `dbg!` | `depurar!` |
-| `todo!` | `pendiente!` |
-| `unimplemented!` | `sin_implementar!` |
+No se traducen automáticamente nombres de funciones, métodos, tipos ni bibliotecas. Alias de tipos/métodos y cualquier prelude quedan fuera de 0.1 y requieren una decisión versionada.
 
-Estos alias son opcionales y deben implementarse solo si pueden traducirse correctamente a macros reales de Rust.
-
-No traduzcas indiscriminadamente las macros existentes. Protege sus delimitadores, tokens, argumentos y expansiones. Los nombres originales deben seguir disponibles.
-
-Conserva inicialmente nombres habituales de la biblioteca estándar y del ecosistema, como `Ok`, `Err`, `Some`, `None`, `drop`, `clone`, `unwrap`, `expect`, `map`, `filter` y `collect`.
-
-No traduzcas automáticamente nombres de funciones, métodos, tipos o bibliotecas de terceros.
-
----
 
 # 7. Especificación formal de la gramática
 
-Antes de ampliar las características del lenguaje, define una gramática formal versionada.
+La gramática normativa inicial de Óxido 0.1 está en [docs/grammar.md](docs/grammar.md), junto con [docs/syntax-modes.md](docs/syntax-modes.md) y [docs/compatibility.md](docs/compatibility.md). El frontend de Óxido transforma estructura propia (modos, bloques, alias e items admitidos); expresiones, tipos, patrones y demás tokens Rust se conservan y validan con Syn/rustc según corresponda. Óxido no intenta redefinir toda la gramática de Rust.
 
-Debe describir como mínimo:
-
-- Tokens.
-- Identificadores.
-- Literales numéricos.
-- Cadenas y caracteres.
-- Comentarios.
-- Expresiones.
-- Operadores y precedencia.
-- Llamadas a funciones.
-- Declaraciones de variables.
-- Funciones.
-- Tipos y referencias.
-- Condiciones.
-- Bucles.
-- Bloques.
-- Estructuras.
-- Enumeraciones.
-- Traits e implementaciones.
-- Patrones.
-- Importaciones.
-- Genéricos.
-- Macros.
-- Atributos.
-- Programación asíncrona.
-- Declaraciones de módulos.
-- Manejo de errores.
-- Sintaxis específica de cada modo.
-
-Define con precisión los límites de compatibilidad.
-
-No intentes reproducir todo Rust de golpe mediante reglas aproximadas. Implementa una gramática incremental y prueba cada ampliación.
-
-La gramática, el parser, el formateador, el servidor LSP y el generador de código deben derivar de una especificación común, o compartir la implementación necesaria para evitar divergencias.
+Cada ampliación debe actualizar la especificación, declarar su compatibilidad y añadir criterios de aceptación antes de anunciarse como soportada. La gramática, el parser, el formateador, LSP y backend deben compartir las decisiones normativas para evitar divergencias.
 
 ---
 
@@ -474,6 +431,7 @@ Inspecciona el repositorio existente antes de decidir los nombres finales. Si no
     │   └── oxido-testkit/
     ├── editors/
     │   └── vscode-oxido/
+    ├── website/                 # Astro Starlight, documentación Markdown estática
     ├── tests/
     │   ├── fixtures/
     │   ├── syntax/
@@ -490,6 +448,10 @@ Inspecciona el repositorio existente antes de decidir los nombres finales. Si no
 Esta estructura es orientativa. No crees crates vacíos únicamente para llenar carpetas.
 
 Cada crate debe tener una responsabilidad real, una interfaz coherente y pruebas. Evita dependencias circulares y separa la lógica del lenguaje de la interfaz de línea de comandos.
+
+## Decisión de arquitectura para el MVP
+
+El monolito modular del compilador se organiza como un bounded context de herramienta de lenguaje, con dominio compartido, aplicación y adapters locales para Rust/Cargo/CLI/LSP. Se usa `ARCHITECTURE_RULES.md` como contrato: Clean Architecture, Hexagonal y SOLID aplicados a módulos/crates internos. No se imponen gRPC, NATS, BFF, bases de datos ni un crate por módulo técnico. La lista que sigue es una referencia de responsabilidades; solo se materializan crates con API y motivo de aislamiento definidos.
 
 ## Responsabilidades previstas
 
@@ -532,7 +494,7 @@ Investiga e implementa una estrategia robusta para:
 
 La salida debe ser Rust estándar y no depender de un intérprete obligatorio de Óxido.
 
-Define cómo se conserva la correspondencia entre el archivo `.ox` original y el código Rust generado para que los diagnósticos y las herramientas del editor puedan identificar correctamente el origen de los errores.
+Conserva desde la Fase 5 un mapa de posiciones entre `.ox` y Rust generado. Consume diagnósticos de Cargo con `--message-format=json`; no analices texto de terminal para reconstruir ubicaciones. Prueba el mapeo con errores sintácticos, de tipos y rutas generadas.
 
 No afirmes que todos los crates funcionan automáticamente. Verifica progresivamente qué construcciones y patrones de interoperabilidad son compatibles.
 
@@ -608,6 +570,9 @@ Como propuesta inicial, debe evaluar estos comandos:
     oxido formato
     oxido formato --comprobar
     oxido diagnostico
+    oxido exportar archivo.ox --salida archivo.rs
+    oxido importar archivo.rs --salida archivo.ox
+    oxido superficie-riesgo
     oxido version
     oxido ayuda
 
@@ -624,6 +589,8 @@ Requisitos:
 - Ejecución reproducible.
 - Salida apta para herramientas automatizadas.
 - Respeto por el modo de sintaxis.
+- La importación/exportación informa qué construcciones están fuera del subconjunto reversible.
+- `superficie-riesgo` resume hallazgos y políticas configurables, incluido el rechazo de `unsafe`.
 - Sin falsos resultados de éxito.
 
 La CLI no debe declarar que una compilación terminó correctamente hasta que las herramientas reales confirmen ese resultado.
@@ -652,7 +619,8 @@ Debe permitir escribir, editar, verificar y compilar archivos `.ox`.
 - Servidor LSP implementado en Rust.
 - Diagnósticos mientras se escribe.
 - Errores y advertencias con ubicación precisa.
-- Autocompletado basado en el código analizado.
+- Autocompletado de `rust-analyzer` sobre Rust generado, cuando la correspondencia sea fiable.
+- Semantic tokens del compilador de Óxido, compartiendo clasificación de tokens para evitar divergencias de resaltado.
 - Información de funciones y tipos.
 - Ir a la definición.
 - Búsqueda de referencias.
@@ -793,45 +761,18 @@ No inventes porcentajes de cobertura ni métricas.
 
 ---
 
-# 14. Proyecto de referencia: API REST completa
+# 14. Proyectos de referencia
 
-Debes usar proyectos reales para validar que Óxido permite construir software útil.
+Los ejemplos de referencia validan el lenguaje y sus fronteras de interoperabilidad; no convierten Óxido en un backend ni requieren una API, base de datos o servicios externos.
 
-Uno de los primeros proyectos de referencia será una API REST de productos con:
+Prioriza ejemplos pequeños que cubran:
 
-- Endpoint de bienvenida.
-- Crear producto.
-- Listar productos.
-- Consultar producto por ID.
-- Actualizar producto.
-- Eliminar producto.
-- Serialización JSON.
-- Validación de entradas.
-- Errores HTTP adecuados.
-- Pruebas de integración.
-- Documentación de endpoints.
+- Una CLI que use argumentos, errores y salida estándar.
+- Una biblioteca Rust que se pueda exportar e importar dentro del subconjunto reversible.
+- Un ejemplo con crates externos para verificar Cargo, macros y compatibilidad.
+- Casos educativos progresivos solo cuando ejerciten una capacidad implementada.
 
-Utiliza bibliotecas reales de Rust, como Axum, Tokio y Serde, si su compatibilidad y las versiones elegidas lo permiten.
-
-La API de referencia no debe presentarse como una funcionalidad nativa del lenguaje. Es una aplicación escrita en Óxido que utiliza el ecosistema Rust.
-
-El almacenamiento en memoria solo será aceptable para el ejemplo inicial. Para una versión de referencia empresarial, utiliza persistencia real y configuración explícita.
-
-La API debe demostrar el flujo completo:
-
-    código .ox
-        → compilador de Óxido
-        → código Rust
-        → Cargo
-        → ejecutable
-        → pruebas HTTP
-        → informe de resultados
-
-No declares este proyecto validado hasta que se pueda ejecutar de verdad desde el repositorio.
-
-Añade otros proyectos de referencia progresivamente: CLI, aplicación con base de datos, concurrencia y utilización de crates externos.
-
----
+Cada ejemplo debe declarar sus dependencias y límites, compilarse con el pipeline real y tener criterios verificables. Aplicaciones web, persistencia o infraestructura de servicios son ejemplos opcionales futuros, no requisitos del producto ni de aceptación.
 
 # 15. Objetivos educativos, universitarios y empresariales
 
@@ -904,32 +845,43 @@ La adopción debe ser gradual, empezando por proyectos piloto. No declares que �
 
 # 16. Seguridad y cadena de suministro
 
-Implementa una política de seguridad para el compilador y sus herramientas.
+## 16.1. Modelo de amenazas
 
-Incluye:
+El modelo cubre archivos `.ox` maliciosos o desmesurados, dependencias y macros de terceros maliciosas, configuración `oxido.toml` manipulada y solicitudes LSP maliciosas o enviadas a gran velocidad. El compilador y sus herramientas tratan todo ese contenido como entrada no confiable.
 
-- Gestión controlada de dependencias.
-- Revisión de vulnerabilidades.
-- Auditoría de licencias.
-- Validación de entradas.
-- Manejo seguro de archivos y rutas.
-- Prevención de escrituras fuera del directorio esperado.
-- Límites razonables para entradas excesivas.
-- Tratamiento robusto de archivos malformados.
-- Ausencia de secretos incrustados.
-- Separación de la generación de código y la ejecución de procesos.
-- Evitar ejecutar comandos construidos de forma insegura a partir de entradas del usuario.
-- Documentar los límites de seguridad del código generado y de la compilación.
+La compilación puede ejecutar `build.rs` y macros procedurales. `rust-analyzer` puede ejecutar código de build y macros al abrir un proyecto. Óxido no inicia compilación ni análisis que ejecute código en carpetas no confiables. La extensión respeta Workspace Trust de VS Code y explica qué operaciones están deshabilitadas hasta confiar en el workspace.
 
-No afirmes que el código es seguro solo porque se traduce a Rust. La seguridad depende también de las construcciones utilizadas, las bibliotecas, la configuración y el comportamiento del programa.
+El playground ejecuta código ajeno y requiere aislamiento del sistema operativo, red deshabilitada y límites de CPU, memoria, procesos y tiempo. Ejecutar Cargo en un proceso separado no basta.
 
-Las características `unsafe` deben conservar las reglas de Rust y sus riesgos.
+## 16.2. Controles del compilador y herramientas
 
----
+- El crate del compilador usa `#![forbid(unsafe_code)]`, salvo una excepción justificada, revisada y documentada. Ofrece además una política para prohibir `unsafe` en el código Rust analizado.
+- Rechaza controles Unicode bidireccionales y advierte sobre identificadores con caracteres visualmente confundibles.
+- Establece límites de tamaño, profundidad de anidamiento, cantidad de tokens y tiempo de análisis. Entradas inválidas no deben provocar pánicos.
+- Mantiene fuzzing de lexer y parser con `cargo-fuzz` y regresiones para fallos encontrados.
+- Genera Rust mediante árboles de tokens/AST, no concatenando texto de entrada.
+- Invoca procesos con `Command` y argumentos separados; nunca mediante shell ni comandos interpolados.
+- Canonicaliza rutas, controla enlaces simbólicos y evita leer o escribir fuera del workspace autorizado.
+- `oxido.toml` contiene datos declarativos solamente; no admite comandos ni expresiones ejecutables.
+- Valida entradas LSP, limita tamaño y frecuencia de solicitudes y cancela trabajo obsoleto.
+- Documenta que Cargo, `build.rs`, macros procedurales y dependencias ejecutan código durante la compilación.
+
+## 16.3. Cadena de suministro y publicación
+
+- Versiona `Cargo.lock` para aplicaciones y usa `--locked` en CI y compilaciones reproducibles.
+- Incorpora `cargo-audit` para vulnerabilidades y `cargo-deny` para licencias y políticas de dependencias; evalúa `cargo-vet` si crece el riesgo o el grafo.
+- Fija GitHub Actions por hash de commit, protege ramas principales y exige 2FA a mantenedores con permisos de publicación.
+- Prepara compilaciones reproducibles, firma binarios publicados y adjunta SBOM.
+- No incluye secretos ni rutas absolutas en artefactos o informes de CI.
+- No envía telemetría por defecto. Cualquier telemetría futura debe ser optativa y documentada.
+
+## 16.4. Informe de superficie de riesgo
+
+La CLI ofrece un informe que identifica usos de `unsafe`, archivos `build.rs`, dependencias que declaran macros procedurales y llamadas externas detectables. Incluye una opción de política que rechaza `unsafe` en el código bajo análisis. El informe explica los límites de detección estática y no se presenta como prueba de ausencia de riesgo.
 
 # 17. Documentación obligatoria
 
-Mantén documentación coherente con la implementación real.
+Mantén documentación coherente con la implementación real. Las reglas permanentes para agentes van en `AGENTS.md`; la especificación vive en `docs/`; cada fase se ejecuta como una tarea breve con objetivo, alcance y criterios de aceptación. Este prompt maestro orienta el trabajo, pero no sustituye esas fuentes específicas.
 
 Como mínimo:
 
@@ -977,6 +929,8 @@ No sobrescribas trabajo válido sin necesidad.
 
 ## Fase 1. Especificación
 
+Fase 1 documental completada. La especificación normativa se encuentra en [docs/language-spec.md](docs/language-spec.md), [docs/grammar.md](docs/grammar.md), [docs/syntax-modes.md](docs/syntax-modes.md), [docs/aliases.md](docs/aliases.md), [docs/compatibility.md](docs/compatibility.md), [docs/diagnostics.md](docs/diagnostics.md), [docs/compiler-pipeline.md](docs/compiler-pipeline.md) y [docs/testing.md](docs/testing.md). Decisiones: frontend estructural con expresiones/tipos Rust preservados y validados con Syn/rustc; modo de proyecto sin contradicción por archivo; `r#...` para identificadores crudos; macros y atributos opacos sin alias; regla explícita del `;` final; generación con tokens; importación/exportación limitada al subconjunto reversible. Los criterios están redactados y se implementan/verifican desde las fases siguientes.
+
 - Formalizar la visión.
 - Definir los dos modos de sintaxis.
 - Definir la selección del modo.
@@ -990,15 +944,20 @@ No sobrescribas trabajo válido sin necesidad.
 
 ## Fase 2. Infraestructura del monorepo
 
+Estado: completada para la base inicial descrita en [docs/fase-2-infraestructura.md](docs/fase-2-infraestructura.md). El analizador Rust mínimo es una prueba vertical de arquitectura, no soporte de sintaxis `.ox`.
+
 - Configurar workspace.
 - Establecer versiones y herramientas.
-- Crear los módulos necesarios.
-- Definir interfaces internas.
+- Materializar únicamente los límites reales de fuente, backend Rust, aplicación y CLI; evitar crates vacíos.
+- Definir interfaces internas y propiedad de los datos entre esos límites.
+- Parsear `oxido.toml` como datos declarativos con campos cerrados; su descubrimiento y carga desde disco se implementan junto al pipeline.
 - Configurar CI.
 - Añadir controles de calidad.
-- Preparar fixtures y pruebas.
+- Preparar pruebas verticales que ejerciten el parser Rust de Syn, el backend y la configuración; el lexer/parser propios entran en Fase 3.
 
 ## Fase 3. Lexer y fuente
+
+Estado: completada según [docs/fase-3-lexer.md](docs/fase-3-lexer.md). El lexer genera tokens y spans confiables; no implementa aún parser, AST ni compilación de `.ox`.
 
 - Gestión de archivos y rangos.
 - Tokenización.
@@ -1025,7 +984,11 @@ No sobrescribas trabajo válido sin necesidad.
 
 ## Fase 5. Primer compilador funcional
 
-- AST a Rust.
+Criterios adicionales: mapa de posiciones `.ox` ↔ `.rs`, diagnósticos JSON de Cargo, y prueba de ida y vuelta `.ox → .rs → .ox` para el subconjunto reversible. Documentar construcciones que no puedan reconstruirse.
+
+- Generación de Rust mediante árboles de tokens (`proc_macro2`/`quote`) y formateo estructural (`prettyplease`), no concatenación de texto.
+- Mapa de posiciones `.ox` ↔ `.rs`.
+- Diagnósticos JSON de Cargo mediante `--message-format=json`.
 - Compilación real.
 - Integración con Cargo.
 - CLI mínima.
@@ -1126,6 +1089,14 @@ El laboratorio debe existir desde las primeras fases; esta fase consolida sus ca
 
 ## Fase 13. Educación y documentación
 
+El portal documental empieza desde las fases actuales y crece de forma continua; no se pospone hasta cerrar el compilador. La implementación inicial está en `website/` con Astro Starlight y Markdown. Los documentos técnicos canónicos siguen en `docs/`; el build del sitio los publica sin convertir sus copias generadas en fuentes editables. La publicación final usa Cloudflare Pages como sitio estático.
+
+- Portal de documentación Astro Starlight, escrito principalmente en Markdown.
+- Páginas y navegación para desarrolladores, empresas y estudiantes.
+- Casos de uso clasificados por audiencia y estado real.
+- Ejemplos progresivos, cada uno marcado como propuesto o verificado.
+- Build estático, búsqueda, accesibilidad, enlaces y previews de Cloudflare Pages.
+- Actualización del contenido después de cada fase para no divergir de implementación.
 - Tutoriales.
 - Ejemplos progresivos.
 - Guías de Rust.

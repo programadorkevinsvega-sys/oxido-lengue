@@ -211,9 +211,9 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 ### Subfases
 
 1. **Estructura indentada:** completada para el alcance inicial con `impl` y métodos, `trait` con firmas/defaults, módulos anidados y `coincidir` con brazos de expresión o bloque. La cobertura incluye receivers y funciones asociadas, genéricos/`donde`, varios bloques por tipo, visibilidad/atributos/docs, items asociados, bloque vacío e indentación inválida, regla del `;` final, equivalencia con llaves y mapeo de errores rustc a `.ox`.
-2. Dependencias Cargo reales y configuración reproducible.
-3. Genéricos, traits y lifetimes dentro del alcance del frontend.
-4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend.
+2. Dependencias Cargo reales y configuración reproducible. **Pendiente.**
+3. Genéricos, traits y lifetimes dentro del alcance del frontend. **Verificado para el corpus actual:** firmas genéricas con lifetime, `impl Fn`, bounds `where`, trait e implementación genéricos y tipos asociados pasan por generación y Cargo.
+4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend. **Verificado para el corpus actual:** closure como argumento, `Iterator::find`, patrones `Some`/`None` y brazos indentados/llaves compilan y producen el mismo resultado.
 5. Macros declarativas y atributos, preservando árboles de tokens.
 6. `async`/`await` y concurrencia según compatibilidad validada.
 7. Bibliotecas externas de referencia y pruebas de conformidad.
@@ -391,7 +391,7 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | La ampliación de items quedó en Fase 7 |
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), aliases, macros, atributos, diagnóstico y ejemplos end-to-end | Alcance histórico ampliado en la subfase 1 de Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 8 | En curso (integración con Rust) | [Informe de Fase 8](fase-8-integracion-rust.md), subfase 1 completada y verificada localmente | Subfases 2–9 pendientes; cerrar CI/conformidad antes de Fase 9 |
+| 8 | En curso (integración con Rust) | [Informe de Fase 8](fase-8-integracion-rust.md), subfases 1, 3 y 4 verificadas para sus corpus documentados | Subfase 2 y 5–9 pendientes; cerrar CI/conformidad antes de Fase 9 |
 | 9–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.

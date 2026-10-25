@@ -32,11 +32,19 @@ La regresión de documentación compara el Rust generado para comentarios `///` 
 
 Los tipos, expresiones, closures y patrones dentro de estas firmas y cuerpos siguen siendo sintaxis Rust validada por Syn y semántica delegada a rustc. No se afirma cobertura completa de lifetimes, traits, inferencia, patrones ni iteradores.
 
+## Subfase 2 — Dependencias Cargo
+
+**Estado:** en curso; corte inicial para dependencias locales por ruta.
+
+`oxido.toml` admite `[dependencies.nombre] path = "ruta/relativa"`. Óxido resuelve la ruta canónica y rechaza escapes de la raíz del proyecto, incluso mediante enlaces simbólicos, rutas no directorio y `Cargo.toml` simbólicos/no regulares. El backend serializa el manifiesto generado como TOML estructurado y ejecuta `cargo check`/`run` en modo `--offline` y `--locked`. La prueba CLI compila y ejecuta un crate de fixture local sin red.
+
+Este corte no admite aún versiones de crates.io/git, ni consume/versiona un `Cargo.lock` del proyecto. El lockfile se genera dentro del workspace temporal y desaparece al finalizar. Por ello no se declara configuración reproducible completa. Una dependencia local puede ejecutar `build.rs` o macros procedurales durante `compilar`/`ejecutar`; esos comandos son explícitos y no se invocan desde el LSP. `--offline` limita la resolución/descarga de Cargo, pero no aísla el código de build de la red ni del sistema; la sandbox y la política de confianza siguen pendientes.
+
 ## Límites de esta entrega
 
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
 - Las macros externas y las DSL no allowlisted permanecen opacas; los aliases de macros estándar y sus expresiones anidadas se describen en [aliases](aliases.md).
-- `async`, macros declarativas, lifetimes complejos, dependencias Cargo de proyectos reales e interoperabilidad general siguen pendientes.
+- `async`, macros declarativas, lifetimes complejos, dependencias Cargo de registro con lockfile persistente, crates de referencia e interoperabilidad general siguen pendientes.
 
 La decisión arquitectónica está en [ADR 0004](adr/0004-estructura-indentada-rust.md). La aceptación global de Fase 8 requiere cerrar las subfases restantes en el [roadmap](roadmap.md), con pruebas y límites por característica.

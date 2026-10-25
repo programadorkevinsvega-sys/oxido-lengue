@@ -38,7 +38,16 @@ pub fn build_generated(
     source_map: &SourceMap,
     action: CargoAction,
 ) -> io::Result<CargoBuildResult> {
-    let workspace = create_workspace(rust, source_map)?;
+    build_generated_with_dependencies(rust, source_map, &[], action)
+}
+
+pub fn build_generated_with_dependencies(
+    rust: &str,
+    source_map: &SourceMap,
+    dependencies: &[crate::config::ResolvedDependency],
+    action: CargoAction,
+) -> io::Result<CargoBuildResult> {
+    let workspace = create_workspace(rust, source_map, dependencies)?;
     let cargo_home = workspace.path().join("cargo-home");
     fs::create_dir(&cargo_home)?;
     let lock = oxido_cargo::run_with_cargo_home(
@@ -103,7 +112,11 @@ impl Drop for Workspace {
     }
 }
 
-fn create_workspace(rust: &str, source_map: &SourceMap) -> io::Result<Workspace> {
+fn create_workspace(
+    rust: &str,
+    source_map: &SourceMap,
+    dependencies: &[crate::config::ResolvedDependency],
+) -> io::Result<Workspace> {
     let temp = fs::canonicalize(std::env::temp_dir())?;
     let root = temp.join("oxido-builds");
     if let Ok(metadata) = fs::symlink_metadata(&root)
@@ -135,7 +148,7 @@ fn create_workspace(rust: &str, source_map: &SourceMap) -> io::Result<Workspace>
     fs::create_dir(&src)?;
     fs::write(
         workspace.path().join("Cargo.toml"),
-        "[package]\nname = \"oxido_generated\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+        generated_manifest(dependencies)?,
     )?;
     fs::write(src.join("main.rs"), rust)?;
     let mut source_map = source_map.clone();
@@ -144,6 +157,39 @@ fn create_workspace(rust: &str, source_map: &SourceMap) -> io::Result<Workspace>
         .map_err(|error| io::Error::other(error.to_string()))?;
     fs::write(workspace.path().join("main.oxido-map.json"), map)?;
     Ok(workspace)
+}
+
+fn generated_manifest(dependencies: &[crate::config::ResolvedDependency]) -> io::Result<String> {
+    let mut package = toml::map::Map::new();
+    package.insert("name".into(), toml::Value::String("oxido_generated".into()));
+    package.insert("version".into(), toml::Value::String("0.1.0".into()));
+    package.insert("edition".into(), toml::Value::String("2024".into()));
+
+    let mut dependency_table = toml::map::Map::new();
+    for dependency in dependencies {
+        let path = dependency.canonical_path.to_str().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "la ruta de `{}` no es UTF-8 y no puede escribirse en Cargo.toml",
+                    dependency.name
+                ),
+            )
+        })?;
+        let mut declaration = toml::map::Map::new();
+        declaration.insert("path".into(), toml::Value::String(path.to_owned()));
+        dependency_table.insert(dependency.name.clone(), toml::Value::Table(declaration));
+    }
+
+    let mut manifest = toml::map::Map::new();
+    manifest.insert("package".into(), toml::Value::Table(package));
+    manifest.insert("dependencies".into(), toml::Value::Table(dependency_table));
+    manifest.insert(
+        "workspace".into(),
+        toml::Value::Table(toml::map::Map::new()),
+    );
+    toml::to_string(&toml::Value::Table(manifest))
+        .map_err(|error| io::Error::other(format!("no se pudo serializar Cargo.toml: {error}")))
 }
 
 fn parse_cargo_diagnostics(

@@ -1,4 +1,8 @@
 use oxido_compiler::config::{ProjectConfig, SyntaxMode};
+use std::{
+    fs,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[test]
 fn parses_only_declared_language_data() {
@@ -24,4 +28,74 @@ fn rejects_configuration_larger_than_the_resource_limit() {
     let input = " ".repeat(64 * 1024 + 1);
     let error = ProjectConfig::parse(&input).unwrap_err();
     assert!(error.contains("64 KiB"));
+}
+
+#[test]
+fn rejects_local_dependency_paths_that_escape_the_project_root() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("reloj del sistema válido")
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("oxido-config-path-{nonce}"));
+    let project = base.join("project");
+    let outside = base.join("outside");
+    fs::create_dir_all(&project).expect("crear raíz temporal");
+    fs::create_dir_all(&outside).expect("crear directorio externo");
+    fs::write(
+        outside.join("Cargo.toml"),
+        "[package]\nname='externo'\nversion='0.1.0'\nedition='2024'\n",
+    )
+    .expect("crear manifiesto de prueba");
+
+    let config = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[dependencies.externo]\npath='../outside'\n",
+    )
+    .expect("TOML de dependencia válida antes de resolverla");
+    let error = config
+        .resolve_dependencies(&project)
+        .expect_err("la ruta no debe salir del proyecto");
+    assert!(error.contains("sale de la raíz del proyecto"), "{error}");
+
+    fs::remove_dir_all(base).expect("limpiar fixtures de configuración");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_local_dependency_symlinks_that_escape_the_project_root() {
+    use std::os::unix::fs::symlink;
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("reloj del sistema válido")
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!("oxido-config-symlink-{nonce}"));
+    let project = base.join("project");
+    let outside = base.join("outside");
+    fs::create_dir_all(&project).expect("crear raíz temporal");
+    fs::create_dir_all(&outside).expect("crear crate externo");
+    fs::write(
+        outside.join("Cargo.toml"),
+        "[package]\nname='externo'\nversion='0.1.0'\nedition='2024'\n",
+    )
+    .expect("crear manifiesto de prueba");
+    symlink(&outside, project.join("vendor-externo")).expect("crear enlace simbólico de prueba");
+
+    let config = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[dependencies.externo]\npath='vendor-externo'\n",
+    )
+    .expect("TOML de dependencia válida antes de resolverla");
+    let error = config
+        .resolve_dependencies(&project)
+        .expect_err("el enlace no debe salir del proyecto");
+    assert!(error.contains("sale de la raíz del proyecto"), "{error}");
+
+    fs::remove_dir_all(base).expect("limpiar fixtures de configuración");
+}
+
+#[test]
+fn rejects_executable_options_in_a_local_dependency_declaration() {
+    let config = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[dependencies.local]\npath='vendor/local'\ncommand='sh'\n",
+    );
+    assert!(config.is_err());
 }

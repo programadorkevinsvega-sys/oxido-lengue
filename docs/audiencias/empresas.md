@@ -2,7 +2,7 @@
 
 ## Evaluación honesta del estado
 
-Óxido aún no es un compilador listo para producción. Hay ejemplos experimentales que exportan, compilan y ejecutan: Hola, mundo; items `struct`/`enum` indentados; e interoperabilidad Rust con métodos, módulos, referencias, `Result`/`Option` y colecciones. La matriz delimita lo que esos casos no cubren; LSP integrado, dependencias de usuario, seguridad de lanzamiento y artefactos de distribución siguen pendientes.
+Óxido aún no es un compilador listo para producción. Hay ejemplos experimentales que exportan, compilan y ejecutan: Hola, mundo; items `struct`/`enum` indentados; e interoperabilidad Rust con métodos, módulos, referencias, `Result`/`Option` y colecciones. También hay una prueba de dependencia Cargo local por ruta. La matriz delimita esos alcances; crates de registro, lockfile persistente, LSP integrado, seguridad de lanzamiento y artefactos de distribución siguen pendientes.
 
 No debe adoptarse para cargas de producción hasta que esos criterios estén implementados, auditados y publicados con evidencia. Esta página no constituye una certificación ni una garantía de seguridad.
 
@@ -12,9 +12,9 @@ No debe adoptarse para cargas de producción hasta que esos criterios estén imp
 - El lexer limita fuente a 4 MiB, grupos/comentarios anidados a 256 y tokens a 1.000.000.
 - Rechaza controles bidi y avisa sobre mezcla de alfabetos latino, griego y cirílico en identificadores.
 - `oxido.toml` se parsea como TOML de datos, con campos cerrados; no ejecuta comandos.
-- El workspace tiene lockfile y las verificaciones locales usan `--locked`.
+- El workspace Rust del propio repositorio tiene lockfile; la CLI usa `--locked` en su workspace temporal.
 
-Estos controles no sustituyen revisión de dependencias, sandbox de compilación, fuzzing, auditoría de rutas ni política de confianza del editor; varias de esas tareas siguen pendientes.
+Óxido admite experimentalmente dependencias Cargo locales por ruta durante comandos explícitos de compilación/ejecución. Pueden ejecutar `build.rs` o macros procedurales. `--offline` evita que Cargo resuelva o descargue paquetes de red, pero no bloquea por sí solo el acceso a red del código de build. Las dependencias de registro, lockfile persistente, sandbox, fuzzing y política de confianza del editor siguen pendientes.
 
 ## Casos de evaluación
 

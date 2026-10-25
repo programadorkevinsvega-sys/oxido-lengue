@@ -55,19 +55,33 @@ pub fn build_ox(
     options: oxido_language::domain::syntax::LexOptions,
     action: application::cargo::CargoAction,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    build_ox_with_dependencies(source, options, &[], action)
+}
+
+/// Genera, compila o ejecuta `.ox` con dependencias Cargo locales validadas del proyecto.
+pub fn build_ox_with_dependencies(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    dependencies: &[config::ResolvedDependency],
+    action: application::cargo::CargoAction,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
     let generated = generate_ox(source, options)?;
-    application::cargo::build_generated(&generated.rust, &generated.source_map, action).map_err(
-        |error| {
-            let span = source
-                .span(0, source.text().len())
-                .unwrap_or_else(oxido_language::domain::source::Span::empty);
-            vec![Diagnostic::error(
-                "OX5001",
-                format!("no se pudo iniciar Cargo: {error}"),
-                span,
-            )]
-        },
+    application::cargo::build_generated_with_dependencies(
+        &generated.rust,
+        &generated.source_map,
+        dependencies,
+        action,
     )
+    .map_err(|error| {
+        let span = source
+            .span(0, source.text().len())
+            .unwrap_or_else(oxido_language::domain::source::Span::empty);
+        vec![Diagnostic::error(
+            "OX5001",
+            format!("no se pudo iniciar Cargo: {error}"),
+            span,
+        )]
+    })
 }
 
 /// Importa Rust al subconjunto reversible de Óxido y verifica que regenerarlo conserve Rust.

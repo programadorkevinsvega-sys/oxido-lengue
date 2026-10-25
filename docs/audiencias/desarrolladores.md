@@ -29,6 +29,8 @@ path = "vendor/mi_crate"
 
 `compilar` y `ejecutar` resuelven esas rutas y usan Cargo offline. Cargo puede ejecutar `build.rs` o macros procedurales de la dependencia cuando se invoca explícitamente. Dependencias de registro/git y un lockfile persistente siguen pendientes.
 
+`oxido auditar-unsafe archivo.ox` informa tokens `inseguro`; añade `--rechazar` para que el comando falle al encontrar alguno. El análisis es léxico, no compila ni ejecuta el proyecto y no detecta toda la superficie de riesgo.
+
 ## Dirección técnica
 
 - Rust 2024 es la edición objetivo.

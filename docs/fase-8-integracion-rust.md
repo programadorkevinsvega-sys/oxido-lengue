@@ -54,11 +54,17 @@ Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro,
 
 La prueba contiene una función async que espera otra función async y verifica en el Rust generado `async fn` y `.await`; rustc valida ambas. Un hilo de `std::thread::spawn` se ejecuta y su salida se comprueba. Óxido no incorpora runtime async, executor, scheduler ni aliases de concurrencia: la creación/polling de futures depende de la biblioteca elegida por el proyecto y sigue sin matriz de compatibilidad.
 
+## Subfase 8 — Política y auditoría de `unsafe`
+
+**Estado:** en curso; el comando `oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` escanea tokens sin compilar ni ejecutar código.
+
+El informe muestra el nombre del archivo y la posición de cada token `unsafe`; reconoce `inseguro` en `.ox` y no confunde texto de comentarios o literales. `--rechazar` devuelve error si encuentra alguno. Es un detector léxico conservador: puede señalar tokens dentro de árboles de macros y no identifica por sí solo `build.rs`, macros procedurales, FFI ni llamadas externas. No prueba que un proyecto carezca de riesgo.
+
 ## Límites de esta entrega
 
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
 - Las macros externas y las DSL no allowlisted permanecen opacas; los aliases de macros estándar y sus expresiones anidadas se describen en [aliases](aliases.md).
-- `async`/`await` solo tiene validación de compilación, sin executor ni matriz de ejecución; macros declarativas solo tienen el corte opaco descrito; lifetimes complejos, dependencias Cargo de registro con lockfile persistente, crates de referencia e interoperabilidad general siguen pendientes.
+- `async`/`await` solo tiene validación de compilación, sin executor ni matriz de ejecución; macros declarativas solo tienen el corte opaco descrito; auditoría de `unsafe` solo detecta tokens; lifetimes complejos, dependencias Cargo de registro con lockfile persistente, crates de referencia e interoperabilidad general siguen pendientes.
 
 La decisión arquitectónica está en [ADR 0004](adr/0004-estructura-indentada-rust.md). La aceptación global de Fase 8 requiere cerrar las subfases restantes en el [roadmap](roadmap.md), con pruebas y límites por característica.

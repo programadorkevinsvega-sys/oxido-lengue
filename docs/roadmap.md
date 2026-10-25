@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–7: completadas en sus alcances verificados. Fase 8: en curso. Fase 9 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y aliases de prelude/macros. Fase 8 amplía la sintaxis estructural indentada y la interoperabilidad con Rust. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
+**Fases 0–8: completadas en sus alcances verificados. Fase 9 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y aliases de prelude/macros. Fase 8 amplía la sintaxis estructural indentada y la interoperabilidad con Rust. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -211,18 +211,18 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 ### Subfases
 
 1. **Estructura indentada:** completada para el alcance inicial con `impl` y métodos, `trait` con firmas/defaults, módulos anidados y `coincidir` con brazos de expresión o bloque. La cobertura incluye receivers y funciones asociadas, genéricos/`donde`, varios bloques por tipo, visibilidad/atributos/docs, items asociados, bloque vacío e indentación inválida, regla del `;` final, equivalencia con llaves y mapeo de errores rustc a `.ox`.
-2. Dependencias Cargo reales y configuración reproducible. **En curso (primer corte):** `oxido.toml` declara dependencias locales por `path`, se canonicalizan dentro del proyecto y Cargo compila/ejecuta offline. Pendientes: dependencias de registro, lockfile persistente versionable y pruebas con crates de referencia.
+2. Dependencias Cargo reales y configuración reproducible. **Verificado para crates local y registry:** SemVer validado con `semver`; se acepta fuente `path` o `version`, no git/URL. `oxido descargar-dependencias` gestiona `Cargo.lock`; compile/run exigen `--locked --offline`. E2E con `itoa` y `futures-executor` vendorizados, `CARGO_HOME` aislado, checksum, lock estable y Rust exportado determinista. Las pruebas no sandboxan código de build; el LSP debe implementar Workspace Trust en Fase 11.
 3. Genéricos, traits y lifetimes dentro del alcance del frontend. **Verificado para el corpus actual:** firmas genéricas con lifetime, `impl Fn`, bounds `where`, trait e implementación genéricos y tipos asociados pasan por generación y Cargo.
 4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend. **Verificado para el corpus actual:** closure como argumento, `Iterator::find`, patrones `Some`/`None` y brazos indentados/llaves compilan y producen el mismo resultado.
-5. Macros declarativas y atributos, preservando árboles de tokens. **En curso (primer corte):** `macro_rules!` opaco en nivel superior indentado y macro exportada desde crate local, invocada por ruta sin modificar la biblioteca, compilan/ejecutan mediante Cargo; también se prueba `#[derive(Debug)]`. Sin expansión propia ni traducción de sus cuerpos.
-6. `async`/`await` y concurrencia según compatibilidad validada. **En curso (primer corte):** funciones async y `.await` compilan en Cargo; `std::thread::spawn` tiene prueba de ejecución. Sin runtime async propio ni matriz de futures.
-7. Bibliotecas externas de referencia y pruebas de conformidad. **En curso:** crate local por ruta y su macro exportada compilan/ejecutan; crates de registro y corpus de bibliotecas reales aún pendientes.
-8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie. **En curso (corte léxico):** `oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` informa tokens con posición y puede rechazarlos sin compilar; no identifica aún `build.rs`, macros procedurales, FFI ni llamadas externas.
-9. Actualizar matriz con límites por versión/edición de Rust.
+5. Macros declarativas y atributos, preservando árboles de tokens. **Verificado para preservación opaca:** macro local exportada por una dependencia de ruta, invocada sin alterar la biblioteca; `#[derive(Debug)]` delegado a rustc. Sin expansión propia ni traducción de DSL.
+6. `async`/`await` y concurrencia según compatibilidad validada. **Verificado:** función async con `.await` ejecutada por `futures-executor` vendorizado y `std::thread::spawn` ejecutado; runtime elegido por el proyecto, sin runtime Óxido.
+7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus inicial verificado:** crates registry `itoa` y `futures-executor`, además de crate local con macro exportada; compilación/ejecución offline. La matriz declara ese corpus, no compatibilidad con todo el ecosistema.
+8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie. **Verificado para detección estática acotada:** `auditar-unsafe` informa/rechaza tokens; `auditar-proyecto` informa `build.rs`, manifiestos proc-macro, FFI y `Command::new`, con rutas relativas y sin seguir symlinks. No resuelve toda la cadena de dependencias ni código expandido; Workspace Trust/sandbox de compilaciones editoriales se implementa en Fase 11.
+9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.85 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
 
 **Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.
 
-**Criterio de salida:** ninguna característica se marca soportada sin pruebas con Rust/Cargo reales, límites documentados y cobertura de errores. No se inicia Fase 9 hasta cerrar todas las subfases de Fase 8.
+**Criterio de salida:** cumplido para el alcance inicial descrito: características anunciadas con evidencia Cargo/rustc y límites documentados en la matriz. Workspace Trust corresponde a la integración LSP de Fase 11 y deberá impedir compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales; el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
 
 **Dependencia:** Fase 7.
 
@@ -391,9 +391,9 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md); `cargo test -p oxido-language -p oxido-rust-backend --locked` | La ampliación de items estructurales se documenta en Fases 7–8 |
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 8 | En curso (integración con Rust) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test -p oxido-cli --test cli --locked` compila y ejecuta un crate local declarado en `oxido.toml`; pipeline verifica sintaxis y macros | Dependencias de registro/lockfile, subfases 5–9 y conformidad siguen abiertas; Fase 9 no inicia hasta cerrar esta fase |
+| 8 | Completada (integración Rust, alcance inicial verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked --offline`, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`, cargo-deny y cargo-audit | Sin compatibilidad general. Workspace Trust para compilaciones LSP se exige en Fase 11; la CLI no sandboxa código de dependencias |
 | 9–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–7 están completadas en los alcances indicados arriba. La Fase 8 es la fase activa; no avanzar a Fase 9 mientras sus subfases sigan abiertas.
+Las fases 0–8 están completadas en los alcances indicados arriba. La Fase 9 puede comenzar según sus dependencias; las limitaciones de la matriz no se consideran características implementadas.

@@ -3,12 +3,14 @@ name = "oxido-compiler"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
+publish = false
 
 [dependencies]
 oxido-language.workspace = true
 oxido-rust-backend.workspace = true
 oxido-cargo = { path = "../oxido-cargo" }
 serde = { version = "1", features = ["derive"] }
+semver.workspace = true
 serde_json.workspace = true
 toml = "0.8"
 

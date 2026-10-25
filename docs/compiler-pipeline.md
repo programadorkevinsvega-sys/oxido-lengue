@@ -10,7 +10,7 @@
 6. **Validación sintáctica:** generar token stream/AST; Syn `parse_file` valida el Rust resultante con `full` + `parsing`.
 7. **Backend:** emitir Rust estándar con `proc_macro2`/`quote`; formatear estructuralmente con `prettyplease`. No interpolar input como texto.
 8. **Mapa:** asociar spans de fragmentos fuente y generado; conservar rangos de item para tokens sintéticos.
-9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias locales `path` declaradas en `oxido.toml`, validadas dentro de la raíz. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`. Los crates de registro y el lockfile persistente del proyecto siguen pendientes; compilar una dependencia local puede ejecutar su `build.rs`/macro procedural únicamente por una acción CLI explícita.
+9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias locales `path` y de crates.io `version` declaradas en `oxido.toml`. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`. `oxido descargar-dependencias` resuelve y persiste el lockfile mediante una acción explícita; las fuentes git/URL no se admiten. Cargo puede ejecutar `build.rs` o macros procedurales al resolver o compilar dependencias.
 10. **Diagnósticos:** parsear JSON, convertir spans generados a `.ox`, conservar errores externos no mapeables.
 11. **Resultado:** devolver estado/código de salida real. No ejecutar binario salvo comando explícito `ejecutar` o `probar`.
 
@@ -21,7 +21,7 @@
 - `rustc` detecta resolución, tipos, traits, ownership, borrowing, macros/expansión y errores semánticos.
 - Cargo resuelve dependencias, perfiles, builds y procesos del proyecto.
 
-El parser Syn no es borrow checker ni type checker. `build.rs` y macros procedurales ejecutan código durante compilación; no se compila un workspace no confiable automáticamente.
+El parser Syn no es borrow checker ni type checker. `build.rs` y macros procedurales ejecutan código durante compilación; la CLI no sandboxa esos procesos y el usuario debe confiar el proyecto antes de resolver o compilar dependencias. El LSP debe respetar Workspace Trust antes de iniciar compilaciones.
 
 ## Importar/exportar
 

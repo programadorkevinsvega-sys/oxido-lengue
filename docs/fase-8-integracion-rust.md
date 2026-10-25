@@ -1,6 +1,6 @@
 # Fase 8 — Integración con Rust
 
-**Estado:** en curso. Este informe registra la primera subfase implementada; no declara completada la Fase 8.
+**Estado:** completada para el alcance inicial verificado. Esto no declara compatibilidad general con Rust ni preparación para producción.
 
 ## Subfase 1 — Estructura indentada
 
@@ -34,37 +34,47 @@ Los tipos, expresiones, closures y patrones dentro de estas firmas y cuerpos sig
 
 ## Subfase 2 — Dependencias Cargo
 
-**Estado:** en curso; corte inicial para dependencias locales por ruta.
+**Estado:** verificada para el alcance de fuentes `path` y registry de crates.io.
 
-`oxido.toml` admite `[dependencies.nombre] path = "ruta/relativa"`. Óxido resuelve la ruta canónica y rechaza escapes de la raíz del proyecto, incluso mediante enlaces simbólicos, rutas no directorio y `Cargo.toml` simbólicos/no regulares. El backend serializa el manifiesto generado como TOML estructurado y ejecuta `cargo check`/`run` en modo `--offline` y `--locked`. La prueba CLI compila y ejecuta un crate de fixture local sin red.
+`oxido.toml` admite una dependencia `[dependencies.nombre]` con exactamente `path` relativo al proyecto o `version` SemVer de crates.io; también permite `features` y `default-features`. Se rechazan URLs/git, opciones desconocidas, requisitos SemVer inválidos y mezclar ambas fuentes. Las rutas locales se canonicalizan y se rechazan escapes, incluidos enlaces simbólicos.
 
-Este corte no admite aún versiones de crates.io/git, ni consume/versiona un `Cargo.lock` del proyecto. El lockfile se genera dentro del workspace temporal y desaparece al finalizar. Por ello no se declara configuración reproducible completa. Una dependencia local puede ejecutar `build.rs` o macros procedurales durante `compilar`/`ejecutar`; esos comandos son explícitos y no se invocan desde el LSP. `--offline` limita la resolución/descarga de Cargo, pero no aísla el código de build de la red ni del sistema; la sandbox y la política de confianza siguen pendientes.
+`oxido descargar-dependencias archivo.ox` resuelve y persiste `Cargo.lock`; `--actualizar` es explícito para actualizarlo. El archivo se escribe con staging y no sigue symlinks. `compilar` y `ejecutar` usan `--locked --offline` y no crean el lockfile implícitamente cuando hay registry dependencies. La prueba E2E usa crate vendorizado `itoa` con `CARGO_HOME` temporal vacío, checksum del lockfile, ejecución sin red, lockfile inmutable y exportación `.rs` idéntica en dos ejecuciones. Se verificó `semver` (`MIT OR Apache-2.0`) y su checksum, y cargo-deny/cargo-audit revisan advisories.
+
+Cargo puede ejecutar `build.rs` o macros procedurales en las operaciones explícitas de resolver/compilar/ejecutar. `--offline` evita descargas, no aísla el proceso. Workspace Trust y sandbox no se implementan en esta fase de CLI; el LSP no debe iniciar compilaciones en workspaces no confiables.
 
 ## Subfase 5 — Macros declarativas y atributos
 
-**Estado:** en curso; `macro_rules!` opaco en nivel superior indentado y atributos `derive` del compilador Rust probados con Cargo/rustc.
+**Estado:** verificada para preservación opaca y delegación a Rust.
 
 Las definiciones `macro_rules!` se preservan como fragmentos Rust opacos y Cargo expande la macro del fixture durante una ejecución E2E. Una prueba aparte consume una macro exportada por un crate local mediante una ruta calificada; el crate de la biblioteca no necesita cambios y los argumentos repetidos llegan intactos a su expansión. Los atributos aceptados por el subconjunto estructural también se conservan; `#[derive(Debug)]` está cubierto sobre una estructura indentada. Óxido no traduce ni reescribe los tokens de definiciones ni llamadas externas. Las pruebas verifican generación Rust y salida exacta del binario.
 
-Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro, expansión propia, macros procedurales ni compatibilidad general con atributos de terceros. La lógica de la macro debe escribirse con sintaxis Rust; los atributos siguen sujetos a aceptación de Syn y rustc. La macro externa se prueba con el crate local por ruta; las macros de crates de registro siguen pendientes junto con esas dependencias.
+Esto no implementa traducción de sintaxis Óxido dentro de las reglas de macro, expansión propia, macros procedurales ni compatibilidad general con atributos de terceros. La lógica de la macro debe escribirse con sintaxis Rust; los atributos siguen sujetos a aceptación de Syn y rustc. La macro externa se prueba con un crate local por ruta; el corpus de registry cubre `itoa` y `futures-executor`, no macros exportadas desde crates de registry.
 
 ## Subfase 6 — Async/await y concurrencia
 
-**Estado:** en curso; sintaxis `asincrono`/`esperar` compila mediante Cargo, y concurrencia estándar con `std::thread` tiene prueba de ejecución.
+**Estado:** verificada para futures inmediatamente listos y concurrencia estándar; sin runtime propio.
 
-La prueba contiene una función async que espera otra función async y verifica en el Rust generado `async fn` y `.await`; rustc valida ambas. Un hilo de `std::thread::spawn` se ejecuta y su salida se comprueba. Óxido no incorpora runtime async, executor, scheduler ni aliases de concurrencia: la creación/polling de futures depende de la biblioteca elegida por el proyecto y sigue sin matriz de compatibilidad.
+La prueba E2E con la dependencia real `futures-executor` vendorizada ejecuta un future que usa `.await` y compara la salida. También valida el Rust generado (`async fn`, `.await`) con rustc; la tarea `std::thread::spawn` ejecuta y comprueba su resultado. Óxido no incorpora runtime async, executor, scheduler ni aliases de concurrencia: el proyecto elige la biblioteca/runtime y la semántica de suspensión sigue delegada a esa dependencia.
 
 ## Subfase 8 — Política y auditoría de `unsafe`
 
-**Estado:** en curso; el comando `oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` escanea tokens sin compilar ni ejecutar código.
+**Estado:** verificada para el subconjunto detectable documentado.
 
-El informe muestra el nombre del archivo y la posición de cada token `unsafe`; reconoce `inseguro` en `.ox` y no confunde texto de comentarios o literales. `--rechazar` devuelve error si encuentra alguno. Es un detector léxico conservador: puede señalar tokens dentro de árboles de macros y no identifica por sí solo `build.rs`, macros procedurales, FFI ni llamadas externas. No prueba que un proyecto carezca de riesgo.
+`oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` muestra posición de cada token y puede rechazarlo sin compilar. `oxido auditar-proyecto <directorio>` enumera tokens `unsafe`/`inseguro`, archivos `build.rs`, manifiestos que declaran crates `proc-macro`, bloques FFI y llamadas léxicas `Command::new`. Omite directorios de build comunes, no sigue symlinks, limita el número de entradas y muestra rutas relativas para no filtrar rutas absolutas.
+
+El informe es estático y conservador: no resuelve todas las dependencias registry ni relaciones indirectas con macros procedurales, puede contar código de macros opacas, no ve código generado por expansión y solo reconoce la forma visible `Command::new`. No prueba ausencia de riesgo ni reemplaza sandbox, Workspace Trust o revisión de dependencias.
+
+## Subfase 9 — Matriz por edición y versiones
+
+**Estado:** completada para la edición declarada y el corpus probado.
+
+La matriz de [compatibilidad](compatibility.md) declara Rust 2024, MSRV 1.85 y las dependencias E2E verificadas. No implica compatibilidad con todas las versiones de Rust o crates; `Cargo.lock` y las pruebas por característica son la evidencia reproducible.
 
 ## Límites de esta entrega
 
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
 - Las macros externas y las DSL no allowlisted permanecen opacas; los aliases de macros estándar y sus expresiones anidadas se describen en [aliases](aliases.md).
-- `async`/`await` solo tiene validación de compilación, sin executor ni matriz de ejecución; macros declarativas solo tienen el corte opaco descrito; auditoría de `unsafe` solo detecta tokens; lifetimes complejos, dependencias Cargo de registro con lockfile persistente, crates de referencia e interoperabilidad general siguen pendientes.
+- `async`/`await` está probado con `futures-executor`; no hay aliases/runtime propios y otros runtimes no están aún en la matriz. Macros externas se conservan opacas y las expande rustc; Óxido no expande ni traduce sus DSL. Auditoría de superficie detecta las formas descritas, no llamadas indirectas ni código expandido. Estos límites constan en la matriz y no amplían el alcance de Fase 8; Workspace Trust para compilaciones iniciadas por el LSP es trabajo de Fase 11. La CLI actual no ofrece sandbox para código de dependencias.
 
-La decisión arquitectónica está en [ADR 0004](adr/0004-estructura-indentada-rust.md). La aceptación global de Fase 8 requiere cerrar las subfases restantes en el [roadmap](roadmap.md), con pruebas y límites por característica.
+Las decisiones de estructura y dependencias están en [ADR 0004](adr/0004-estructura-indentada-rust.md) y [ADR 0005](adr/0005-dependencias-cargo-versionadas.md). La fase queda cerrada con esta matriz de alcance inicial. Workspace Trust corresponde al futuro LSP: no se deben iniciar compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales, por lo que el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.

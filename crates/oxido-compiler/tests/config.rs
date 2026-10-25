@@ -99,3 +99,27 @@ fn rejects_executable_options_in_a_local_dependency_declaration() {
     );
     assert!(config.is_err());
 }
+
+#[test]
+fn accepts_registry_dependencies_with_valid_versions_and_features() {
+    let config = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[dependencies.itoa]\nversion='1.0'\ndefault-features=false\n",
+    )
+    .expect("dependencia de registro declarativa");
+    assert_eq!(config.dependencies["itoa"].version.as_deref(), Some("1.0"));
+    assert!(!config.dependencies["itoa"].default_features);
+    let error = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[dependencies.itoa]\nversion='no-semver'\n",
+    )
+    .expect_err("Cargo version requirement must be valid SemVer");
+    assert!(error.contains("requisito de versión"), "{error}");
+}
+
+#[test]
+fn rejects_dependencies_that_mix_registry_and_path_sources() {
+    let error = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[dependencies.itoa]\npath='vendor/itoa'\nversion='1'\n",
+    )
+    .expect_err("una dependencia no puede mezclar path y version");
+    assert!(error.contains("exactamente uno"), "{error}");
+}

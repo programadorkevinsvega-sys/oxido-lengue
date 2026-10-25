@@ -221,16 +221,57 @@ fn print_findings(label: &str, paths: &[String]) {
 }
 
 fn fetch_dependencies(args: &[OsString]) -> Result<(), String> {
-    let (input, action) = match args {
-        [input] => (input, CargoAction::Fetch),
-        [input, flag] if flag == "--actualizar" => (input, CargoAction::FetchUpdate),
-        _ => {
-            return Err("uso: oxido descargar-dependencias <archivo.ox> [--actualizar]".into());
-        }
+    let Some(input) = args.first() else {
+        return Err("uso: oxido descargar-dependencias <archivo.ox> [--actualizar] [--confirmar] [--permitir-rutas-locales]".into());
     };
+    let mut update = false;
+    let mut confirm = false;
+    let mut allow_paths = false;
+    for argument in &args[1..] {
+        match argument.to_str() {
+            Some("--actualizar") if !update => update = true,
+            Some("--confirmar") if !confirm => confirm = true,
+            Some("--permitir-rutas-locales") if !allow_paths => allow_paths = true,
+            _ => {
+                return Err("uso: oxido descargar-dependencias <archivo.ox> [--actualizar] [--confirmar] [--permitir-rutas-locales]".into());
+            }
+        }
+    }
     let (source, display_path) = load_ox(input)?;
     let settings = project_settings(&display_path)?;
+    if !allow_paths
+        && settings
+            .dependencies
+            .iter()
+            .any(|dependency| dependency.canonical_path.is_some())
+    {
+        return Err("descargar-dependencias acepta por defecto solo crates de crates.io; para incluir dependencias path revisa el proyecto y pasa --permitir-rutas-locales".into());
+    }
     let lockfile = settings.root.join("Cargo.lock");
+    let plan_action = if update {
+        CargoAction::FetchUpdatePlan
+    } else {
+        CargoAction::FetchPlan
+    };
+    let plan = oxido_compiler::build_ox_in_project(
+        &source,
+        settings.options,
+        &settings.dependencies,
+        Some(&lockfile),
+        plan_action,
+    )
+    .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
+    print_fetch_result(&plan)?;
+    if !confirm {
+        println!(
+            "Vista previa solamente. Revisa el plan; repite el comando con --confirmar para descargar y guardar Cargo.lock."
+        );
+        return Ok(());
+    }
+    let action = match update {
+        true => CargoAction::FetchUpdate,
+        false => CargoAction::Fetch,
+    };
     let result = oxido_compiler::build_ox_in_project(
         &source,
         settings.options,
@@ -254,6 +295,36 @@ fn fetch_dependencies(args: &[OsString]) -> Result<(), String> {
         ));
     }
     println!("Dependencias descargadas; Cargo.lock guardado en el proyecto.");
+    Ok(())
+}
+
+fn print_fetch_result(
+    result: &oxido_compiler::application::cargo::CargoBuildResult,
+) -> Result<(), String> {
+    if let Some(diagnostic) = result.diagnostics.first() {
+        return Err(format!(
+            "[{}] {}",
+            diagnostic.code.as_deref().unwrap_or("OX0001"),
+            diagnostic.message
+        ));
+    }
+    if !result.stderr.trim().is_empty() {
+        eprint!("{}", result.stderr);
+    }
+    if !result.success {
+        if result.timed_out {
+            return Err("Cargo superó el límite de ejecución de 120 segundos".into());
+        }
+        return Err(format!(
+            "Cargo terminó con estado {}",
+            result
+                .exit_code
+                .map_or_else(|| "sin código de salida".into(), |code| code.to_string())
+        ));
+    }
+    for line in &result.program_output {
+        println!("{line}");
+    }
     Ok(())
 }
 
@@ -413,7 +484,7 @@ fn import_rust(args: &[OsString]) -> Result<(), String> {
 }
 
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
-    let [input] = args else {
+    let Some(input) = args.first() else {
         let command = if action == CargoAction::Check {
             "compilar"
         } else {
@@ -421,8 +492,22 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         };
         return Err(format!("uso: oxido {command} <archivo.ox>"));
     };
+    let trusted = match args.get(1).and_then(|argument| argument.to_str()) {
+        None => false,
+        Some("--confiar-dependencias") if args.len() == 2 => true,
+        _ => {
+            return Err(
+                "uso: oxido compilar|ejecutar <archivo.ox> [--confiar-dependencias]".into(),
+            );
+        }
+    };
     let (source, display_path) = load_ox(input)?;
     let settings = project_settings(&display_path)?;
+    let action = match (action, trusted) {
+        (CargoAction::Check, true) => CargoAction::CheckTrusted,
+        (CargoAction::Run, true) => CargoAction::RunTrusted,
+        (action, _) => action,
+    };
     let lockfile = settings.root.join("Cargo.lock");
     let result = oxido_compiler::build_ox_in_project(
         &source,
@@ -466,7 +551,7 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 .map_or_else(|| "sin código de salida".into(), |code| code.to_string())
         ));
     }
-    if action == CargoAction::Run {
+    if matches!(action, CargoAction::Run | CargoAction::RunTrusted) {
         for line in result.program_output {
             println!("{line}");
         }

@@ -13,8 +13,10 @@ Los proyectos Óxido necesitan declarar crates por ruta local o por requisito de
 - Aceptar exactamente una fuente: `path` relativa al proyecto o `version`; las rutas locales siguen sujetas a canonicalización dentro del proyecto.
 - No aceptar fuentes git, URL, comandos, parches ni opciones libres en esta fase.
 - Permitir `features` y `default-features` como datos declarativos con límites de tamaño; Cargo interpreta sus nombres.
-- Versionar `Cargo.lock`; compilar y ejecutar deben consumirlo con `--locked --offline`. Si hay dependencias de registry y falta el lockfile, fallan con una instrucción clara sin crearlo de forma implícita.
-- La resolución con red requiere el comando explícito `oxido descargar-dependencias`. `--actualizar` solicita explícitamente regenerar el lockfile; el código fuente de dependencias puede ejecutar `build.rs` o macros procedurales en esta operación y en compilaciones posteriores.
+- Versionar `Cargo.lock`; compilar y ejecutar deben consumirlo con `--locked --offline`. Si hay cualquier dependencia y falta el lockfile, fallan con `OX7001` y una instrucción clara sin crear el lockfile persistente de forma implícita.
+- La resolución/descarga requiere el comando explícito `oxido descargar-dependencias`. Por defecto solo se admiten crates de crates.io; una fuente local `path` requiere `--permitir-rutas-locales`, y git/URL siguen rechazadas.
+- Descargar presenta primero un plan de paquetes y cambios al lockfile. Sin `--confirmar` no descarga paquetes ni escribe `Cargo.lock`; `--actualizar` muestra la nueva resolución y solo la aplica con `--confirmar`.
+- `descargar-dependencias` usa `cargo generate-lockfile` y `cargo fetch --locked`; no ejecuta `cargo check`, `build` ni `run`. La compilación y ejecución posterior requieren `--confiar-dependencias`, porque Cargo puede ejecutar `build.rs` y macros procedurales.
 - La CLI no crea automáticamente `Cargo.lock` durante `compilar`/`ejecutar`; si falta, se informa el fallo y se indica descargar/resolver dependencias explícitamente.
 
 ## Consecuencias
@@ -25,4 +27,4 @@ El diff del `Cargo.lock` del compilador añade solamente `semver 1.0.28` y su en
 
 ## Riesgo pendiente
 
-`--offline` limita las descargas de Cargo, pero no sandboxa `build.rs` ni macros procedurales. El soporte de crates de registry queda restringido a una declaración explícita, lockfile bloqueado y compilación offline después de resolver dependencias. La política Workspace Trust y el aislamiento de procesos siguen siendo requisitos para LSP/playground.
+`--offline` limita las descargas de Cargo, pero no sandboxa `build.rs` ni macros procedurales. El flag de confianza es una decisión explícita del operador, no un sandbox. Workspace Trust y aislamiento de procesos siguen siendo requisitos para LSP/playground.

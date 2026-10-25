@@ -183,7 +183,7 @@ fn emit_indented_use(
 ) -> Result<TokenStream, SynError> {
     let mut attributes = Vec::new();
     for attribute in &item.attributes {
-        let parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+        let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
         attributes.push(
             parsed
                 .into_iter()
@@ -211,7 +211,7 @@ fn emit_indented_aggregate(
 ) -> Result<TokenStream, SynError> {
     let mut attributes = Vec::new();
     for attribute in &aggregate.attributes {
-        let parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+        let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
         attributes.push(
             parsed
                 .into_iter()
@@ -234,7 +234,7 @@ fn emit_indented_aggregate(
     for member in &aggregate.members {
         let mut member_attributes = Vec::new();
         for attribute in &member.attributes {
-            let parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+            let parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
             member_attributes.push(
                 parsed
                     .into_iter()
@@ -263,7 +263,7 @@ fn emit_function(
 ) -> Result<TokenStream, SynError> {
     let mut attributes = Vec::new();
     for attribute in &function.attributes {
-        let mut parsed = syn::Attribute::parse_outer.parse_str(&attribute.text)?;
+        let mut parsed = syn::Attribute::parse_outer.parse2(parse_tokens(&attribute.text)?)?;
         attributes.push(
             parsed
                 .drain(..)
@@ -448,8 +448,8 @@ fn parse_tokens(fragment: &str) -> Result<TokenStream, SynError> {
     Ok(normalize_aliases(tokens))
 }
 
-/// Traduce aliases fuera de macros y atributos. Sus grupos son Rust opaco y
-/// se conserva incluso cuando contiene palabras que Óxido también reconoce.
+/// Normaliza nombres de Óxido. Los argumentos de macros y atributos desconocidos
+/// permanecen opacos para no alterar DSLs de terceros.
 fn normalize_aliases(tokens: TokenStream) -> TokenStream {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut normalized = TokenStream::new();
@@ -464,7 +464,9 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
             }
             if matches!(trees.get(index), Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket)
             {
-                normalized.extend([trees[index].clone()]);
+                if let TokenTree::Group(group) = &trees[index] {
+                    normalized.extend([normalize_known_attribute(group)]);
+                }
                 index += 1;
             }
             continue;
@@ -472,7 +474,15 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
         if matches!(trees.get(index), Some(TokenTree::Ident(_)))
             && matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
         {
-            normalized.extend([trees[index].clone(), trees[index + 1].clone()]);
+            let macro_name = match &trees[index] {
+                TokenTree::Ident(ident) if !ident.to_string().starts_with("r#") => {
+                    oxido_language::domain::syntax::macro_translation(&ident.to_string())
+                        .map(|name| TokenTree::Ident(proc_macro2::Ident::new(name, ident.span())))
+                        .unwrap_or_else(|| trees[index].clone())
+                }
+                _ => trees[index].clone(),
+            };
+            normalized.extend([macro_name, trees[index + 1].clone()]);
             index += 2;
             if matches!(trees.get(index), Some(TokenTree::Group(_))) {
                 normalized.extend([trees[index].clone()]);
@@ -483,10 +493,29 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
         match &trees[index] {
             TokenTree::Ident(ident) if !ident.to_string().starts_with("r#") => {
                 let spelling = ident.to_string();
-                if let Some(translated) =
-                    oxido_language::domain::syntax::keyword_translation(&spelling)
-                        .filter(|translated| *translated != spelling)
-                {
+                let previous = index.checked_sub(1).and_then(|at| trees.get(at));
+                let is_method = matches!(previous, Some(TokenTree::Punct(punct)) if punct.as_char() == '.')
+                    || matches!(previous, Some(TokenTree::Ident(keyword)) if keyword == "fn");
+                let is_std_path = index >= 3
+                    && matches!(&trees[index - 1], TokenTree::Punct(punct) if punct.as_char() == ':')
+                    && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')
+                    && matches!(&trees[index - 3], TokenTree::Ident(parent) if parent == "std");
+                let translated = oxido_language::domain::syntax::keyword_translation(&spelling)
+                    .filter(|translated| *translated != spelling)
+                    .or_else(|| oxido_language::domain::syntax::prelude_translation(&spelling))
+                    .or_else(|| {
+                        is_method
+                            .then(|| oxido_language::domain::syntax::method_translation(&spelling))
+                            .flatten()
+                    })
+                    .or_else(|| {
+                        is_std_path
+                            .then(|| {
+                                oxido_language::domain::syntax::std_module_translation(&spelling)
+                            })
+                            .flatten()
+                    });
+                if let Some(translated) = translated {
                     normalized.extend([TokenTree::Ident(proc_macro2::Ident::new(
                         translated,
                         ident.span(),
@@ -506,6 +535,53 @@ fn normalize_aliases(tokens: TokenStream) -> TokenStream {
         index += 1;
     }
     normalized
+}
+
+fn normalize_known_attribute(group: &proc_macro2::Group) -> TokenTree {
+    let trees = group.stream().into_iter().collect::<Vec<_>>();
+    let Some(TokenTree::Ident(name)) = trees.first() else {
+        return TokenTree::Group(group.clone());
+    };
+    let replacement = match name.to_string().as_str() {
+        "prueba" => Some("test"),
+        "permitir" => Some("allow"),
+        "derivar" => Some("derive"),
+        _ => None,
+    };
+    let Some(replacement) = replacement else {
+        return TokenTree::Group(group.clone());
+    };
+    let mut content = TokenStream::new();
+    content.extend([TokenTree::Ident(proc_macro2::Ident::new(
+        replacement,
+        name.span(),
+    ))]);
+    for tree in trees.into_iter().skip(1) {
+        match tree {
+            TokenTree::Group(inner)
+                if replacement == "derive" && inner.delimiter() == Delimiter::Parenthesis =>
+            {
+                let derives = inner.stream().into_iter().map(|token| match token {
+                    TokenTree::Ident(ident) if !ident.to_string().starts_with("r#") => {
+                        let spelling = ident.to_string();
+                        oxido_language::domain::syntax::prelude_translation(&spelling)
+                            .map(|translated| {
+                                TokenTree::Ident(proc_macro2::Ident::new(translated, ident.span()))
+                            })
+                            .unwrap_or(TokenTree::Ident(ident))
+                    }
+                    token => token,
+                });
+                let mut mapped = proc_macro2::Group::new(Delimiter::Parenthesis, derives.collect());
+                mapped.set_span(inner.span());
+                content.extend([TokenTree::Group(mapped)]);
+            }
+            token => content.extend([token]),
+        }
+    }
+    let mut mapped = proc_macro2::Group::new(Delimiter::Bracket, content);
+    mapped.set_span(group.span());
+    TokenTree::Group(mapped)
 }
 
 fn register_fragment(
@@ -650,7 +726,9 @@ pub fn validate_signature(fragment: &str) -> Result<(), SynError> {
 /// Valida un atributo Rust preservado como fragmento opaco.
 pub fn validate_attribute(fragment: &str) -> Result<(), SynError> {
     use syn::parse::Parser;
-    syn::Attribute::parse_outer.parse_str(fragment).map(|_| ())
+    syn::Attribute::parse_outer
+        .parse2(parse_tokens(fragment)?)
+        .map(|_| ())
 }
 
 /// Valida una visibilidad Rust, incluida `pub(...)`.
@@ -703,7 +781,7 @@ mod generation_tests {
     #[test]
     fn normalizes_aliases_in_rust_fragments_but_keeps_macros_and_raw_identifiers_opaque() {
         let source = SourceFile::new(
-            "sintaxis indentacion\n#[allow(tipo)]\nfuncion main():\n    dejar activo = verdadero\n    assert_eq!(verdadero, r#tipo);\n    activo\n",
+            "sintaxis indentacion\n#[permitir(tipo)]\nfuncion principal():\n    variable activo = verdadero\n    afirmar_igual!(verdadero, r#tipo);\n    activo\n",
         );
         let parsed = parse(&source, LexOptions::default());
         assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
@@ -723,5 +801,98 @@ mod generation_tests {
             "{}",
             generated.code
         );
+    }
+
+    #[test]
+    fn normalizes_prelude_aliases_methods_and_known_macros() {
+        let source = SourceFile::new(
+            "sintaxis indentacion\nfuncion principal():\n    variable mutable nombres: Vector<Cadena> = vector![String::from(\"Ada\")]\n    nombres.agregar(formato!(\"{}\", nombres.len()))\n    imprimirln!(\"{}\", nombres[0].to_string())\n",
+        );
+        let parsed = parse(&source, LexOptions::default());
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+        let generated = generate(&parsed.file.unwrap(), &source).unwrap();
+        for expected in [
+            "fn main()",
+            "let mut nombres: Vec<String> = vec![String::from(\"Ada\")]",
+            "nombres.push(format!(\"{}\", nombres.len()))",
+            "println!(\"{}\", nombres[0].to_string())",
+        ] {
+            assert!(
+                generated.code.contains(expected),
+                "missing {expected}: {}",
+                generated.code
+            );
+        }
+    }
+
+    #[test]
+    fn known_attributes_translate_but_unknown_attributes_and_macro_arguments_stay_opaque() {
+        assert!(
+            parse_tokens("#[prueba]")
+                .unwrap()
+                .to_string()
+                .contains("test")
+        );
+        assert!(
+            parse_tokens("#[permitir(tipo)]")
+                .unwrap()
+                .to_string()
+                .contains("allow (tipo)")
+        );
+        let unknown = parse_tokens("#[serde(rename = \"tipo\")]")
+            .unwrap()
+            .to_string();
+        assert!(unknown.contains("serde") && unknown.contains("tipo"));
+        assert_eq!(
+            parse_tokens("afirmar_igual!(verdadero)")
+                .unwrap()
+                .to_string(),
+            "assert_eq ! (verdadero)"
+        );
+        let std_path = parse_tokens("std::colecciones::HashMap<String, Vector<texto>>")
+            .unwrap()
+            .to_string();
+        assert!(
+            std_path.contains("std :: collections :: HashMap"),
+            "{std_path}"
+        );
+        assert!(std_path.contains("Vec < str >"), "{std_path}");
+    }
+
+    #[test]
+    fn every_published_macro_and_std_module_alias_is_registered() {
+        let macros = [
+            ("imprimirln", "println"),
+            ("imprimir", "print"),
+            ("formato", "format"),
+            ("vector", "vec"),
+            ("panico", "panic"),
+            ("afirmar", "assert"),
+            ("afirmar_igual", "assert_eq"),
+            ("pendiente", "todo"),
+            ("no_implementado", "unimplemented"),
+            ("inalcanzable", "unreachable"),
+            ("depurar", "dbg"),
+        ];
+        for (alias, rust) in macros {
+            let normalized = parse_tokens(&format!("{alias}!()")).unwrap().to_string();
+            assert!(normalized.starts_with(rust), "{alias}: {normalized}");
+        }
+        assert_eq!(
+            parse_tokens("matches!(true, true)").unwrap().to_string(),
+            "matches ! (true , true)"
+        );
+
+        for (alias, rust) in [
+            ("colecciones", "collections"),
+            ("archivos", "fs"),
+            ("es", "io"),
+            ("hilo", "thread"),
+        ] {
+            let normalized = parse_tokens(&format!("std::{alias}::x"))
+                .unwrap()
+                .to_string();
+            assert!(normalized.contains(rust), "{alias}: {normalized}");
+        }
     }
 }

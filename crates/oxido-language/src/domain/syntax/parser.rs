@@ -146,7 +146,14 @@ impl Parser<'_> {
             self.error("OX2003", "se esperaba el nombre de la función", None);
             return None;
         };
-        if !matches!(name_token.kind, TokenKind::Identifier { .. }) {
+        let is_main_alias = matches!(
+            name_token.kind,
+            TokenKind::Keyword {
+                rust_keyword: "main",
+                ..
+            }
+        );
+        if !matches!(name_token.kind, TokenKind::Identifier { .. }) && !is_main_alias {
             if matches!(name_token.kind, TokenKind::Keyword { .. }) {
                 self.report_reserved_identifier(header_start);
             } else {
@@ -158,7 +165,16 @@ impl Parser<'_> {
             }
             return None;
         }
-        let name = self.source.slice(name_token.span).to_string();
+        let name = if is_main_alias {
+            "main".to_string()
+        } else {
+            self.source.slice(name_token.span).to_string()
+        };
+        if matches!(name_token.kind, TokenKind::Identifier { raw: false })
+            && crate::domain::syntax::prelude_translation(&name).is_some()
+        {
+            self.report_reserved_identifier(header_start + 1);
+        }
         let signature = self.fragment(header_start, header_end);
         self.check_signature_patterns(header_start, header_end);
         self.position = body_open;
@@ -952,8 +968,13 @@ impl Parser<'_> {
         let header = self.fragment(item_start + 1, colon);
         if matches!(
             self.tokens.get(item_start + 1).map(|token| &token.kind),
-            Some(TokenKind::Keyword { .. })
-        ) {
+            Some(TokenKind::Keyword { .. } | TokenKind::Identifier { raw: false })
+        ) && (matches!(self.tokens[item_start + 1].kind, TokenKind::Keyword { .. })
+            || crate::domain::syntax::prelude_translation(
+                self.source.slice(self.tokens[item_start + 1].span),
+            )
+            .is_some())
+        {
             self.report_reserved_identifier(item_start + 1);
         }
         self.position = colon + 1;
@@ -982,7 +1003,14 @@ impl Parser<'_> {
                 pending_attributes.push(fragment);
             } else {
                 if aggregate_kind == Some(AggregateKind::Enum)
-                    && matches!(self.tokens[member_start].kind, TokenKind::Keyword { .. })
+                    && (matches!(self.tokens[member_start].kind, TokenKind::Keyword { .. })
+                        || (matches!(
+                            self.tokens[member_start].kind,
+                            TokenKind::Identifier { raw: false }
+                        ) && crate::domain::syntax::prelude_translation(
+                            self.source.slice(self.tokens[member_start].span),
+                        )
+                        .is_some()))
                 {
                     self.report_reserved_identifier(member_start);
                 }
@@ -1209,7 +1237,19 @@ impl Parser<'_> {
                         ..
                     }
                 ) && matches!(self.tokens[index].kind, TokenKind::Keyword { .. });
-            if is_identifier_collision {
+            let next = self
+                .tokens
+                .get(index + 1)
+                .map(|token| self.token_text(token));
+            let is_prelude_binding_collision = matches!(
+                self.tokens[index].kind,
+                TokenKind::Identifier { raw: false }
+            ) && crate::domain::syntax::prelude_translation(
+                self.source.slice(self.tokens[index].span),
+            )
+            .is_some()
+                && matches!(next, Some(":" | "="));
+            if is_identifier_collision || is_prelude_binding_collision {
                 self.report_reserved_identifier(index);
             }
         }
@@ -1260,17 +1300,30 @@ impl Parser<'_> {
 
     fn check_passthrough_identifier_collisions(&mut self, start: usize, end: usize) {
         for index in start..end {
-            if self.tokens[index].opaque
-                || !matches!(self.tokens[index].kind, TokenKind::Keyword { .. })
-            {
+            if self.tokens[index].opaque {
+                continue;
+            }
+            let is_keyword = matches!(self.tokens[index].kind, TokenKind::Keyword { .. });
+            let is_prelude_alias = matches!(
+                self.tokens[index].kind,
+                TokenKind::Identifier { raw: false }
+            ) && crate::domain::syntax::prelude_translation(
+                self.source.slice(self.tokens[index].span),
+            )
+            .is_some();
+            if !is_keyword && !is_prelude_alias {
                 continue;
             }
             let function_name = index > start && self.is_keyword_at(index - 1, "fn");
+            let declared_item_name = index > start
+                && ["struct", "enum", "trait", "type", "mod", "const", "static"]
+                    .iter()
+                    .any(|keyword| self.is_keyword_at(index - 1, keyword));
             let field_name = self
                 .tokens
                 .get(index + 1)
                 .is_some_and(|token| self.token_text(token) == ":");
-            if function_name || field_name {
+            if function_name || declared_item_name || field_name {
                 self.report_reserved_identifier(index);
             }
         }
@@ -1299,7 +1352,9 @@ impl Parser<'_> {
         let Some(token) = self.tokens.get(token_index) else {
             return;
         };
-        if !matches!(token.kind, TokenKind::Keyword { .. }) {
+        let prelude_alias = matches!(token.kind, TokenKind::Identifier { raw: false })
+            && crate::domain::syntax::prelude_translation(self.source.slice(token.span)).is_some();
+        if !matches!(token.kind, TokenKind::Keyword { .. }) && !prelude_alias {
             return;
         }
         let span = token.span;

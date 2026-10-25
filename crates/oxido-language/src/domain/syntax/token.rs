@@ -61,13 +61,14 @@ pub(crate) fn keyword(word: &str) -> Option<KeywordInfo> {
         "si" | "if" => ("if", false),
         "implementar" | "impl" => ("impl", false),
         "en" | "in" => ("in", false),
-        "dejar" | "let" => ("let", false),
+        "dejar" | "variable" | "let" => ("let", false),
         "bucle" | "loop" => ("loop", false),
         "coincidir" | "match" => ("match", false),
         "modulo" | "mod" => ("mod", false),
         "mover" | "move" => ("move", false),
         "mutable" | "mut" => ("mut", false),
         "publico" | "pub" => ("pub", false),
+        "principal" => ("main", false),
         "referencia" | "ref" => ("ref", false),
         "retornar" | "return" => ("return", false),
         "mismo" | "self" => ("self", false),
@@ -110,4 +111,77 @@ pub(crate) fn keyword(word: &str) -> Option<KeywordInfo> {
 #[must_use]
 pub fn keyword_translation(word: &str) -> Option<&'static str> {
     keyword(word).map(|info| info.rust_keyword)
+}
+
+/// Alias del prelude de Rust. Los identificadores crudos nunca se traducen.
+#[must_use]
+pub fn prelude_translation(word: &str) -> Option<&'static str> {
+    Some(match word {
+        "Cadena" => "String",
+        "Vector" => "Vec",
+        "Opcion" => "Option",
+        "Alguno" => "Some",
+        "Ninguno" => "None",
+        "Resultado" => "Result",
+        "Bien" => "Ok",
+        "Error" => "Err",
+        "Caja" => "Box",
+        "MapaHash" => "HashMap",
+        "booleano" => "bool",
+        "caracter" => "char",
+        "texto" => "str",
+        "Defecto" => "Default",
+        "Iterador" => "Iterator",
+        _ => return None,
+    })
+}
+
+/// Alias admitidos para nombres de métodos habituales.
+#[must_use]
+pub fn method_translation(word: &str) -> Option<&'static str> {
+    Some(match word {
+        "desenvolver" => "unwrap",
+        "esperar_o" => "expect",
+        "agregar" => "push",
+        "largo" => "len",
+        "iterar" => "iter",
+        "mapear" => "map",
+        "filtrar" => "filter",
+        "recolectar" => "collect",
+        "clonar" => "clone",
+        "a_cadena" => "to_string",
+        "es_alguno" => "is_some",
+        _ => return None,
+    })
+}
+
+/// Nombre de macro traducido; los argumentos se mantienen como tokens opacos.
+#[must_use]
+pub fn macro_translation(word: &str) -> Option<&'static str> {
+    Some(match word {
+        "imprimirln" => "println",
+        "imprimir" => "print",
+        "formato" => "format",
+        "vector" => "vec",
+        "panico" => "panic",
+        "afirmar" => "assert",
+        "afirmar_igual" => "assert_eq",
+        "pendiente" => "todo",
+        "no_implementado" => "unimplemented",
+        "inalcanzable" => "unreachable",
+        "depurar" => "dbg",
+        _ => return None,
+    })
+}
+
+/// Alias contextual de módulos de `std`.
+#[must_use]
+pub fn std_module_translation(word: &str) -> Option<&'static str> {
+    Some(match word {
+        "colecciones" => "collections",
+        "archivos" => "fs",
+        "es" => "io",
+        "hilo" => "thread",
+        _ => return None,
+    })
 }

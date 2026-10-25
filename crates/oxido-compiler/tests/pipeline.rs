@@ -89,7 +89,7 @@ fn validates_async_await_and_runs_standard_thread_concurrency() {
     use oxido_language::domain::syntax::LexOptions;
 
     let source = SourceFile::new(
-        "sintaxis indentacion\nasincrono funcion valor() -> i32:\n    retornar 20\nasincrono funcion respuesta() -> i32:\n    valor().esperar + 22\nfuncion main():\n    println!(\"{}\", std::thread::spawn(|| 42).join().unwrap());\n",
+        "sintaxis indentacion\nasincrono funcion valor() -> i32:\n    retornar 20\nasincrono funcion respuesta() -> i32:\n    valor().esperar + 22\nfuncion main():\n    let mut future = Box::pin(respuesta());\n    let mut contexto = std::task::Context::from_waker(std::task::Waker::noop());\n    match std::future::Future::poll(future.as_mut(), &mut contexto) {\n        std::task::Poll::Ready(valor) => println!(\"async={}\", valor),\n        std::task::Poll::Pending => panic!(\"el fixture no debe quedar pendiente\"),\n    }\n    println!(\"thread={}\", std::thread::spawn(|| 42).join().unwrap());\n",
     );
     let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
@@ -99,7 +99,7 @@ fn validates_async_await_and_runs_standard_thread_concurrency() {
     let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
-    assert_eq!(result.program_output, ["42"]);
+    assert_eq!(result.program_output, ["async=42", "thread=42"]);
 }
 
 #[test]

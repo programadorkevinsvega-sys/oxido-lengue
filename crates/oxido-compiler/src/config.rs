@@ -22,14 +22,26 @@ pub struct ProjectConfig {
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PathDependency {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
+    pub version: Option<String>,
+    #[serde(default)]
+    pub features: Vec<String>,
+    #[serde(rename = "default-features", default = "default_true")]
+    pub default_features: bool,
 }
 
 /// Dependencia ya resuelta y validada dentro de la raíz del proyecto.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedDependency {
     pub name: String,
-    pub canonical_path: PathBuf,
+    pub canonical_path: Option<PathBuf>,
+    pub version: Option<String>,
+    pub features: Vec<String>,
+    pub default_features: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Opciones de lenguaje soportadas por Óxido 0.1.
@@ -61,6 +73,9 @@ impl ProjectConfig {
                 config.language.edition
             ));
         }
+        for (name, dependency) in &config.dependencies {
+            validate_dependency(name, dependency)?;
+        }
         Ok(config)
     }
 
@@ -76,47 +91,77 @@ impl ProjectConfig {
             .map_err(|error| format!("no se pudo resolver la raíz del proyecto: {error}"))?;
         let mut resolved = Vec::with_capacity(self.dependencies.len());
         for (name, dependency) in &self.dependencies {
-            if !valid_cargo_name(name) {
-                return Err(format!("nombre de dependencia Cargo no válido: `{name}`"));
-            }
-            if dependency.path.is_absolute() {
-                return Err(format!(
-                    "la dependencia `{name}` debe usar una ruta relativa al proyecto"
-                ));
-            }
-            let candidate = root.join(&dependency.path);
-            let canonical_path = fs::canonicalize(&candidate).map_err(|error| {
-                format!("no se pudo resolver la ruta de la dependencia `{name}`: {error}")
-            })?;
-            if !canonical_path.starts_with(&root) {
-                return Err(format!(
-                    "la dependencia `{name}` sale de la raíz del proyecto"
-                ));
-            }
-            let metadata = fs::symlink_metadata(&canonical_path).map_err(|error| {
-                format!("no se pudo inspeccionar la dependencia `{name}`: {error}")
-            })?;
-            if !metadata.is_dir() {
-                return Err(format!(
-                    "la ruta de la dependencia `{name}` debe ser un directorio"
-                ));
-            }
-            let manifest = canonical_path.join("Cargo.toml");
-            let metadata = fs::symlink_metadata(&manifest).map_err(|error| {
-                format!("no se pudo inspeccionar Cargo.toml de `{name}`: {error}")
-            })?;
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err(format!(
-                    "Cargo.toml de `{name}` debe ser un archivo regular"
-                ));
-            }
+            validate_dependency(name, dependency)?;
+            let canonical_path = if let Some(path) = &dependency.path {
+                if path.is_absolute() {
+                    return Err(format!(
+                        "la dependencia `{name}` debe usar una ruta relativa al proyecto"
+                    ));
+                }
+                let candidate = root.join(path);
+                let canonical_path = fs::canonicalize(&candidate).map_err(|error| {
+                    format!("no se pudo resolver la ruta de la dependencia `{name}`: {error}")
+                })?;
+                if !canonical_path.starts_with(&root) {
+                    return Err(format!(
+                        "la dependencia `{name}` sale de la raíz del proyecto"
+                    ));
+                }
+                let metadata = fs::symlink_metadata(&canonical_path).map_err(|error| {
+                    format!("no se pudo inspeccionar la dependencia `{name}`: {error}")
+                })?;
+                if !metadata.is_dir() {
+                    return Err(format!(
+                        "la ruta de la dependencia `{name}` debe ser un directorio"
+                    ));
+                }
+                let manifest = canonical_path.join("Cargo.toml");
+                let metadata = fs::symlink_metadata(&manifest).map_err(|error| {
+                    format!("no se pudo inspeccionar Cargo.toml de `{name}`: {error}")
+                })?;
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err(format!(
+                        "Cargo.toml de `{name}` debe ser un archivo regular"
+                    ));
+                }
+                Some(canonical_path)
+            } else {
+                None
+            };
             resolved.push(ResolvedDependency {
                 name: name.clone(),
                 canonical_path,
+                version: dependency.version.clone(),
+                features: dependency.features.clone(),
+                default_features: dependency.default_features,
             });
         }
         Ok(resolved)
     }
+}
+
+fn validate_dependency(name: &str, dependency: &PathDependency) -> Result<(), String> {
+    if !valid_cargo_name(name) {
+        return Err(format!("nombre de dependencia Cargo no válido: `{name}`"));
+    }
+    if dependency.path.is_some() == dependency.version.is_some() {
+        return Err(format!(
+            "la dependencia `{name}` debe declarar exactamente uno de `path` o `version`"
+        ));
+    }
+    if dependency.features.len() > 128
+        || dependency
+            .features
+            .iter()
+            .any(|feature| feature.is_empty() || feature.len() > 256 || feature.contains('\0'))
+    {
+        return Err(format!("features no válidas en la dependencia `{name}`"));
+    }
+    if let Some(version) = &dependency.version {
+        semver::VersionReq::parse(version)
+            .map_err(|error| format!("requisito de versión no válido para `{name}`: {error}"))?;
+    }
+    Ok(())
 }
 
 fn valid_cargo_name(name: &str) -> bool {

@@ -16,7 +16,7 @@ cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox
 
 `exportar` crea además el mapa `.oxido-map.json`. `importar` acepta solo el subconjunto reversible de funciones libres y verifica que regenerar conserve el Rust formateado. `analizar-rust` sigue validando archivos `.rs` directamente.
 
-La CLI admite dependencias Cargo locales dentro del proyecto mediante `oxido.toml`:
+La CLI admite dependencias locales y versiones de crates.io mediante `oxido.toml`:
 
 ```toml
 [language]
@@ -24,12 +24,14 @@ syntax = "indentation"
 edition = "2024"
 
 [dependencies.mi_crate]
-path = "vendor/mi_crate"
+version = "1.0"
 ```
 
-`compilar` y `ejecutar` resuelven esas rutas y usan Cargo offline. Cargo puede ejecutar `build.rs` o macros procedurales de la dependencia cuando se invoca explícitamente. Dependencias de registro/git y un lockfile persistente siguen pendientes.
+Para una dependencia local, declara `path = "vendor/mi_crate"` en vez de `version`; no se admiten fuentes git ni URL. Antes de compilar por primera vez ejecuta `oxido descargar-dependencias archivo.ox`, que resuelve y persiste `Cargo.lock`. `compilar` y `ejecutar` requieren ese lock para crates del registry, y siempre usan `--locked --offline`; `oxido descargar-dependencias archivo.ox --actualizar` es la operación explícita que puede actualizarlo. Cargo puede ejecutar `build.rs` o macros procedurales al resolver/compilar; revisa y confía el proyecto antes de esas operaciones.
 
 `oxido auditar-unsafe archivo.ox` informa tokens `inseguro`; añade `--rechazar` para que el comando falle al encontrar alguno. El análisis es léxico, no compila ni ejecuta el proyecto y no detecta toda la superficie de riesgo.
+
+`oxido auditar-proyecto .` enumera `unsafe`, archivos `build.rs`, manifiestos de crates `proc-macro`, bloques FFI y llamadas `Command::new` detectables. No ejecuta Cargo ni sigue symlinks; los hallazgos usan rutas relativas. Es un inventario estático, no una garantía de seguridad.
 
 ## Dirección técnica
 

@@ -3,6 +3,7 @@
 //! Casos de uso del compilador, sin transporte ni acceso directo a procesos.
 
 use oxido_language::SourceFile;
+use std::path::Path;
 
 pub mod config;
 pub mod application {
@@ -55,7 +56,7 @@ pub fn build_ox(
     options: oxido_language::domain::syntax::LexOptions,
     action: application::cargo::CargoAction,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
-    build_ox_with_dependencies(source, options, &[], action)
+    build_ox_in_project(source, options, &[], None, action)
 }
 
 /// Genera, compila o ejecuta `.ox` con dependencias Cargo locales validadas del proyecto.
@@ -65,11 +66,23 @@ pub fn build_ox_with_dependencies(
     dependencies: &[config::ResolvedDependency],
     action: application::cargo::CargoAction,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    build_ox_in_project(source, options, dependencies, None, action)
+}
+
+/// Genera y ejecuta `.ox` con dependencias y lockfile persistente del proyecto.
+pub fn build_ox_in_project(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    dependencies: &[config::ResolvedDependency],
+    lockfile: Option<&Path>,
+    action: application::cargo::CargoAction,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
     let generated = generate_ox(source, options)?;
     application::cargo::build_generated_with_dependencies(
         &generated.rust,
         &generated.source_map,
         dependencies,
+        lockfile,
         action,
     )
     .map_err(|error| {

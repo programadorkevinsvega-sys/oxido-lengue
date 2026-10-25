@@ -8,11 +8,15 @@ use std::{
 };
 
 static NEXT_WORKSPACE: AtomicU64 = AtomicU64::new(0);
+static NEXT_LOCKFILE: AtomicU64 = AtomicU64::new(0);
+const MAX_LOCKFILE_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CargoAction {
     Check,
     Run,
+    Fetch,
+    FetchUpdate,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,35 +42,77 @@ pub fn build_generated(
     source_map: &SourceMap,
     action: CargoAction,
 ) -> io::Result<CargoBuildResult> {
-    build_generated_with_dependencies(rust, source_map, &[], action)
+    build_generated_with_dependencies(rust, source_map, &[], None, action)
 }
 
 pub fn build_generated_with_dependencies(
     rust: &str,
     source_map: &SourceMap,
     dependencies: &[crate::config::ResolvedDependency],
+    persistent_lockfile: Option<&Path>,
     action: CargoAction,
 ) -> io::Result<CargoBuildResult> {
-    let workspace = create_workspace(rust, source_map, dependencies)?;
-    let cargo_home = workspace.path().join("cargo-home");
-    fs::create_dir(&cargo_home)?;
-    let lock = oxido_cargo::run_with_cargo_home(
-        workspace.path(),
-        &[
-            OsString::from("generate-lockfile"),
-            OsString::from("--offline"),
-        ],
-        Some(&cargo_home),
+    let update_lock = action == CargoAction::FetchUpdate;
+    let workspace = create_workspace(
+        rust,
+        source_map,
+        dependencies,
+        persistent_lockfile,
+        !update_lock,
     )?;
-    if !lock.success {
+    let lock_path = workspace.path().join("Cargo.lock");
+    if matches!(action, CargoAction::Fetch | CargoAction::FetchUpdate) {
+        let mut args = vec![OsString::from("fetch")];
+        if lock_path.is_file() {
+            args.push(OsString::from("--locked"));
+        }
+        let output = oxido_cargo::run(workspace.path(), &args)?;
+        if output.success {
+            if let Some(persistent_lockfile) = persistent_lockfile {
+                persist_lockfile(&lock_path, persistent_lockfile, update_lock)?;
+            }
+        }
         return Ok(CargoBuildResult {
-            success: false,
-            timed_out: lock.timed_out,
-            exit_code: lock.exit_code,
+            success: output.success,
+            timed_out: output.timed_out,
+            exit_code: output.exit_code,
             diagnostics: Vec::new(),
-            program_output: lock.non_json_stdout,
-            stderr: lock.stderr,
+            program_output: output.non_json_stdout,
+            stderr: output.stderr,
         });
+    }
+    if !lock_path.is_file() {
+        if persistent_lockfile.is_some()
+            && dependencies
+                .iter()
+                .any(|dependency| dependency.version.is_some())
+        {
+            return Ok(CargoBuildResult {
+                success: false,
+                timed_out: false,
+                exit_code: None,
+                diagnostics: Vec::new(),
+                program_output: Vec::new(),
+                stderr: "falta Cargo.lock; ejecuta `oxido descargar-dependencias <archivo.ox>` de forma explícita".into(),
+            });
+        }
+        let lock = oxido_cargo::run(
+            workspace.path(),
+            &[
+                OsString::from("generate-lockfile"),
+                OsString::from("--offline"),
+            ],
+        )?;
+        if !lock.success {
+            return Ok(CargoBuildResult {
+                success: false,
+                timed_out: lock.timed_out,
+                exit_code: lock.exit_code,
+                diagnostics: Vec::new(),
+                program_output: lock.non_json_stdout,
+                stderr: lock.stderr,
+            });
+        }
     }
 
     let args = match action {
@@ -78,11 +124,16 @@ pub fn build_generated_with_dependencies(
             "--message-format=json",
             "--quiet",
         ],
+        CargoAction::Fetch | CargoAction::FetchUpdate => {
+            return Err(io::Error::other(
+                "la acción fetch debió terminar antes de compilar",
+            ));
+        }
     }
     .into_iter()
     .map(OsString::from)
     .collect::<Vec<_>>();
-    let output = oxido_cargo::run_with_cargo_home(workspace.path(), &args, Some(&cargo_home))?;
+    let output = oxido_cargo::run(workspace.path(), &args)?;
     Ok(CargoBuildResult {
         success: output.success,
         timed_out: output.timed_out,
@@ -91,6 +142,74 @@ pub fn build_generated_with_dependencies(
         program_output: output.non_json_stdout,
         stderr: output.stderr,
     })
+}
+
+fn persist_lockfile(generated: &Path, destination: &Path, replace: bool) -> io::Result<()> {
+    let generated_metadata = fs::metadata(generated)?;
+    if generated_metadata.len() > MAX_LOCKFILE_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Cargo.lock supera el límite de 16 MiB",
+        ));
+    }
+    let sequence = NEXT_LOCKFILE.fetch_add(1, Ordering::Relaxed);
+    let parent = destination.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Cargo.lock no tiene directorio padre",
+        )
+    })?;
+    let staged = parent.join(format!(
+        ".Cargo.lock.oxido-{}-{sequence}.tmp",
+        std::process::id()
+    ));
+    let mut input = fs::File::open(generated)?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&staged)?;
+    let write_result = io::copy(&mut input, &mut output)
+        .map(|_| ())
+        .and_then(|()| output.sync_all());
+    if let Err(error) = write_result {
+        return match fs::remove_file(&staged) {
+            Ok(()) => Err(error),
+            Err(cleanup_error) => Err(io::Error::other(format!(
+                "no se pudo preparar Cargo.lock: {error}; tampoco se pudo retirar el archivo parcial: {cleanup_error}"
+            ))),
+        };
+    }
+    if !replace {
+        fs::hard_link(&staged, destination)?;
+        return fs::remove_file(staged);
+    }
+    let backup = parent.join(format!(
+        ".Cargo.lock.oxido-{}-{sequence}.bak",
+        std::process::id()
+    ));
+    match fs::rename(&staged, destination) {
+        Ok(()) => Ok(()),
+        Err(rename_error) if destination.exists() => {
+            fs::rename(destination, &backup)?;
+            match fs::rename(&staged, destination) {
+                Ok(()) => fs::remove_file(backup),
+                Err(replace_error) => match fs::rename(&backup, destination) {
+                    Ok(()) => Err(io::Error::other(format!(
+                        "no se pudo reemplazar Cargo.lock (primer intento: {rename_error}; segundo intento: {replace_error}); se restauró el lockfile anterior"
+                    ))),
+                    Err(restore_error) => Err(io::Error::other(format!(
+                        "no se pudo reemplazar Cargo.lock: {replace_error}; tampoco se pudo restaurar el anterior: {restore_error}"
+                    ))),
+                },
+            }
+        }
+        Err(error) => match fs::remove_file(&staged) {
+            Ok(()) => Err(error),
+            Err(cleanup_error) => Err(io::Error::other(format!(
+                "no se pudo instalar Cargo.lock: {error}; tampoco se pudo retirar el temporal: {cleanup_error}"
+            ))),
+        },
+    }
 }
 
 struct Workspace(PathBuf);
@@ -116,6 +235,8 @@ fn create_workspace(
     rust: &str,
     source_map: &SourceMap,
     dependencies: &[crate::config::ResolvedDependency],
+    persistent_lockfile: Option<&Path>,
+    read_lockfile: bool,
 ) -> io::Result<Workspace> {
     let temp = fs::canonicalize(std::env::temp_dir())?;
     let root = temp.join("oxido-builds");
@@ -150,6 +271,28 @@ fn create_workspace(
         workspace.path().join("Cargo.toml"),
         generated_manifest(dependencies)?,
     )?;
+    if let Some(lockfile) = persistent_lockfile {
+        match fs::symlink_metadata(lockfile) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Cargo.lock debe ser un archivo regular, no un enlace simbólico",
+                ));
+            }
+            Ok(metadata) if metadata.len() > MAX_LOCKFILE_BYTES => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Cargo.lock supera el límite de 16 MiB",
+                ));
+            }
+            Ok(_) if read_lockfile => {
+                fs::copy(lockfile, workspace.path().join("Cargo.lock"))?;
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
     fs::write(src.join("main.rs"), rust)?;
     let mut source_map = source_map.clone();
     source_map.set_generated_file(Some(Path::new("main.rs")));
@@ -167,17 +310,38 @@ fn generated_manifest(dependencies: &[crate::config::ResolvedDependency]) -> io:
 
     let mut dependency_table = toml::map::Map::new();
     for dependency in dependencies {
-        let path = dependency.canonical_path.to_str().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "la ruta de `{}` no es UTF-8 y no puede escribirse en Cargo.toml",
-                    dependency.name
-                ),
-            )
-        })?;
         let mut declaration = toml::map::Map::new();
-        declaration.insert("path".into(), toml::Value::String(path.to_owned()));
+        if let Some(path) = &dependency.canonical_path {
+            let path = path.to_str().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "la ruta de `{}` no es UTF-8 y no puede escribirse en Cargo.toml",
+                        dependency.name
+                    ),
+                )
+            })?;
+            declaration.insert("path".into(), toml::Value::String(path.to_owned()));
+        }
+        if let Some(version) = &dependency.version {
+            declaration.insert("version".into(), toml::Value::String(version.clone()));
+        }
+        if !dependency.features.is_empty() {
+            declaration.insert(
+                "features".into(),
+                toml::Value::Array(
+                    dependency
+                        .features
+                        .iter()
+                        .cloned()
+                        .map(toml::Value::String)
+                        .collect(),
+                ),
+            );
+        }
+        if !dependency.default_features {
+            declaration.insert("default-features".into(), toml::Value::Boolean(false));
+        }
         dependency_table.insert(dependency.name.clone(), toml::Value::Table(declaration));
     }
 

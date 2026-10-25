@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::VecDeque,
     env,
     ffi::{OsStr, OsString},
     fs::{self, OpenOptions},
@@ -37,12 +38,223 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     match command {
         "analizar-rust" => analyze_rust(&args[1..]),
         "auditar-unsafe" => audit_unsafe(&args[1..]),
+        "auditar-proyecto" => audit_project(&args[1..]),
         "exportar" => export_ox(&args[1..]),
         "importar" => import_rust(&args[1..]),
         "compilar" => cargo_ox(&args[1..], CargoAction::Check),
         "ejecutar" => cargo_ox(&args[1..], CargoAction::Run),
+        "descargar-dependencias" => fetch_dependencies(&args[1..]),
         _ => Err(usage().into()),
     }
+}
+
+fn audit_project(args: &[OsString]) -> Result<(), String> {
+    let [root] = args else {
+        return Err("uso: oxido auditar-proyecto <directorio>".into());
+    };
+    let root = fs::canonicalize(PathBuf::from(root))
+        .map_err(|error| format!("no se pudo resolver el proyecto: {error}"))?;
+    if !root.is_dir() {
+        return Err("la ruta del proyecto debe ser un directorio".into());
+    }
+    let mut pending = VecDeque::from([root.clone()]);
+    let mut files_seen = 0usize;
+    let mut unsafe_count = 0usize;
+    let mut build_scripts = Vec::new();
+    let mut proc_macro_crates = Vec::new();
+    let mut external_calls = Vec::new();
+    let mut ffi_blocks = Vec::new();
+    while let Some(directory) = pending.pop_front() {
+        for entry in fs::read_dir(&directory)
+            .map_err(|error| format!("no se pudo leer el proyecto: {error}"))?
+        {
+            files_seen = files_seen.saturating_add(1);
+            if files_seen > 100_000 {
+                return Err("la auditoría supera el límite de 100000 entradas".into());
+            }
+            let entry = entry.map_err(|error| format!("no se pudo leer una entrada: {error}"))?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|error| format!("no se pudo inspeccionar una entrada: {error}"))?;
+            if metadata.file_type().is_symlink() {
+                continue;
+            }
+            if metadata.is_dir() {
+                if matches!(
+                    path.file_name().and_then(OsStr::to_str),
+                    Some(".git" | "target" | "node_modules" | "dist" | ".astro")
+                ) {
+                    continue;
+                }
+                pending.push_back(path);
+                continue;
+            }
+            if !metadata.is_file() {
+                continue;
+            }
+            if path.file_name().is_some_and(|name| name == "build.rs") {
+                build_scripts.push(relative_display(&root, &path));
+            }
+            if path.file_name().is_some_and(|name| name == "Cargo.toml") {
+                if metadata.len() > 1024 * 1024 {
+                    return Err("un Cargo.toml supera el límite de 1 MiB".into());
+                }
+                let manifest = fs::read_to_string(&path)
+                    .map_err(|error| format!("no se pudo leer un Cargo.toml: {error}"))?;
+                let value = toml::from_str::<toml::Value>(&manifest).map_err(|error| {
+                    format!(
+                        "Cargo.toml inválido en {}: {error}",
+                        relative_display(&root, &path)
+                    )
+                })?;
+                if value
+                    .get("lib")
+                    .and_then(|lib| lib.get("proc-macro"))
+                    .and_then(toml::Value::as_bool)
+                    == Some(true)
+                {
+                    proc_macro_crates.push(relative_display(&root, &path));
+                }
+            }
+            let is_source = matches!(path.extension().and_then(OsStr::to_str), Some("rs" | "ox"));
+            if !is_source {
+                continue;
+            }
+            if metadata.len() > MAX_SOURCE_BYTES {
+                return Err(format!(
+                    "{} supera el límite de 4 MiB",
+                    relative_display(&root, &path)
+                ));
+            }
+            let text = fs::read_to_string(&path).map_err(|error| {
+                format!(
+                    "no se pudo leer {}: {error}",
+                    relative_display(&root, &path)
+                )
+            })?;
+            let source = SourceFile::with_path(&path, text);
+            let lexed = oxido_language::domain::syntax::lex(
+                &source,
+                LexOptions {
+                    project_mode: Some(SyntaxMode::Braces),
+                },
+            );
+            if lexed.has_errors() {
+                return Err(format_diagnostics(&source, &path, &lexed.diagnostics));
+            }
+            let tokens = lexed.tokens;
+            for (index, token) in tokens.iter().enumerate() {
+                if matches!(
+                    token.kind,
+                    oxido_language::domain::syntax::TokenKind::Keyword {
+                        rust_keyword: "unsafe",
+                        ..
+                    }
+                ) {
+                    unsafe_count = unsafe_count.saturating_add(1);
+                }
+                if text_at(&source, token) == Some("extern")
+                    && tokens.get(index + 1).is_some_and(|next| {
+                        matches!(
+                            next.kind,
+                            oxido_language::domain::syntax::TokenKind::StringLiteral
+                        )
+                    })
+                    && tokens
+                        .get(index + 2)
+                        .is_some_and(|next| text_at(&source, next) == Some("{"))
+                {
+                    ffi_blocks.push(relative_display(&root, &path));
+                }
+                if text_at(&source, token) == Some("Command")
+                    && (tokens
+                        .get(index + 1)
+                        .is_some_and(|next| text_at(&source, next) == Some("::"))
+                        && tokens
+                            .get(index + 2)
+                            .is_some_and(|next| text_at(&source, next) == Some("new")))
+                {
+                    external_calls.push(relative_display(&root, &path));
+                }
+            }
+        }
+    }
+    println!(
+        "Proyecto: {}",
+        root.file_name()
+            .and_then(OsStr::to_str)
+            .unwrap_or("proyecto")
+    );
+    println!("Tokens unsafe/inseguro: {unsafe_count}");
+    print_findings("build.rs", &build_scripts);
+    print_findings(
+        "Crates con proc-macro=true en sus manifiestos",
+        &proc_macro_crates,
+    );
+    print_findings("Bloques FFI detectados", &ffi_blocks);
+    print_findings("Llamadas Command::new detectadas", &external_calls);
+    println!(
+        "Alcance: análisis estático; no descubre expansiones macro ni prueba ausencia de riesgos."
+    );
+    Ok(())
+}
+
+fn text_at<'a>(
+    source: &'a SourceFile,
+    token: &oxido_language::domain::syntax::Token,
+) -> Option<&'a str> {
+    source.text().get(token.span.start()..token.span.end())
+}
+
+fn relative_display(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn print_findings(label: &str, paths: &[String]) {
+    println!("{label}: {}", paths.len());
+    for path in paths {
+        println!("  {path}");
+    }
+}
+
+fn fetch_dependencies(args: &[OsString]) -> Result<(), String> {
+    let (input, action) = match args {
+        [input] => (input, CargoAction::Fetch),
+        [input, flag] if flag == "--actualizar" => (input, CargoAction::FetchUpdate),
+        _ => {
+            return Err("uso: oxido descargar-dependencias <archivo.ox> [--actualizar]".into());
+        }
+    };
+    let (source, display_path) = load_ox(input)?;
+    let settings = project_settings(&display_path)?;
+    let lockfile = settings.root.join("Cargo.lock");
+    let result = oxido_compiler::build_ox_in_project(
+        &source,
+        settings.options,
+        &settings.dependencies,
+        Some(&lockfile),
+        action,
+    )
+    .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
+    if !result.stderr.trim().is_empty() {
+        eprint!("{}", result.stderr);
+    }
+    if !result.success {
+        if result.timed_out {
+            return Err("Cargo superó el límite de ejecución de 120 segundos".into());
+        }
+        return Err(format!(
+            "Cargo terminó con estado {}",
+            result
+                .exit_code
+                .map_or_else(|| "sin código de salida".into(), |code| code.to_string())
+        ));
+    }
+    println!("Dependencias descargadas; Cargo.lock guardado en el proyecto.");
+    Ok(())
 }
 
 fn audit_unsafe(args: &[OsString]) -> Result<(), String> {
@@ -211,10 +423,12 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     };
     let (source, display_path) = load_ox(input)?;
     let settings = project_settings(&display_path)?;
-    let result = oxido_compiler::build_ox_with_dependencies(
+    let lockfile = settings.root.join("Cargo.lock");
+    let result = oxido_compiler::build_ox_in_project(
         &source,
         settings.options,
         &settings.dependencies,
+        Some(&lockfile),
         action,
     )
     .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
@@ -289,6 +503,7 @@ fn project_options(source_path: &Path) -> Result<LexOptions, String> {
 struct ProjectSettings {
     options: LexOptions,
     dependencies: Vec<oxido_compiler::config::ResolvedDependency>,
+    root: PathBuf,
 }
 
 fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
@@ -321,6 +536,7 @@ fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
                 return Ok(ProjectSettings {
                     options,
                     dependencies,
+                    root: directory.to_path_buf(),
                 });
             }
             Ok(_) => return Err("oxido.toml debe ser un archivo regular".into()),
@@ -334,6 +550,7 @@ fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
     Ok(ProjectSettings {
         options: LexOptions::default(),
         dependencies: Vec::new(),
+        root: parent.to_path_buf(),
     })
 }
 
@@ -385,5 +602,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido <analizar-rust|auditar-unsafe|exportar|importar|compilar|ejecutar> ..."
+    "uso: oxido <analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|exportar|importar|compilar|ejecutar> ..."
 }

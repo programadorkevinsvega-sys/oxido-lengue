@@ -2,6 +2,8 @@
 
 El contrato normativo está en [ARCHITECTURE_RULES.md](../ARCHITECTURE_RULES.md). Este documento resume los crates que ya existen y los límites que siguen preparados para fases posteriores.
 
+La decisión de limitar el parser propio a estructura Óxido y preservar fragmentos Rust está registrada en [ADR-0001](adr/0001-parser-hibrido.md).
+
 ## Componentes
 
 | Componente | Responsabilidad | Tipo de módulo |

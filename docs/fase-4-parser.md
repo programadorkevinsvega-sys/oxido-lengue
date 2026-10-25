@@ -23,3 +23,5 @@ Las pruebas de `crates/oxido-language/tests/parser.rs` cubren funciones en ambos
 - Syn no ejecuta `rustc`, `build.rs` ni macros; tampoco sustituye la validación semántica.
 
 La matriz de alcance por característica está en [compatibilidad](compatibility.md). La siguiente fase añade generación `.ox → .rs`, mapas de posiciones e integración Cargo.
+
+La decisión arquitectónica de esta frontera está registrada en [ADR-0001](adr/0001-parser-hibrido.md).

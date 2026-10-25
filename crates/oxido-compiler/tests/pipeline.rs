@@ -183,6 +183,54 @@ fn compiles_and_runs_indented_impl_traits_modules_and_match_arms() {
 }
 
 #[test]
+fn compiles_generics_lifetimes_closures_iterators_and_patterns_in_both_modes() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let sources = [
+        SourceFile::new(
+            r#"sintaxis indentacion
+funcion seleccionar<'a, T>(items: &'a [T], aceptar: impl Fn(&T) -> bool) -> Option<&'a T> donde T: 'a:
+    items.iter().find(|item| aceptar(item))
+
+funcion principal():
+    variable nombres = ["Ana", "Luis", "Ada"]
+    variable elegido = seleccionar(&nombres, |nombre| nombre.starts_with('A'))
+    coincidir elegido:
+        Some(nombre) => imprimirln!("{}", nombre)
+        None => imprimirln!("ninguno")
+"#,
+        ),
+        SourceFile::new(
+            r#"sintaxis llaves
+funcion seleccionar<'a, T>(items: &'a [T], aceptar: impl Fn(&T) -> bool) -> Option<&'a T> donde T: 'a { items.iter().find(|item| aceptar(item)) }
+funcion principal() {
+    let nombres = ["Ana", "Luis", "Ada"];
+    let elegido = seleccionar(&nombres, |nombre| nombre.starts_with('A'));
+    match elegido { Some(nombre) => println!("{}", nombre), None => println!("ninguno") }
+}
+"#,
+        ),
+    ];
+
+    let mut outputs = Vec::new();
+    for source in sources {
+        let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+        assert!(generated.rust.contains("<'a, T>"), "{}", generated.rust);
+        assert!(generated.rust.contains("impl Fn"), "{}", generated.rust);
+        assert!(generated.rust.contains(".find("), "{}", generated.rust);
+
+        let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+        assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+        outputs.push(result.program_output);
+    }
+
+    assert_eq!(outputs, [vec!["Ana".to_owned()], vec!["Ana".to_owned()]]);
+}
+
+#[test]
 fn impl_methods_generics_associated_items_tail_values_and_block_modes_agree() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

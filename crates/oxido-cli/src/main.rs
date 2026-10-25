@@ -142,9 +142,14 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         return Err(format!("uso: oxido {command} <archivo.ox>"));
     };
     let (source, display_path) = load_ox(input)?;
-    let options = project_options(&display_path)?;
-    let result = oxido_compiler::build_ox(&source, options, action)
-        .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
+    let settings = project_settings(&display_path)?;
+    let result = oxido_compiler::build_ox_with_dependencies(
+        &source,
+        settings.options,
+        &settings.dependencies,
+        action,
+    )
+    .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
     for diagnostic in &result.diagnostics {
         let code = diagnostic
             .code
@@ -210,6 +215,15 @@ fn load_ox(path: &OsStr) -> Result<(SourceFile, PathBuf), String> {
 }
 
 fn project_options(source_path: &Path) -> Result<LexOptions, String> {
+    Ok(project_settings(source_path)?.options)
+}
+
+struct ProjectSettings {
+    options: LexOptions,
+    dependencies: Vec<oxido_compiler::config::ResolvedDependency>,
+}
+
+fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
     let canonical_source = fs::canonicalize(source_path)
         .map_err(|error| format!("no se pudo resolver el proyecto: {error}"))?;
     let parent = canonical_source
@@ -229,11 +243,17 @@ fn project_options(source_path: &Path) -> Result<LexOptions, String> {
                     .map_err(|error| format!("no se pudo leer oxido.toml: {error}"))?;
                 let config = oxido_compiler::config::ProjectConfig::parse(&content)
                     .map_err(|error| format!("oxido.toml inválido: {error}"))?;
-                let project_mode = config.language.syntax.map(|mode| match mode {
-                    oxido_compiler::config::SyntaxMode::Indentation => SyntaxMode::Indentation,
-                    oxido_compiler::config::SyntaxMode::Braces => SyntaxMode::Braces,
+                let dependencies = config.resolve_dependencies(directory)?;
+                let options = LexOptions {
+                    project_mode: config.language.syntax.map(|mode| match mode {
+                        oxido_compiler::config::SyntaxMode::Indentation => SyntaxMode::Indentation,
+                        oxido_compiler::config::SyntaxMode::Braces => SyntaxMode::Braces,
+                    }),
+                };
+                return Ok(ProjectSettings {
+                    options,
+                    dependencies,
                 });
-                return Ok(LexOptions { project_mode });
             }
             Ok(_) => return Err("oxido.toml debe ser un archivo regular".into()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -243,7 +263,10 @@ fn project_options(source_path: &Path) -> Result<LexOptions, String> {
             break;
         }
     }
-    Ok(LexOptions::default())
+    Ok(ProjectSettings {
+        options: LexOptions::default(),
+        dependencies: Vec::new(),
+    })
 }
 
 fn validate_output_parent(path: &Path) -> Result<(), String> {

@@ -10,7 +10,7 @@
 6. **Validación sintáctica:** generar token stream/AST; Syn `parse_file` valida el Rust resultante con `full` + `parsing`.
 7. **Backend:** emitir Rust estándar con `proc_macro2`/`quote`; formatear estructuralmente con `prettyplease`. No interpolar input como texto.
 8. **Mapa:** asociar spans de fragmentos fuente y generado; conservar rangos de item para tokens sintéticos.
-9. **Cargo:** la rebanada inicial crea un proyecto Cargo aislado sin dependencias y ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`.
+9. **Cargo:** crea un proyecto Cargo aislado; admite dependencias locales `path` declaradas en `oxido.toml`, validadas dentro de la raíz. Ejecuta `check` o `run` con `Command`, argv separados, `--offline`, `--locked` y `--message-format=json`. Los crates de registro y el lockfile persistente del proyecto siguen pendientes; compilar una dependencia local puede ejecutar su `build.rs`/macro procedural únicamente por una acción CLI explícita.
 10. **Diagnósticos:** parsear JSON, convertir spans generados a `.ox`, conservar errores externos no mapeables.
 11. **Resultado:** devolver estado/código de salida real. No ejecutar binario salvo comando explícito `ejecutar` o `probar`.
 

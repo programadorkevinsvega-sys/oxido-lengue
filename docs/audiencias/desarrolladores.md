@@ -16,6 +16,19 @@ cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox
 
 `exportar` crea además el mapa `.oxido-map.json`. `importar` acepta solo el subconjunto reversible de funciones libres y verifica que regenerar conserve el Rust formateado. `analizar-rust` sigue validando archivos `.rs` directamente.
 
+La CLI admite dependencias Cargo locales dentro del proyecto mediante `oxido.toml`:
+
+```toml
+[language]
+syntax = "indentation"
+edition = "2024"
+
+[dependencies.mi_crate]
+path = "vendor/mi_crate"
+```
+
+`compilar` y `ejecutar` resuelven esas rutas y usan Cargo offline. Cargo puede ejecutar `build.rs` o macros procedurales de la dependencia cuando se invoca explícitamente. Dependencias de registro/git y un lockfile persistente siguen pendientes.
+
 ## Dirección técnica
 
 - Rust 2024 es la edición objetivo.

@@ -149,3 +149,58 @@ fn reads_project_mode_from_declarative_oxido_toml() {
         String::from_utf8_lossy(&compiled.stderr)
     );
 }
+
+#[test]
+fn compiles_and_runs_with_a_declared_local_cargo_dependency_offline() {
+    let temp = TestDirectory::new();
+    let work = temp.0.join("project");
+    let dependency = work.join("vendor/saludos_local");
+    fs::create_dir_all(dependency.join("src")).unwrap();
+    fs::write(
+        dependency.join("Cargo.toml"),
+        "[package]\nname = \"saludos_local\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(
+        dependency.join("src/lib.rs"),
+        "pub fn saludo() -> &'static str { \"desde un crate local\" }\n",
+    )
+    .unwrap();
+    fs::create_dir_all(&work).unwrap();
+    fs::write(
+        work.join("oxido.toml"),
+        "[language]\nsyntax = \"braces\"\nedition = \"2024\"\n\n[dependencies.saludos_local]\npath = \"vendor/saludos_local\"\n",
+    )
+    .unwrap();
+    fs::write(
+        work.join("principal.ox"),
+        "sintaxis llaves\nfn main() { println!(\"{}\", saludos_local::saludo()); }\n",
+    )
+    .unwrap();
+
+    let compiled = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["compilar", "principal.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["ejecutar", "principal.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout).trim(),
+        "desde un crate local"
+    );
+}

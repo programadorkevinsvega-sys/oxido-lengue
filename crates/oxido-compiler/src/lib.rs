@@ -5,6 +5,97 @@
 use oxido_language::SourceFile;
 
 pub mod config;
+pub mod application {
+    pub mod cargo;
+    pub mod source_map;
+}
+
+use application::source_map::SourceMap;
+use oxido_language::domain::diagnostics::Diagnostic;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeneratedProgram {
+    pub rust: String,
+    pub source_map: SourceMap,
+}
+
+/// Parse and emit Rust for the currently supported `.ox` subset.
+pub fn generate_ox(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+) -> Result<GeneratedProgram, Vec<Diagnostic>> {
+    let parsed = parse_ox(source, options);
+    if parsed.has_errors() {
+        return Err(parsed.diagnostics);
+    }
+    let Some(file) = parsed.file else {
+        return Err(parsed.diagnostics);
+    };
+    let generated = oxido_rust_backend::generate(&file, source).map_err(|error| {
+        let span = source
+            .span(0, source.text().len())
+            .unwrap_or_else(oxido_language::domain::source::Span::empty);
+        vec![Diagnostic::error(
+            "OX4001",
+            format!("no se pudo generar Rust: {error}"),
+            span,
+        )]
+    })?;
+    let mut source_map = SourceMap::new(generated.mappings);
+    source_map.set_source_file(source.path());
+    Ok(GeneratedProgram {
+        rust: generated.code,
+        source_map,
+    })
+}
+
+/// Compila o ejecuta un programa generado en un workspace temporal aislado.
+pub fn build_ox(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    action: application::cargo::CargoAction,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    let generated = generate_ox(source, options)?;
+    application::cargo::build_generated(&generated.rust, &generated.source_map, action).map_err(
+        |error| {
+            let span = source
+                .span(0, source.text().len())
+                .unwrap_or_else(oxido_language::domain::source::Span::empty);
+            vec![Diagnostic::error(
+                "OX5001",
+                format!("no se pudo iniciar Cargo: {error}"),
+                span,
+            )]
+        },
+    )
+}
+
+/// Importa Rust al subconjunto reversible de Óxido y verifica que regenerarlo conserve Rust.
+pub fn import_rust(source: &SourceFile) -> Result<String, String> {
+    let imported = oxido_rust_backend::import_reversible(source)
+        .map_err(|error| format!("Rust fuera del subconjunto importable: {error}"))?;
+    let ox_source = SourceFile::new(imported.clone());
+    let options = oxido_language::domain::syntax::LexOptions {
+        project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Braces),
+    };
+    let parsed = parse_ox(&ox_source, options);
+    if parsed.has_errors() {
+        return Err(format!(
+            "la estructura importada no es reversible: {:?}",
+            parsed.diagnostics
+        ));
+    }
+    let regenerated = generate_ox(&ox_source, options)
+        .map_err(|diagnostics| format!("falló la validación de la importación: {diagnostics:?}"))?;
+    let original = oxido_rust_backend::format(
+        &oxido_rust_backend::parse(source)
+            .map_err(|error| format!("Rust de entrada inválido: {error}"))?,
+    );
+    if regenerated.rust != original {
+        return Err("la importación cambia la estructura Rust al regenerarse".into());
+    }
+    Ok(imported)
+}
 
 /// Resultado del análisis sintáctico Rust inicial.
 #[derive(Debug, Eq, PartialEq)]

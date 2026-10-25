@@ -8,6 +8,111 @@ fn parses_formats_and_reparses_a_rust_file() {
 }
 
 #[test]
+fn generates_a_rust_program_with_a_serializable_source_map() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source =
+        SourceFile::new("sintaxis indentacion\nfuncion main():\n    println!(\"Hola, mundo.\");\n");
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated.rust.contains("fn main()"));
+    assert!(generated.rust.contains("println!(\"Hola, mundo.\")"));
+    oxido_compiler::analyze_rust(&SourceFile::new(&generated.rust)).unwrap();
+
+    let mapped = generated
+        .source_map
+        .map_generated(2, 5)
+        .expect("el call site de la macro debe volver al .ox");
+    let original = source.span(mapped.start, mapped.end).unwrap();
+    assert!(source.slice(original).contains("println!"));
+    let serialized = serde_json::to_string(&generated.source_map).unwrap();
+    assert!(serialized.contains("generatedStartLine"));
+}
+
+#[test]
+fn preserves_a_final_control_expression_as_the_rust_block_value() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn elegir(condicion: bool) -> i32 { if condicion { 1 } else { 2 } }\n",
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated.rust.contains("else"));
+    assert!(!generated.rust.contains("};"));
+    oxido_compiler::analyze_rust(&SourceFile::new(&generated.rust)).unwrap();
+}
+
+#[test]
+fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source =
+        SourceFile::new("sintaxis indentacion\nfuncion main():\n    println!(\"Hola, mundo.\");\n");
+    let checked = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        checked.success,
+        "{} {:?}",
+        checked.stderr, checked.diagnostics
+    );
+
+    let run = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(run.success, "{} {:?}", run.stderr, run.diagnostics);
+    assert_eq!(run.program_output, ["Hola, mundo."]);
+}
+
+#[test]
+fn maps_rustc_type_errors_back_to_the_ox_expression() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source =
+        SourceFile::new("sintaxis indentacion\nfuncion main():\n    dejar valor: bool = 1\n");
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(!result.success);
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code.as_deref() == Some("E0308"))
+        .expect("se conserva el diagnostic JSON del compilador Rust");
+    let mapped = diagnostic.source.expect("el span debe volver al .ox");
+    let span = source.span(mapped.start, mapped.end).unwrap();
+    assert!(source.slice(span).contains('1'));
+}
+
+#[test]
+fn maps_rustc_control_header_errors_back_to_the_ox_header() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new("sintaxis llaves\nfn main() { if 1 { println!(\"nunca\"); } }\n");
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(!result.success);
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code.as_deref() == Some("E0308"))
+        .expect("se conserva el error de condición Rust");
+    let mapped = diagnostic
+        .source
+        .expect("el span de condición debe mapearse");
+    let span = source.span(mapped.start, mapped.end).unwrap();
+    assert_eq!(source.slice(span), "1");
+}
+
+#[test]
+fn rejects_non_reversible_rust_items_during_import() {
+    let source = SourceFile::new("struct Dato { valor: i32 }\n");
+    let error = oxido_compiler::import_rust(&source).unwrap_err();
+    assert!(error.contains("solo admite funciones libres"), "{error}");
+}
+
+#[test]
 fn returns_a_parser_error_for_invalid_rust() {
     let source = SourceFile::new("fn { ");
     assert!(oxido_compiler::analyze_rust(&source).is_err());

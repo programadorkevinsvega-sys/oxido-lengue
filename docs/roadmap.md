@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–4: completadas en sus alcances verificados. Fase 5 en adelante: pendiente.** El portal documental se inició transversalmente y se consolidará en Fase 13. El informe de Fase 0 es una fotografía histórica; las fases siguientes añadieron workspace, lexer y parser/AST inicial. La Fase 4 no genera ni compila Rust. Consulta [el informe de Fase 0](auditoria-fase-0.md) y los documentos normativos enlazados abajo.
+**Fases 0–5: completadas en sus alcances verificados. Fase 6 en adelante: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. El portal documental se inició transversalmente y se consolidará en Fase 13. El informe de Fase 0 es una fotografía histórica; las fases siguientes añadieron workspace, lexer, parser/AST inicial y el primer flujo `.ox` → Rust → Cargo. Consulta los informes de cada fase y los documentos normativos enlazados abajo.
 
 ## Reglas para avanzar
 
@@ -137,17 +137,17 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ### Tareas incrementales
 
-1. **Emisor mínimo:** generar con `quote`/`proc_macro2` y formatear con `prettyplease` las funciones, declaraciones y expresiones necesarias para «Hola, mundo». **Criterio:** el resultado se vuelve a parsear con Syn y un fixture prueba el subconjunto admitido.
-2. **Mapa de posiciones:** asociar spans `.ox` con rangos generados `.rs`. **Criterio:** una ubicación generada de prueba se resuelve al span fuente correspondiente.
-3. **Exportar:** añadir `oxido exportar <archivo.ox> --salida <archivo.rs>` para el subconjunto implementado; producir Rust inspeccionable y el mapa lateral. **Criterio:** el archivo exportado y su mapa existen y el Rust pasa Syn.
-4. **Adaptador Cargo:** preparar un proyecto de salida acotado y ejecutar `cargo` con `Command`, argumentos separados, rutas validadas y `--message-format=json`; nunca usar shell. **Criterio:** una prueba de integración observa argv/cwd y analiza un evento JSON real de Cargo.
-5. **Diagnósticos JSON:** parsear mensajes de Cargo, mapear ubicaciones generadas a `.ox` y conservar errores sin correspondencia como errores externos. **Criterio:** un error sintáctico y uno de tipos señalan el origen `.ox`.
-6. **Compilar y ejecutar:** añadir comandos explícitos para compilar y ejecutar; comprobar un «Hola, mundo» real de extremo a extremo y no ejecutar como efecto de `verificar`/`compilar`. **Criterio:** la salida coincide exactamente con el resultado esperado y un fallo de Cargo devuelve estado fallido.
-7. **Importar y vuelta redonda:** importar solo el subconjunto reversible. **Criterio:** una prueba `.ox → .rs → .ox` conserva la semántica del corpus reversible y construcciones no reversibles reciben diagnóstico claro.
+1. **Emisor mínimo:** completada para el subconjunto de Hola, mundo, con `quote`/`proc_macro2`, formateo `prettyplease` y validación Syn.
+2. **Mapa de posiciones:** completada para spans de fragmentos e items, con serialización lateral y nombres de archivo sin rutas absolutas.
+3. **Exportar:** completada; produce Rust inspeccionable y mapa lateral para el subconjunto admitido.
+4. **Adaptador Cargo:** completada para el proyecto generado aislado, con `Command`, argumentos separados, límite de tiempo, modo offline y mensajes JSON.
+5. **Diagnósticos JSON:** completada para errores de tipos y cabeceras de control; conserva diagnósticos externos que no se pueden mapear.
+6. **Compilar y ejecutar:** completada; una prueba compila y ejecuta el ejemplo, compara la salida y comprueba propagación de errores.
+7. **Importar y vuelta redonda:** completada para funciones libres admitidas; la prueba CLI verifica `.ox → .rs → .ox → .rs` normalizado y rechazos fuera del subconjunto.
 
 **Entregables:** programa `.ox` real compilado y ejecutado, Rust generado inspeccionable, diagnósticos mapeados y prueba de ida y vuelta del subconjunto reversible.
 
-**Criterio de salida:** ejecución automatizada reproducible compara el resultado esperado; no hay éxito reportado si falla Cargo o `rustc`.
+**Criterio de salida:** cumplido para el alcance inicial descrito en [informe de Fase 5](fase-5-compilador.md). Ejecución automatizada local compara el resultado y no reporta éxito si falla Cargo o `rustc`. La CI remota de este repositorio privado está temporalmente limitada por facturación; no se presenta como verificada.
 
 **Dependencia:** Fase 4.
 

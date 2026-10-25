@@ -2,13 +2,17 @@
 
 ## Qué es hoy
 
-Óxido es una herramienta de lenguaje en etapa temprana. El crate `oxido-language` tokeniza archivos `.ox`, conserva spans UTF-8 y parsea un subconjunto estructural inicial. La generación de Rust desde `.ox` y el uso de Cargo para compilar esos archivos todavía están pendientes.
+Óxido es una herramienta de lenguaje en etapa temprana. `oxido-language` tokeniza archivos `.ox`, conserva spans UTF-8 y parsea un subconjunto estructural inicial. La CLI puede exportar, compilar y ejecutar `examples/hola_mundo.ox`. Las funciones y expresiones fuera de la matriz de compatibilidad todavía no están cubiertas.
 
-El comando experimental disponible analiza sintaxis de archivos `.rs` para comprobar una parte del pipeline; no es un comando de compilación Óxido:
+Flujo disponible desde la raíz del repositorio:
 
 ```sh
-cargo run --locked -p oxido-cli -- analizar-rust ruta/al/archivo.rs
+cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
+cargo run --locked -p oxido-cli -- compilar examples/hola_mundo.ox
+cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
 ```
+
+`exportar` crea además el mapa `.oxido-map.json`. `importar` acepta solo el subconjunto reversible de funciones libres y verifica que regenerar conserve el Rust formateado. `analizar-rust` sigue validando archivos `.rs` directamente.
 
 ## Dirección técnica
 
@@ -16,7 +20,7 @@ cargo run --locked -p oxido-cli -- analizar-rust ruta/al/archivo.rs
 - La semántica de tipos, ownership y borrowing pertenece a Rust.
 - El frontend Óxido transforma estructura y aliases; expresiones y tipos se conservan como Rust en el diseño inicial.
 - Los argumentos de macros y árboles de atributos permanecen opacos.
-- La generación prevista usa tokens/AST, no concatenación de texto.
+- El backend genera con `quote`/`proc_macro2` y formatea con `prettyplease`; los spans se guardan en un mapa lateral.
 
 Consulta la [especificación](/referencia/language-spec/), [arquitectura](/referencia/arquitectura/), [pipeline](/referencia/compiler-pipeline/) y [compatibilidad](/referencia/compatibility/).
 

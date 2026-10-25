@@ -30,6 +30,6 @@ El portal ya está publicado en Cloudflare Pages. En el proyecto de Pages, conse
 - `../docs/audiencias/*.md`: páginas fuente para desarrolladores, empresas y estudiantes.
 - `../docs/*.md`: especificaciones, roadmap e informes técnicos que se publican como referencia.
 - El script genera copias bajo `src/content/docs/referencia/` y `audiencias/`; son artefactos locales y no se versionan.
-- Los ejemplos deben distinguir sintaxis propuesta de características implementadas. No se afirma que `.ox` compile mientras Fase 5 siga pendiente.
+- Los ejemplos deben distinguir sintaxis propuesta de características implementadas. La rebanada inicial compila `examples/hola_mundo.ox`; no se afirma compatibilidad general.
 
 El build local genera el HTML aunque el dominio aún no esté decidido. En ese caso Astro omite el sitemap hasta configurar `site` en `astro.config.mjs`; Starlight también puede mostrar un aviso interno al buscar metadatos para su ruta 404, sin impedir la salida estática.

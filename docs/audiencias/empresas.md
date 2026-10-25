@@ -2,7 +2,7 @@
 
 ## Evaluación honesta del estado
 
-Óxido aún no es un compilador listo para producción. La base del workspace, lexer y parser/AST inicial existen; la traducción `.ox → .rs`, la compilación Cargo desde Óxido, el LSP integrado y los artefactos de lanzamiento están pendientes.
+Óxido aún no es un compilador listo para producción. Existe una rebanada experimental que exporta, compila y ejecuta `examples/hola_mundo.ox`, con mapa de posiciones y diagnóstico Cargo JSON. La matriz de compatibilidad delimita lo que esa prueba no cubre; LSP integrado, dependencias de usuario, seguridad de lanzamiento y artefactos de distribución siguen pendientes.
 
 No debe adoptarse para cargas de producción hasta que esos criterios estén implementados, auditados y publicados con evidencia. Esta página no constituye una certificación ni una garantía de seguridad.
 
@@ -20,7 +20,7 @@ Estos controles no sustituyen revisión de dependencias, sandbox de compilación
 
 1. Revisar matriz de compatibilidad para identificar sintaxis soportada.
 2. Probar el lexer con corpus interno sin datos sensibles.
-3. Mantener la compilación del código Rust generado bajo el control de Cargo/Rust.
+3. Reproducir el flujo mínimo de `exportar`, `compilar` y `ejecutar` desde la raíz del repositorio.
 4. Evaluar amenazas y dependencias antes de confiar el proyecto a CI o editores automáticos.
 
 Consulta la [matriz de compatibilidad](/referencia/compatibility/), [diagnósticos](/referencia/diagnostics/) y [roadmap](/referencia/roadmap/).

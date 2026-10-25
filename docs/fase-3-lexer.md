@@ -1,6 +1,6 @@
 # Fase 3: fuentes y lexer inicial
 
-**Estado:** completada. Al cierre de esta fase, la API producía tokens deterministas y diagnósticos con spans half-open de bytes UTF-8. El parser y AST se añadieron en Fase 4; la traducción `.ox → .rs` queda para Fase 5.
+**Estado:** completada. Al cierre de esta fase, la API producía tokens deterministas y diagnósticos con spans half-open de bytes UTF-8. El parser y AST se añadieron en Fase 4; la generación inicial `.ox → .rs` se entrega en Fase 5.
 
 ## Entregado
 

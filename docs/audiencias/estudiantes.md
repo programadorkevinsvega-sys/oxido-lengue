@@ -2,7 +2,7 @@
 
 Óxido busca ofrecer una sintaxis bilingüe apoyándose en Rust. La meta es poder aprender estructuras de programación y, al mismo tiempo, encontrar las reglas reales de Rust para tipos, referencias, ownership y borrowing.
 
-> Existe un parser para el subconjunto inicial, pero Óxido aún no genera ni compila `.ox`. Los fragmentos siguientes ilustran la sintaxis y no se deben presentar como programas ejecutables en la versión actual.
+> La rebanada inicial genera, compila y ejecuta `examples/hola_mundo.ox`. Los fragmentos siguientes son propuestas ilustrativas y no implican que toda la sintaxis esté implementada.
 
 ## Una función propuesta
 

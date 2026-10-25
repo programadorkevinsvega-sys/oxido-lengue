@@ -1137,6 +1137,10 @@ impl Parser<'_> {
         let item_start = self.position;
         let token = self.current()?;
         let first = self.token_text(token);
+        if first == "macro_rules" {
+            self.position = start;
+            return self.parse_passthrough_item().map(Item::RustFragment);
+        }
         let aggregate_kind = match first {
             "struct" | "estructura" => Some(AggregateKind::Struct),
             "enum" | "enumeracion" => Some(AggregateKind::Enum),

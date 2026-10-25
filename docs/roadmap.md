@@ -214,7 +214,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 2. Dependencias Cargo reales y configuración reproducible. **En curso (primer corte):** `oxido.toml` declara dependencias locales por `path`, se canonicalizan dentro del proyecto y Cargo compila/ejecuta offline. Pendientes: dependencias de registro, lockfile persistente versionable y pruebas con crates de referencia.
 3. Genéricos, traits y lifetimes dentro del alcance del frontend. **Verificado para el corpus actual:** firmas genéricas con lifetime, `impl Fn`, bounds `where`, trait e implementación genéricos y tipos asociados pasan por generación y Cargo.
 4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend. **Verificado para el corpus actual:** closure como argumento, `Iterator::find`, patrones `Some`/`None` y brazos indentados/llaves compilan y producen el mismo resultado.
-5. Macros declarativas y atributos, preservando árboles de tokens.
+5. Macros declarativas y atributos, preservando árboles de tokens. **En curso (primer corte):** `macro_rules!` opaco en nivel superior indentado y `#[derive(Debug)]` sobre estructura indentada compilan y ejecutan mediante Cargo; sin expansión propia ni traducción de sus cuerpos.
 6. `async`/`await` y concurrencia según compatibilidad validada.
 7. Bibliotecas externas de referencia y pruebas de conformidad.
 8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie.

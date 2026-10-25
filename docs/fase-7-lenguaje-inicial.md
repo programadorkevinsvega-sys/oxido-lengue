@@ -12,7 +12,7 @@
 - Referencias y borrowing con la semántica estándar de Rust.
 - Imports `use`/`usar`, `Result`/`Resultado`, `Option`/`Opcion`, operador `?` y aliases iniciales de prelude descritos en [la tabla de aliases](aliases.md).
 - `principal` genera la función Rust `main`; `Vector<Cadena>`, `&texto`, métodos comunes y macros allowlisted tienen aliases probados.
-- El backend incorpora aliases para macros estándar y recorrido de tokens anidados en macros estándar que reciben expresiones. Falta la matriz de compilación por alias; hasta completarla no se declara compatibilidad probada para la lista ampliada. Las macros externas/desconocidas y DSLs de metaprogramación conservan sus argumentos opacos; los nombres Rust originales siguen válidos.
+- El backend incorpora aliases para todas las macros estándar publicadas. La prueba `compiles_all_published_standard_macro_aliases_with_cargo_and_rustc` genera y compila con Cargo/rustc las aliases ejecutables; comprueba `error_de_compilacion!` como caso negativo. Las macros externas/desconocidas y DSLs de metaprogramación conservan sus argumentos opacos; los nombres Rust originales siguen válidos.
 - Atributos allowlisted `#[prueba]`, `#[permitir(...)]` y `#[derivar(...)]` pasan generación y validación Cargo; las colisiones de alias del prelude sugieren escape `r#`.
 - Un conjunto inicial de mensajes rustc se traduce a español desde eventos JSON sin perder código ni span; los códigos desconocidos conservan el mensaje original.
 - Pruebas end-to-end compilan y ejecutan [el ejemplo indentado](../examples/fase_7_estructuras.ox) y [el ejemplo de interoperabilidad](../examples/fase_7_interoperabilidad.ox). También hay un caso negativo para campos mal formados y matriz actualizada.
@@ -33,7 +33,7 @@ enumeracion Estado:
     Listo(i32)
 ```
 
-Al cerrar Fase 7, `impl`, métodos, traits y módulos aún se escribían con llaves Rust, y `match` no tenía brazos indentados. La [primera subfase de Fase 8](fase-8-integracion-rust.md) ya añade estas formas estructurales. Siguen fuera de alcance un traductor completo de mensajes de error, un type checker propio y un runtime propio. Los diagnósticos Cargo traducen un conjunto inicial de códigos comunes y conservan código, span y detalle JSON.
+Al cerrar Fase 7, `impl`, métodos, traits y módulos aún se escribían con llaves Rust, y `match` no tenía brazos indentados. La [Fase 8](fase-8-integracion-rust.md) ya añade un subconjunto estructural probado de esas formas. Siguen fuera de alcance un traductor completo de mensajes de error, un type checker propio y un runtime propio. Los diagnósticos Cargo traducen un conjunto inicial de códigos comunes y conservan código, span y detalle JSON.
 
 ## Evidencia local
 

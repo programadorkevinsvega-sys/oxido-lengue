@@ -91,7 +91,11 @@ pub fn import_rust(source: &SourceFile) -> Result<String, String> {
         &oxido_rust_backend::parse(source)
             .map_err(|error| format!("Rust de entrada inválido: {error}"))?,
     );
-    if regenerated.rust != original {
+    let regenerated_semantics = oxido_rust_backend::format(
+        &oxido_rust_backend::parse(&SourceFile::new(&regenerated.rust))
+            .map_err(|error| format!("Rust regenerado inválido: {error}"))?,
+    );
+    if regenerated_semantics != original {
         return Err("la importación cambia la estructura Rust al regenerarse".into());
     }
     Ok(imported)

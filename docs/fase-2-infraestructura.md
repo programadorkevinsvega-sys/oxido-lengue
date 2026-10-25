@@ -25,4 +25,4 @@ El pipeline acepta Rust como entrada de comprobación. No implementa lexer/parse
 - `cargo clippy --workspace --all-targets --locked -- -D warnings`
 - `cargo fmt --all -- --check`
 - El binario `oxido analizar-rust` se comprueba contra `crates/oxido-cli/src/main.rs` y reporta cuatro items Rust válidos.
-- El workflow de GitHub Actions ejecuta formato, Clippy y pruebas. En la verificación actual GitHub no inició los jobs porque la cuenta alcanzó/requiere atención en su límite de facturación; las mismas comprobaciones Rust pasan localmente.
+- En la verificación histórica de esta fase, GitHub no inició los jobs por un límite de facturación. Estado vigente: el repositorio es público y la CI remota está activa; cada cambio debe revisarse contra los checks actuales del PR.

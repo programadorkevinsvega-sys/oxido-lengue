@@ -49,7 +49,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 3. **Política por proyecto:** el proyecto fija el modo. Los archivos no pueden contradecirlo; sin configuración de proyecto, cada archivo declara su modo al inicio.
 4. **Semántica de bloques:** formalizar expresión final sin `;` como valor y con `;` como instrucción de valor `()`; definir los casos de continuación multilínea.
 5. **Alias e identificadores:** inventariar palabras clave por edición de Rust; usar `paquete` para `crate`; definir reservadas, identificadores crudos `r#...`, colisiones y diagnósticos.
-6. **Macros y atributos:** conservar nombre y contenido como tokens opacos; Óxido 0.1 no ofrece alias de macros.
+6. **Macros y atributos:** traducir nombres de macros estándar allowlisted; recorrer aliases en argumentos que son expresiones Rust, y mantener opacos los argumentos de macros externas/desconocidas y macros de metaprogramación. Los atributos solo se traducen con reglas allowlisted.
 7. **Compatibilidad:** crear matriz de construcciones conservadas, transformadas, rechazadas y pendientes.
 8. **Diagnósticos y posiciones:** definir códigos, severidad, rangos, etiquetas y contrato del mapa `.ox` ↔ `.rs`.
 9. **Backend:** especificar generación con árboles de tokens/AST (`proc_macro2`/`quote`) y formato estructural (`prettyplease`), nunca por concatenación de texto no confiable.
@@ -147,7 +147,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Entregables:** programa `.ox` real compilado y ejecutado, Rust generado inspeccionable, diagnósticos mapeados y prueba de ida y vuelta del subconjunto reversible.
 
-**Criterio de salida:** cumplido para el alcance inicial descrito en [informe de Fase 5](fase-5-compilador.md). Ejecución automatizada local compara el resultado y no reporta éxito si falla Cargo o `rustc`. La CI remota de este repositorio privado está temporalmente limitada por facturación; no se presenta como verificada.
+**Criterio de salida:** cumplido para el alcance inicial descrito en [informe de Fase 5](fase-5-compilador.md). Ejecución automatizada local compara el resultado y no reporta éxito si falla Cargo o `rustc`. La CI remota pública ejecuta las verificaciones del repositorio.
 
 **Dependencia:** Fase 4.
 
@@ -172,7 +172,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Criterio de salida:** cumplido para el subconjunto indicado; pruebas verifican que los modos no mezclan delimitadores, conservan la regla `;`/tail y compilan con comportamiento equivalente. Items con cuerpos indentados y nuevas formas de lenguaje quedan delimitados como Fase 7.
 
-**Dependencia:** Fase 5.
+**Dependencia:** Fase 4; el emisor inicial de Fase 5 permitió verificar ambos modos end-to-end.
 
 ---
 
@@ -191,7 +191,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 7. **Módulos e imports:** `use` indentado; módulos/imports Rust en modo llaves.
 8. **Errores y tipos comunes:** `Result`, `Option` y `?` probados mediante compilación y ejecución.
 9. **Aliases de prelude:** completada para tipos, variantes, primitivos, traits, métodos y rutas `std` enumerados en [aliases](aliases.md).
-10. **Macros/atributos:** completada para aliases estándar y atributos allowlisted; los nombres Rust originales siguen válidos, se recorren aliases anidados en macros estándar expresivas y las DSL externas permanecen opacas. Los aliases se prueban en normalización, sin expandir macros.
+10. **Macros/atributos:** completada para aliases estándar y atributos allowlisted; los nombres Rust originales siguen válidos, se recorren aliases anidados en macros estándar expresivas y las DSL externas permanecen opacas. La prueba E2E de Fase 8 compila y ejecuta todas las aliases estándar ejecutables mediante Cargo/rustc; `compile_error!` tiene caso negativo.
 11. **Entrada principal y mutabilidad:** completada para `principal`→`main`, `variable`/`variable mutable` y `mutable` en referencias/parámetros, más colisión y escape `r#`.
 12. **Errores y diagnóstico:** completada para el inventario de códigos rustc común documentado; conserva códigos/spans JSON y no depende de salida humana.
 13. **Pruebas diferenciales:** completada con corpus positivo/negativo, ejecución end-to-end, aliases y matriz reproducibles.
@@ -237,7 +237,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 1. Definir nombres, argumentos, ayuda y códigos de salida.
 2. Crear proyectos con plantillas mínimas verificables.
 3. Implementar verificar, compilar, ejecutar y probar.
-4. Implementar formato y modo de comprobación sin modificar estilo configurado.
+4. Implementar `oxido formato` y modo de comprobación; el formato debe ser idempotente, conservar comentarios ordinarios fuera de grupos opacos y nunca descartarlos silenciosamente. Los comentarios dentro de macros/atributos opacos deben conservarse o producir un diagnóstico claro.
 5. Implementar diagnóstico y salida estructurada para CI.
 6. Implementar exportación/importación del subconjunto reversible.
 7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables).
@@ -380,20 +380,20 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 Mantén una tabla de estado en cada revisión del proyecto:
 
-| Fase | Estado | Evidencia | Bloqueos |
+| Fase | Estado | Evidencia y comando de verificación | Bloqueos |
 |---|---|---|---|
-| 0 | Completada | [Informe de auditoría](auditoria-fase-0.md); no había pruebas ejecutables | Ninguno para iniciar Fase 1 |
-| 1 | Completada (alcance documental) | Especificación normativa reconciliada entre `plan` y `docs/`; modos, aliases/reservadas Rust 2024, compatibilidad y criterios de aceptación enlazados | Ninguno dentro del alcance acordado |
-| 2 | Completada (infraestructura inicial) | [Informe de Fase 2](fase-2-infraestructura.md), workspace, cuatro crates, configuración declarativa, pipeline Rust y pruebas de integración | Ninguno registrado actualmente |
-| 3 | Completada (fuentes y lexer inicial) | [Informe de Fase 3](fase-3-lexer.md), tipos de fuente/spans, lexer, continuaciones y 17 pruebas específicas | No implica parser ni generación; ampliaciones de sintaxis siguen en fases posteriores |
-| 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md), AST, parser, validación Syn, límites de anidamiento y pruebas en ambos modos | No genera Rust; items indentados quedan en Fase 7 |
-| 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md), exportación, mapa, Cargo, diagnósticos, ejecución y vuelta reversible | Ninguno dentro del alcance verificado |
-| 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md), normalización fuera de grupos opacos y ejecución equivalente de ambos modos | La ampliación de items quedó en Fase 7 |
-| 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md), aliases, macros, atributos, diagnóstico y ejemplos end-to-end | Alcance histórico ampliado en la subfase 1 de Fase 8 |
+| 0 | Completada | [Informe de auditoría](auditoria-fase-0.md); revisión documental histórica (no existía suite ejecutable) | Ninguno para iniciar Fase 1 |
+| 1 | Completada (decisiones normativas) | [Especificación](language-spec.md), [gramática](grammar.md), [aliases](aliases.md); `cargo test -p oxido-language --locked` valida fixtures de lexer/parser | Sin bloqueos dentro de las decisiones 0.1 |
+| 2 | Completada (infraestructura inicial) | [Informe de Fase 2](fase-2-infraestructura.md); `cargo test --workspace --locked` | Ninguno registrado |
+| 3 | Completada (fuentes y lexer inicial) | [Informe de Fase 3](fase-3-lexer.md); `cargo test -p oxido-language --test lexer --locked` | No implica parser ni generación |
+| 4 | Completada (parser estructural inicial) | [Informe de Fase 4](fase-4-parser.md); `cargo test -p oxido-language --test parser --locked` | No genera Rust por sí sola |
+| 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md); `cargo test -p oxido-cli --test cli --locked` comprueba exportar, compilar, ejecutar y roundtrip | Sin bloqueos dentro del subconjunto reversible y ejecutable |
+| 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md); `cargo test -p oxido-language -p oxido-rust-backend --locked` | La ampliación de items estructurales se documenta en Fases 7–8 |
+| 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 8 | En curso (integración con Rust) | [Informe de Fase 8](fase-8-integracion-rust.md), subfases 1, 3 y 4 verificadas para sus corpus documentados | Subfase 2 y 5–9 pendientes; cerrar CI/conformidad antes de Fase 9 |
+| 8 | En curso (integración con Rust) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test -p oxido-compiler --test pipeline --locked` verifica estructura indentada, corpus de genéricos/closures y aliases de macros | Dependencias Cargo reales y subfases 5–9 pendientes; Fase 9 no inicia hasta cerrar esta fase |
 | 9–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 1–7 están completadas en los alcances indicados arriba. La Fase 8 es la fase activa; no avanzar a Fase 9 mientras sus subfases sigan abiertas.
+Las fases 0–7 están completadas en los alcances indicados arriba. La Fase 8 es la fase activa; no avanzar a Fase 9 mientras sus subfases sigan abiertas.

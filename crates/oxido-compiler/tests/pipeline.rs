@@ -154,6 +154,127 @@ fn compiles_and_runs_spanish_prelude_aliases_and_macros() {
 }
 
 #[test]
+fn compiles_all_published_standard_macro_aliases_with_cargo_and_rustc() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        r#"sintaxis llaves
+use std::fmt::Write;
+local_del_hilo! { static CONTADOR: std::cell::Cell<u32> = const { std::cell::Cell::new(0) }; }
+fn main() {
+    imprimir!("A");
+    imprimir_sin_salto!("B");
+    imprimirln!("C");
+    imprimir_error!("error de prueba");
+    imprimir_error_sin_salto!("!");
+    let cadena = formatear!("{}", 7);
+    let cadena_dos = formato!("{}!", cadena);
+    let argumentos = argumentos_formato!("{}:{}", cadena, 8);
+    let mut buffer = String::new();
+    escribir!(&mut buffer, "{}", argumentos).expect("write");
+    escribir_linea!(&mut buffer, "fin").expect("writeln");
+    let valores = vector![1, 2, 3];
+    afirmar!(valores.len() == 3);
+    afirmar_igual!(valores[0], 1);
+    afirmar_distinto!(valores[0], valores[1]);
+    afirmar_debug!(verdadero);
+    afirmar_igual_debug!(valores.len(), 3);
+    afirmar_distinto_debug!(valores[0], valores[1]);
+    depurar!(valores.len());
+    afirmar!(coincide!(valores.first(), Some(&1)));
+    afirmar!(incluir_texto!("main.rs").contains("fn main"));
+    afirmar!(!incluir_bytes!("main.rs").is_empty());
+    afirmar!(!entorno!("CARGO_PKG_NAME").is_empty());
+    let version = entorno_opcional!("CARGO_PKG_VERSION");
+    afirmar!(version.is_some());
+    afirmar_igual!(concatenar!("o", "x"), "ox");
+    afirmar_igual!(cadena_dos, "7!");
+    afirmar_igual!(a_texto!(tipo), "tipo");
+    afirmar!(linea!() > 0);
+    afirmar!(!archivo!().is_empty());
+    afirmar!(columna!() > 0);
+    afirmar!(config!(debug_assertions));
+    CONTADOR.with(|contador| contador.set(1));
+    afirmar_igual!(CONTADOR.with(std::cell::Cell::get), 1);
+    afirmar_igual!(format!("{}", buffer), "7:8fin\n");
+    afirmar_igual!(vec![4, 5].len(), 2);
+    assert_eq!(format!("{}", 9), "9");
+    if std::hint::black_box(false) {
+        entrar_en_panico!("no se ejecuta");
+        panico!("no se ejecuta");
+        pendiente!();
+        no_implementado!();
+        sin_implementar!();
+        inalcanzable!();
+    }
+}
+"#,
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    for (alias, rust_name) in [
+        ("imprimir!", "print!"),
+        ("imprimir_sin_salto!", "print!"),
+        ("imprimirln!", "println!"),
+        ("imprimir_error!", "eprintln!"),
+        ("imprimir_error_sin_salto!", "eprint!"),
+        ("formatear!", "format!"),
+        ("argumentos_formato!", "format_args!"),
+        ("escribir!", "write!"),
+        ("escribir_linea!", "writeln!"),
+        ("vector!", "vec!"),
+        ("entrar_en_panico!", "panic!"),
+        ("panico!", "panic!"),
+        ("afirmar!", "assert!"),
+        ("afirmar_igual!", "assert_eq!"),
+        ("afirmar_distinto!", "assert_ne!"),
+        ("afirmar_debug!", "debug_assert!"),
+        ("afirmar_igual_debug!", "debug_assert_eq!"),
+        ("afirmar_distinto_debug!", "debug_assert_ne!"),
+        ("depurar!", "dbg!"),
+        ("pendiente!", "todo!"),
+        ("no_implementado!", "unimplemented!"),
+        ("sin_implementar!", "unimplemented!"),
+        ("inalcanzable!", "unreachable!"),
+        ("coincide!", "matches!"),
+        ("incluir_texto!", "include_str!"),
+        ("incluir_bytes!", "include_bytes!"),
+        ("entorno!", "env!"),
+        ("entorno_opcional!", "option_env!"),
+        ("concatenar!", "concat!"),
+        ("a_texto!", "stringify!"),
+        ("linea!", "line!"),
+        ("archivo!", "file!"),
+        ("columna!", "column!"),
+        ("config!", "cfg!"),
+        ("local_del_hilo!", "thread_local!"),
+    ] {
+        assert!(
+            generated.rust.contains(rust_name),
+            "falta {alias}: {}",
+            generated.rust
+        );
+    }
+
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["ABC"]);
+
+    let compile_error = SourceFile::new(
+        "sintaxis llaves\nfn main() { error_de_compilacion!(\"fallo esperado\"); }\n",
+    );
+    let rejected =
+        oxido_compiler::build_ox(&compile_error, LexOptions::default(), CargoAction::Check)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(!rejected.success);
+    let generated_error = oxido_compiler::generate_ox(&compile_error, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(generated_error.rust.contains("compile_error!"));
+}
+
+#[test]
 fn compiles_and_runs_indented_impl_traits_modules_and_match_arms() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
@@ -446,8 +567,98 @@ funcion principal():
             generated.rust
         );
     }
-    assert!(!generated.rust.contains("comentario ordinario al final"));
-    assert!(!generated.rust.contains("comentario al abrir el bloque"));
+    assert!(
+        generated
+            .rust
+            .contains("// Comentario ordinario al final del bloque.")
+    );
+    assert!(generated.rust.contains("// comentario al abrir el bloque"));
+}
+
+#[test]
+fn preserves_ordinary_comments_at_structural_boundaries_when_exporting() {
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        r#"sintaxis indentacion
+// antes del item
+
+// también antes del item, tras una línea vacía
+funcion principal():
+    variable valor = 1 // al final de una sentencia
+    si valor == 1:
+        imprimirln!("uno ñ")
+        // al final del bloque si
+    /* bloque multilínea
+     * entre instrucciones
+     */
+    coincidir valor:
+        1 => imprimirln!("coincide")
+        // entre brazos
+        _ => imprimirln!("otro")
+// al final del archivo
+"#,
+    );
+    let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+
+    for comment in [
+        "// antes del item",
+        "// también antes del item, tras una línea vacía",
+        "// al final de una sentencia",
+        "// al final del bloque si",
+        "/* bloque multilínea\n     * entre instrucciones\n     */",
+        "// entre brazos",
+        "// al final del archivo",
+    ] {
+        assert!(
+            generated.rust.contains(comment),
+            "falta {comment:?}: {}",
+            generated.rust
+        );
+    }
+    assert!(
+        generated.rust.find("// antes del item").unwrap() < generated.rust.find("fn main").unwrap()
+    );
+    assert!(
+        generated
+            .rust
+            .contains("// antes del item\n\n// también antes del item, tras una línea vacía")
+    );
+    assert!(generated.rust.find("// entre brazos").unwrap() < generated.rust.find("_ =>").unwrap());
+    assert!(
+        generated
+            .rust
+            .contains("println!(\"uno ñ\")\n        // al final del bloque si\n    }")
+    );
+    assert!(
+        generated
+            .rust
+            .trim_end()
+            .ends_with("// al final del archivo"),
+        "{}",
+        generated.rust
+    );
+
+    let result = oxido_compiler::build_ox(
+        &source,
+        LexOptions::default(),
+        oxido_compiler::application::cargo::CargoAction::Run,
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+    assert_eq!(result.program_output, ["uno ñ", "coincide"]);
+
+    let macro_comment = SourceFile::new(
+        "sintaxis llaves\nfn main() { println!(\"{}\", /* comentario opaco */ 1); }\n",
+    );
+    let error = oxido_compiler::generate_ox(&macro_comment, LexOptions::default())
+        .expect_err("no debe descartar silenciosamente comentarios dentro de macros");
+    assert!(error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("grupo opaco de macro o atributo")
+    }));
 }
 
 #[test]
@@ -554,8 +765,9 @@ fn maps_rustc_type_errors_back_to_the_ox_expression() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
-    let source =
-        SourceFile::new("sintaxis indentacion\nfuncion main():\n    dejar valor: bool = 1\n");
+    let source = SourceFile::new(
+        "sintaxis indentacion\n// comentario antes de función\nfuncion main():\n    // comentario antes del error\n    dejar valor: bool = 1\n",
+    );
     let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Check)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(!result.success);
@@ -565,6 +777,7 @@ fn maps_rustc_type_errors_back_to_the_ox_expression() {
         .find(|diagnostic| diagnostic.code.as_deref() == Some("E0308"))
         .expect("se conserva el diagnostic JSON del compilador Rust");
     let mapped = diagnostic.source.expect("el span debe volver al .ox");
+    assert_eq!(mapped.line, 5);
     let span = source.span(mapped.start, mapped.end).unwrap();
     assert!(source.slice(span).contains('1'));
 }

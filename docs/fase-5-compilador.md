@@ -14,13 +14,13 @@
 - Mapeo de diagnósticos `rustc` a expresiones y cabeceras de control `.ox`; errores sin ubicación mapeable se conservan como externos.
 - Comandos CLI `exportar`, `importar`, `compilar` y `ejecutar`. Solo `ejecutar` corre el binario generado.
 - Configuración `oxido.toml` de datos declarativos para resolver el modo del archivo.
-- Importación restringida a funciones libres admitidas. Se rechazan items y modificadores que no pueden volver de forma reversible. Los atributos y la documentación Rust (`//!`, `///`, `/** */`) se conservan semánticamente como atributos `doc`; los comentarios ordinarios y el formato original no se conservan. La prueba CLI de ida y vuelta comprueba ambas cosas.
+- Importación restringida a funciones libres admitidas. Se rechazan items y modificadores que no pueden volver de forma reversible. La exportación conserva comentarios ordinarios no opacos insertándolos desde los spans del lexer tras el formateo de Rust; la importación conserva el texto de origen y cambia únicamente `fn` por `funcion`. La prueba CLI inspecciona ambos archivos y confirma que los comentarios sobreviven a `.ox → .rs → .ox → .rs`. El formateo puede normalizar espacios y estructura Rust; no promete conservar el formato original. Los comentarios ordinarios dentro de argumentos opacos de macros/atributos se rechazan explícitamente para evitar perderlos o alterar DSLs.
 
 ## Límites pendientes
 
 La sintaxis de items y bloques sigue limitada al alcance inicial de Fases 3 y 4. No se admiten aquí dependencias de usuario, proyectos Cargo arbitrarios, importación general de Rust ni la compatibilidad amplia de la matriz. El flujo no sandboxea código de dependencias o macros: la Fase 5 genera un proyecto controlado sin dependencias de usuario y ejecuta código solo ante el comando explícito `ejecutar`. Las políticas de confianza para LSP/playground y la ampliación segura de compilación pertenecen a sus fases correspondientes.
 
-La verificación local de esta fase se realizó con `cargo fmt --all -- --check`, `cargo test --workspace --locked` y `cargo clippy --workspace --all-targets --locked -- -D warnings`. La CI remota de este repositorio privado está bloqueada por el límite de facturación; por eso esta evidencia local no se declara como CI remota reproducible.
+La verificación incluye `cargo fmt --all -- --check`, `cargo test --workspace --locked` y `cargo clippy --workspace --all-targets --locked -- -D warnings`. La CI remota del repositorio público está activa y ejecuta los checks del workflow; la evidencia local no sustituye esos resultados.
 
 ## Decisiones
 

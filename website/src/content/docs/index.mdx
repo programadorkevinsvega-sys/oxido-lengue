@@ -19,7 +19,7 @@ hero:
 import { Card, CardGrid, LinkCard, Aside } from '@astrojs/starlight/components'
 
 <Aside type="caution" title="Estado actual">
-Óxido ya exporta `.ox` a Rust y puede compilar y ejecutar programas del subconjunto inicial con Cargo/rustc. La sintaxis indentada de `impl`, `trait`, módulos y `coincidir` tiene cobertura inicial. El lenguaje sigue en desarrollo: consulta la [matriz de compatibilidad](/referencia/compatibility/) para distinguir capacidades probadas de límites pendientes; no se declara compatibilidad general ni uso de producción.
+Óxido tiene lexer, parser y generación de Rust. La Fase 5 está completada para su rebanada inicial: exporta `.ox`, mapea diagnósticos, compila con Cargo/rustc y ejecuta el ejemplo probado; también importa y reexporta el subconjunto reversible. Las Fases 6 y 7 están completadas en sus alcances documentados. La Fase 8 sigue en curso e integra sintaxis indentada y Rust. Consulta la [matriz de compatibilidad](/referencia/compatibility/) y el [roadmap](/referencia/roadmap/) para ver las pruebas y límites; no se declara compatibilidad general ni uso de producción.
 </Aside>
 
 <CardGrid stagger>

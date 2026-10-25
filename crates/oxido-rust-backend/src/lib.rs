@@ -11,6 +11,7 @@ use oxido_language::{
             RustFragment, Statement,
         },
         source::Span,
+        syntax::{LexOptions, SyntaxMode, TokenKind, lex},
     },
 };
 use proc_macro2::{Delimiter, LineColumn, Span as RustSpan, TokenStream, TokenTree};
@@ -118,30 +119,285 @@ pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynEr
             mapping.source_end - mapping.source_start,
         )
     });
+    let (code, mappings) = restore_source_comments(code, source, file.mode, mappings)?;
     Ok(GeneratedRust { code, mappings })
+}
+
+struct CommentInsertion {
+    source_start: usize,
+    source_line: usize,
+    output_offset: usize,
+    text: String,
+}
+
+fn restore_source_comments(
+    code: String,
+    source: &SourceFile,
+    mode: SyntaxMode,
+    mut mappings: Vec<SpanMapping>,
+) -> Result<(String, Vec<SpanMapping>), SynError> {
+    let tokens = lex(
+        source,
+        LexOptions {
+            project_mode: Some(mode),
+        },
+    );
+    let last_code_end = tokens
+        .tokens
+        .iter()
+        .filter(|token| {
+            !matches!(
+                &token.kind,
+                TokenKind::Comment
+                    | TokenKind::Newline
+                    | TokenKind::Indent
+                    | TokenKind::Dedent
+                    | TokenKind::ModeHeader(_)
+            )
+        })
+        .map(|token| token.span.end())
+        .max()
+        .unwrap_or(0);
+    let mut comments = Vec::new();
+    for token in tokens.tokens {
+        if !matches!(token.kind, TokenKind::Comment) {
+            continue;
+        }
+        let text = source.slice(token.span);
+        if is_documentation_comment(text) {
+            continue;
+        }
+        if token.opaque {
+            return Err(SynError::new(
+                RustSpan::call_site(),
+                "no se puede exportar un comentario ordinario dentro de un grupo opaco de macro o atributo sin perder su ubicación; mueve el comentario fuera del grupo",
+            ));
+        }
+        let line_start = source.text()[..token.span.start()]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let inline = !source.text()[line_start..token.span.start()]
+            .trim()
+            .is_empty();
+        comments.push((
+            token.span.start(),
+            token.span.end(),
+            text.to_owned(),
+            inline,
+        ));
+    }
+    if comments.is_empty() {
+        return Ok((code, mappings));
+    }
+
+    let mut source_order = mappings.iter().collect::<Vec<_>>();
+    source_order.sort_by_key(|mapping| (mapping.source_start, mapping.source_end));
+    let mut insertions = Vec::with_capacity(comments.len());
+    for (source_start, source_end, text, inline) in comments {
+        let next_index = source_order.partition_point(|mapping| mapping.source_start < source_end);
+        let previous = source_order[..next_index]
+            .iter()
+            .rev()
+            .find(|mapping| mapping.source_end <= source_start);
+        let following = source_order[next_index..]
+            .iter()
+            .find(|mapping| mapping.source_start >= source_end);
+        let comment_indent = source.text()[line_start(source.text(), source_start)..source_start]
+            .chars()
+            .take_while(|ch| ch.is_whitespace())
+            .count();
+        let following_indent = following.map(|mapping| {
+            let line = source
+                .position(mapping.source_start)
+                .map_or(1, |position| position.line);
+            let start = source_line_start(source.text(), line);
+            source.text()[start..mapping.source_start]
+                .chars()
+                .take_while(|ch| ch.is_whitespace())
+                .count()
+        });
+
+        let mut output_indent = String::new();
+        let output_offset = if source_start >= last_code_end && !inline {
+            code.len()
+        } else if inline {
+            previous
+                .map(|mapping| {
+                    offset_at_line_column(
+                        &code,
+                        mapping.generated_end_line,
+                        mapping.generated_end_column,
+                    )
+                })
+                .map(|offset| line_end(&code, offset))
+                .unwrap_or(code.len())
+        } else if let Some(mapping) =
+            following.filter(|_| following_indent.is_some_and(|indent| indent >= comment_indent))
+        {
+            let offset = offset_at_line_column(
+                &code,
+                mapping.generated_start_line,
+                mapping.generated_start_column,
+            );
+            output_indent = indentation_at(&code, offset);
+            line_start(&code, offset)
+        } else if let Some(mapping) = previous {
+            let offset = offset_at_line_column(
+                &code,
+                mapping.generated_end_line,
+                mapping.generated_end_column,
+            );
+            let item_offset = offset_at_line_column(
+                &code,
+                mapping.generated_start_line,
+                mapping.generated_start_column,
+            );
+            output_indent = indentation_at(&code, item_offset);
+            let end = line_end(&code, offset);
+            (end + usize::from(end < code.len())).min(code.len())
+        } else if let Some(mapping) = following {
+            let offset = offset_at_line_column(
+                &code,
+                mapping.generated_start_line,
+                mapping.generated_start_column,
+            );
+            output_indent = indentation_at(&code, offset);
+            line_start(&code, offset)
+        } else {
+            code.len()
+        };
+
+        let insertion = if inline {
+            format!(" {text}")
+        } else {
+            format!("{output_indent}{text}\n")
+        };
+        insertions.push(CommentInsertion {
+            source_start,
+            source_line: source
+                .position(source_start)
+                .map_or(1, |position| position.line),
+            output_offset,
+            text: insertion,
+        });
+    }
+
+    insertions.sort_by_key(|insertion| (insertion.output_offset, insertion.source_start));
+    for index in 0..insertions.len().saturating_sub(1) {
+        let current = &insertions[index];
+        let next = &insertions[index + 1];
+        if current.output_offset == next.output_offset
+            && next.source_line > current.source_line + 1
+            && !current.text.ends_with("\n\n")
+        {
+            insertions[index].text.push('\n');
+        }
+    }
+    let mut result = code.clone();
+    for insertion in insertions.iter().rev() {
+        result.insert_str(insertion.output_offset, &insertion.text);
+    }
+    for mapping in &mut mappings {
+        let start = offset_at_line_column(
+            &code,
+            mapping.generated_start_line,
+            mapping.generated_start_column,
+        );
+        let end = offset_at_line_column(
+            &code,
+            mapping.generated_end_line,
+            mapping.generated_end_column,
+        );
+        let shifted_start = start
+            + insertions
+                .iter()
+                .filter(|insertion| insertion.output_offset <= start)
+                .map(|insertion| insertion.text.len())
+                .sum::<usize>();
+        let shifted_end = end
+            + insertions
+                .iter()
+                .filter(|insertion| insertion.output_offset < end)
+                .map(|insertion| insertion.text.len())
+                .sum::<usize>();
+        let (start_line, start_column) = line_column_at(&result, shifted_start);
+        let (end_line, end_column) = line_column_at(&result, shifted_end);
+        mapping.generated_start_line = start_line;
+        mapping.generated_start_column = start_column;
+        mapping.generated_end_line = end_line;
+        mapping.generated_end_column = end_column;
+    }
+    Ok((result, mappings))
+}
+
+fn is_documentation_comment(text: &str) -> bool {
+    (text.starts_with("///") && !text.starts_with("////"))
+        || text.starts_with("//!")
+        || (text.starts_with("/**") && !text.starts_with("/***"))
+        || text.starts_with("/*!")
+}
+
+fn offset_at_line_column(text: &str, line: usize, column: usize) -> usize {
+    let line_start = if line <= 1 {
+        0
+    } else {
+        text.match_indices('\n')
+            .nth(line - 2)
+            .map_or(text.len(), |(offset, _)| offset + 1)
+    };
+    (line_start + column).min(text.len())
+}
+
+fn line_column_at(text: &str, offset: usize) -> (usize, usize) {
+    let offset = offset.min(text.len());
+    let line = text[..offset].bytes().filter(|byte| *byte == b'\n').count() + 1;
+    let line_start = text[..offset]
+        .rfind('\n')
+        .map_or(0, |relative| relative + 1);
+    (line, offset - line_start)
+}
+
+fn line_start(text: &str, offset: usize) -> usize {
+    text[..offset.min(text.len())]
+        .rfind('\n')
+        .map_or(0, |relative| relative + 1)
+}
+
+fn source_line_start(text: &str, line: usize) -> usize {
+    if line <= 1 {
+        0
+    } else {
+        text.match_indices('\n')
+            .nth(line - 2)
+            .map_or(text.len(), |(offset, _)| offset + 1)
+    }
+}
+
+fn indentation_at(text: &str, offset: usize) -> String {
+    let start = line_start(text, offset);
+    text[start..]
+        .chars()
+        .take_while(|ch| ch.is_whitespace() && *ch != '\n')
+        .collect()
+}
+
+fn line_end(text: &str, offset: usize) -> usize {
+    let start = offset.min(text.len());
+    text[start..]
+        .find('\n')
+        .map_or(text.len(), |relative| start + relative)
 }
 
 /// Importa a sintaxis de Óxido el subconjunto reversible de funciones libres.
 pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     let file = syn::parse_file(source.text())?;
-    let mut output = String::from("sintaxis llaves\n");
-    for attribute in &file.attrs {
-        if let syn::Meta::NameValue(name_value) = &attribute.meta {
-            if name_value.path.is_ident("doc")
-                && let syn::Expr::Lit(expression) = &name_value.value
-                && let syn::Lit::Str(documentation) = &expression.lit
-            {
-                for line in documentation.value().lines() {
-                    output.push_str("//! ");
-                    output.push_str(line);
-                    output.push('\n');
-                }
-                continue;
-            }
-        }
-        output.push_str(&quote! { #attribute }.to_string());
-        output.push('\n');
-    }
+    let lexed = lex(
+        source,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    let mut replacements = Vec::new();
     for item in &file.items {
         let syn::Item::Fn(function) = item else {
             return Err(SynError::new(
@@ -159,34 +415,34 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
                 "esta función usa un modificador fuera del subconjunto reversible",
             ));
         }
-        let attributes = function
-            .attrs
-            .iter()
-            .map(|attribute| quote! { #attribute }.to_string())
-            .map(|attribute| format!("{attribute}\n"))
-            .collect::<String>();
-        let visibility = match &function.vis {
-            syn::Visibility::Inherited => String::new(),
-            visibility => format!("{} ", quote! { #visibility }),
+        let expected = function.sig.fn_token.span().start();
+        let keyword = lexed.tokens.iter().find(|token| {
+            if source.slice(token.span) != "fn" {
+                return false;
+            }
+            source.position(token.span.start()).is_some_and(|position| {
+                position.line == expected.line
+                    && position.column.saturating_sub(1) == expected.column
+            })
+        });
+        let Some(keyword) = keyword else {
+            return Err(SynError::new(
+                function.sig.fn_token.span(),
+                "no se pudo localizar la palabra `fn` en el archivo fuente para importar sin perder trivia",
+            ));
         };
-        let mut signature = function.sig.clone();
-        let asynchronous = signature.asyncness.take().is_some();
-        let signature = quote! { #signature }.to_string();
-        let signature = signature
-            .strip_prefix("fn ")
-            .ok_or_else(|| SynError::new(function.sig.span(), "no se pudo reconstruir la firma"))?;
-        let asynchronous = if asynchronous { "async " } else { "" };
-        let block = &function.block;
-        let body = quote! { #block };
-        output.push_str(&attributes);
-        output.push_str(&visibility);
-        output.push_str(asynchronous);
-        output.push_str("funcion ");
-        output.push_str(signature);
-        output.push(' ');
-        output.push_str(&body.to_string());
-        output.push('\n');
+        replacements.push((keyword.span.start(), keyword.span.end()));
     }
+
+    replacements.sort_unstable_by_key(|(start, _)| *start);
+    let mut output = String::from("sintaxis llaves\n");
+    let mut cursor = 0;
+    for (start, end) in replacements {
+        output.push_str(&source.text()[cursor..start]);
+        output.push_str("funcion");
+        cursor = end;
+    }
+    output.push_str(&source.text()[cursor..]);
     Ok(output)
 }
 

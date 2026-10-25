@@ -46,10 +46,19 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 
 ## Macros, atributos y tokens
 
-- `matches!`, `println!`, macros Serde y macro desconocida conservan el nombre y todos los tokens interiores.
-- Alias escritos dentro de argumento macro/atributo no cambian.
+- Las aliases estándar publicadas normalizan su nombre; el corpus Cargo/rustc verifica aliases ejecutables y el caso negativo `error_de_compilacion!`.
+- Argumentos expresivos de macros estándar allowlisted traducen aliases de expresiones anidadas; nombres Rust canónicos siguen funcionando.
+- Macros externas/desconocidas y sus DSLs conservan nombre y argumentos opacos sin reescritura.
+- Comentarios ordinarios dentro de macros o atributos opacos producen diagnóstico explícito hasta contar con preservación de ubicación.
 - Grupos `()[]{}` anidados se conservan.
 - Macros braced no se confunden con bloques del modo.
+
+## Comentarios y formato
+
+- Comentarios `//` y `/* ... */` no se traducen y conservan su texto al exportar/importar fuera de grupos opacos.
+- Se comprueban comentarios antes de items, inline, dentro/final de bloques, entre brazos, multilínea y al final del archivo.
+- Las líneas añadidas por comentarios se reflejan en el mapa de posiciones `.ox`↔`.rs`.
+- El comando `oxido formato` aún no está implementado; su aceptación exige idempotencia y conservación explícita de comentarios.
 
 ## Parser, backend y diagnóstico
 
@@ -62,7 +71,7 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 
 ## Interoperabilidad de ida y vuelta
 
-- Un fixture del subconjunto reversible hace `.ox → .rs → .ox` y conserva AST/semántica.
+- Un fixture del subconjunto reversible hace `.ox → .rs → .ox → .rs` y conserva comentarios ordinarios, documentación y semántica.
 - Fixture con macro, atributo o sintaxis no reversible falla sin pérdida silenciosa y explica el motivo.
 
 ## Criterio documental de Fase 1

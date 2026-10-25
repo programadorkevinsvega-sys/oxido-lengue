@@ -98,7 +98,7 @@ Attribute        ::= "#" ["!"] "[" OpaqueTokenTree* "]" ;
 FileInnerAttribute ::= "#![" OpaqueTokenTree* "]" | InnerDocComment ;
 ```
 
-Los comentarios de documentación externos e internos (`///`, `/** */`, `//!`, `/*! */`) se emiten como atributos Rust `doc`. Los comentarios ordinarios no son atributos y no se conservan en la vuelta de importación. Los argumentos de macros externas/desconocidas y las DSL estándar de metaprogramación son opacos. En macros estándar allowlisted que reciben expresiones se normalizan recursivamente aliases de Óxido; literales y cadenas siguen intactos. Los nombres y excepciones se detallan en [aliases](aliases.md). La sintaxis de invocación se basa en los árboles delimitados de Rust ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)).
+Los comentarios de documentación externos e internos (`///`, `/** */`, `//!`, `/*! */`) se emiten como atributos Rust `doc`; su semántica se conserva, aunque Rust puede normalizar su representación. Los comentarios ordinarios se conservan en exportación e importación cuando están fuera de grupos opacos; su texto no se traduce. El layout circundante puede normalizarse. Un comentario ordinario dentro de argumentos opacos de macros o atributos genera un diagnóstico, no se descarta ni se reescribe. En macros estándar allowlisted que reciben expresiones se normalizan recursivamente aliases de Óxido; literales y cadenas siguen intactos. Los nombres y excepciones se detallan en [aliases](aliases.md). La sintaxis de invocación se basa en los árboles delimitados de Rust ([Rust Reference: Macro Invocation](https://doc.rust-lang.org/reference/macros.html#macro-invocation)).
 
 ## 7. Normalización antes de Syn
 

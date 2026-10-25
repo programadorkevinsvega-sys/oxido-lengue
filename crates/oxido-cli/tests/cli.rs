@@ -52,6 +52,11 @@ fn exports_compiles_and_runs_the_hello_world_fixture() {
     );
     assert!(work.join("hola.rs").is_file());
     assert!(work.join("hola.oxido-map.json").is_file());
+    let exported_rust = fs::read_to_string(work.join("hola.rs")).unwrap();
+    assert!(exported_rust.contains("Documentación del crate del ejemplo."));
+    assert!(exported_rust.contains("Punto de entrada del programa de ejemplo."));
+    assert!(exported_rust.contains("// Este comentario ordinario se pierde al importar"));
+    assert!(exported_rust.contains("// Comentario ordinario dentro del cuerpo"));
     let map = fs::read_to_string(work.join("hola.oxido-map.json")).unwrap();
     assert!(map.contains("\"sourceFile\": \"hola.ox\""));
     assert!(map.contains("\"generatedFile\": \"hola.rs\""));
@@ -68,9 +73,13 @@ fn exports_compiles_and_runs_the_hello_world_fixture() {
         String::from_utf8_lossy(&imported.stderr)
     );
     let imported_ox = fs::read_to_string(work.join("hola-vuelta.ox")).unwrap();
-    assert!(imported_ox.contains("//! Documentación del crate del ejemplo."));
-    assert!(imported_ox.contains("doc = \"Punto de entrada del programa de ejemplo.\""));
-    assert!(!imported_ox.contains("comentario ordinario"));
+    assert!(imported_ox.contains("//!Documentación del crate del ejemplo."));
+    assert!(imported_ox.contains("///Punto de entrada del programa de ejemplo."));
+    assert!(imported_ox.contains("// Este comentario ordinario se pierde al importar desde Rust."));
+    assert!(
+        imported_ox
+            .contains("// Comentario ordinario dentro del cuerpo; no forma parte del round trip.")
+    );
     let exported_again = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&work)
         .args(["exportar", "hola-vuelta.ox", "--salida", "hola-vuelta.rs"])

@@ -22,7 +22,7 @@ Validación local de esta entrega: el ejemplo se compiló y ejecutó con Cargo; 
 
 La cobertura de regresión de los bloques `implementar` verifica receivers `mismo`, `&mismo` y `&mutable mismo`; funciones asociadas sin receiver; genéricos y `donde` junto al `:` que abre el bloque; varios bloques para el mismo tipo; visibilidad `publico`; atributos y comentarios `///`; constantes asociadas y tipos asociados en traits/implementaciones. También comprueba el rechazo de bloques `implementar` vacíos, la mala indentación, la regla del `;` final, el mismo resultado al compilar formas indentadas y con llaves, y el mapeo de errores de rustc a la línea original `.ox`.
 
-La regresión de documentación compara el Rust generado para comentarios `///` antes del primer, intermedio y último método; `///` con líneas en blanco y `#[inline]`; bloques `/** ... */`; comentarios internos `//!`/`/*! ... */`; comentarios ordinarios al cerrar el bloque y comentarios al final de su encabezado. La prueba de importación/exportación de Fase 5 confirma que la documentación se conserva como `doc` y que comentarios ordinarios se pierden de forma documentada.
+La regresión de documentación compara el Rust generado para comentarios `///` antes del primer, intermedio y último método; `///` con líneas en blanco y `#[inline]`; bloques `/** ... */`; comentarios internos `//!`/`/*! ... */`; comentarios ordinarios al cerrar el bloque y comentarios al final de su encabezado. La prueba CLI de Fase 5 confirma que la documentación se conserva semánticamente como `doc` y que comentarios ordinarios se mantienen en la ida y vuelta fuera de grupos opacos.
 
 ## Subfases 3 y 4 — Genéricos, lifetimes, patrones, closures e iteradores
 

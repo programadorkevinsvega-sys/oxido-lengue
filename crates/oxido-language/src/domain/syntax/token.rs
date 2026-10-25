@@ -103,3 +103,11 @@ pub(crate) fn keyword(word: &str) -> Option<KeywordInfo> {
         reserved,
     })
 }
+
+/// Devuelve la palabra Rust equivalente a un alias reconocido por el lexer.
+/// La salida permite que adapters normalicen fragmentos sin volver a mantener
+/// una tabla bilingüe paralela.
+#[must_use]
+pub fn keyword_translation(word: &str) -> Option<&'static str> {
+    keyword(word).map(|info| info.rust_keyword)
+}

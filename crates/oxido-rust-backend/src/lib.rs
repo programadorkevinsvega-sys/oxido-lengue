@@ -165,7 +165,7 @@ fn emit_item(item: &Item, mappings: &mut Vec<PendingMapping>) -> Result<TokenStr
     match item {
         Item::Function(function) => emit_function(function, mappings),
         Item::RustFragment(fragment) => {
-            let parsed = syn::parse_file(&fragment.text)?;
+            let parsed = syn::parse2::<syn::File>(parse_tokens(&fragment.text)?)?;
             register_fragment(fragment, mappings)?;
             let items = parsed.items;
             Ok(quote! { #(#items)* })
@@ -193,7 +193,7 @@ fn emit_function(
         .as_ref()
         .map(|fragment| {
             register_fragment(fragment, mappings)?;
-            syn::parse_str::<syn::Visibility>(&fragment.text)
+            syn::parse2::<syn::Visibility>(parse_tokens(&fragment.text)?)
         })
         .transpose()?;
 
@@ -317,7 +317,7 @@ fn emit_statement(
             Ok(quote! { #expression; })
         }
         Statement::RustItem(fragment) => {
-            let parsed = syn::parse_file(&fragment.text)?;
+            let parsed = syn::parse2::<syn::File>(parse_tokens(&fragment.text)?)?;
             register_fragment(fragment, mappings)?;
             let items = parsed.items;
             Ok(quote! { #(#items)* })
@@ -359,8 +359,69 @@ fn emit_control(
 }
 
 fn parse_tokens(fragment: &str) -> Result<TokenStream, SynError> {
-    TokenStream::from_str(fragment)
-        .map_err(|error| SynError::new(RustSpan::call_site(), error.to_string()))
+    let tokens = TokenStream::from_str(fragment)
+        .map_err(|error| SynError::new(RustSpan::call_site(), error.to_string()))?;
+    Ok(normalize_aliases(tokens))
+}
+
+/// Traduce aliases fuera de macros y atributos. Sus grupos son Rust opaco y
+/// se conserva incluso cuando contiene palabras que Óxido también reconoce.
+fn normalize_aliases(tokens: TokenStream) -> TokenStream {
+    let trees = tokens.into_iter().collect::<Vec<_>>();
+    let mut normalized = TokenStream::new();
+    let mut index = 0;
+    while index < trees.len() {
+        if matches!(trees.get(index), Some(TokenTree::Punct(punct)) if punct.as_char() == '#') {
+            normalized.extend([trees[index].clone()]);
+            index += 1;
+            if matches!(trees.get(index), Some(TokenTree::Punct(punct)) if punct.as_char() == '!') {
+                normalized.extend([trees[index].clone()]);
+                index += 1;
+            }
+            if matches!(trees.get(index), Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket)
+            {
+                normalized.extend([trees[index].clone()]);
+                index += 1;
+            }
+            continue;
+        }
+        if matches!(trees.get(index), Some(TokenTree::Ident(_)))
+            && matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
+        {
+            normalized.extend([trees[index].clone(), trees[index + 1].clone()]);
+            index += 2;
+            if matches!(trees.get(index), Some(TokenTree::Group(_))) {
+                normalized.extend([trees[index].clone()]);
+                index += 1;
+            }
+            continue;
+        }
+        match &trees[index] {
+            TokenTree::Ident(ident) if !ident.to_string().starts_with("r#") => {
+                let spelling = ident.to_string();
+                if let Some(translated) =
+                    oxido_language::domain::syntax::keyword_translation(&spelling)
+                        .filter(|translated| *translated != spelling)
+                {
+                    normalized.extend([TokenTree::Ident(proc_macro2::Ident::new(
+                        translated,
+                        ident.span(),
+                    ))]);
+                } else {
+                    normalized.extend([trees[index].clone()]);
+                }
+            }
+            TokenTree::Group(group) => {
+                let mut replacement =
+                    proc_macro2::Group::new(group.delimiter(), normalize_aliases(group.stream()));
+                replacement.set_span(group.span());
+                normalized.extend([TokenTree::Group(replacement)]);
+            }
+            _ => normalized.extend([trees[index].clone()]),
+        }
+        index += 1;
+    }
+    normalized
 }
 
 fn register_fragment(
@@ -457,24 +518,19 @@ impl RustFile {
 
 /// Valida un fragmento de expresión Rust sin analizar macros expandidas ni semántica.
 pub fn validate_expression(fragment: &str) -> Result<(), SynError> {
-    syn::parse_str::<syn::Expr>(fragment).map(|_| ())
+    syn::parse2::<syn::Expr>(parse_tokens(fragment)?).map(|_| ())
 }
 
 /// Valida una cabecera `for` Rust conservándola como tokens.
 pub fn validate_for_header(fragment: &str) -> Result<(), SynError> {
-    let header = fragment
-        .parse::<proc_macro2::TokenStream>()
-        .map_err(|error| SynError::new(proc_macro2::Span::call_site(), error.to_string()))?;
+    let header = parse_tokens(fragment)?;
     let expression = quote::quote! { for #header {} };
     syn::parse2::<syn::Expr>(expression).map(|_| ())
 }
 
 /// Valida argumentos opcionales de `break` o `continue` como una expresión Rust.
 pub fn validate_jump(kind: &str, fragment: Option<&str>) -> Result<(), SynError> {
-    let argument = fragment
-        .unwrap_or_default()
-        .parse::<proc_macro2::TokenStream>()
-        .map_err(|error| SynError::new(proc_macro2::Span::call_site(), error.to_string()))?;
+    let argument = parse_tokens(fragment.unwrap_or_default())?;
     let statement = match kind {
         "break" => quote::quote! { break #argument; },
         "continue" => quote::quote! { continue #argument; },
@@ -490,19 +546,21 @@ pub fn validate_jump(kind: &str, fragment: Option<&str>) -> Result<(), SynError>
 
 /// Valida un fragmento de tipo Rust.
 pub fn validate_type(fragment: &str) -> Result<(), SynError> {
-    syn::parse_str::<syn::Type>(fragment).map(|_| ())
+    syn::parse2::<syn::Type>(parse_tokens(fragment)?).map(|_| ())
 }
 
 /// Valida un fragmento de patrón Rust.
 pub fn validate_pattern(fragment: &str) -> Result<(), SynError> {
     use syn::parse::Parser;
-    syn::Pat::parse_single.parse_str(fragment).map(|_| ())
+    syn::Pat::parse_single
+        .parse2(parse_tokens(fragment)?)
+        .map(|_| ())
 }
 
 /// Valida la firma de una función preservada por el AST.
 pub fn validate_signature(fragment: &str) -> Result<(), SynError> {
-    let item = format!("fn {fragment}");
-    syn::parse_str::<syn::Signature>(&item).map(|_| ())
+    let tokens = parse_tokens(fragment)?;
+    syn::parse2::<syn::Signature>(quote! { fn #tokens }).map(|_| ())
 }
 
 /// Valida un atributo Rust preservado como fragmento opaco.
@@ -513,12 +571,12 @@ pub fn validate_attribute(fragment: &str) -> Result<(), SynError> {
 
 /// Valida una visibilidad Rust, incluida `pub(...)`.
 pub fn validate_visibility(fragment: &str) -> Result<(), SynError> {
-    syn::parse_str::<syn::Visibility>(fragment).map(|_| ())
+    syn::parse2::<syn::Visibility>(parse_tokens(fragment)?).map(|_| ())
 }
 
 /// Valida un item Rust passthrough completo.
 pub fn validate_item(fragment: &str) -> Result<(), SynError> {
-    syn::parse_str::<syn::File>(fragment).map(|_| ())
+    syn::parse2::<syn::File>(parse_tokens(fragment)?).map(|_| ())
 }
 
 #[cfg(test)]
@@ -543,6 +601,31 @@ mod generation_tests {
             }),
             "{:?}",
             generated.mappings
+        );
+    }
+
+    #[test]
+    fn normalizes_aliases_in_rust_fragments_but_keeps_macros_and_raw_identifiers_opaque() {
+        let source = SourceFile::new(
+            "sintaxis indentacion\n#[allow(tipo)]\nfuncion main():\n    dejar activo = verdadero\n    assert_eq!(verdadero, r#tipo);\n    activo\n",
+        );
+        let parsed = parse(&source, LexOptions::default());
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+        let generated = generate(&parsed.file.unwrap(), &source).unwrap();
+        assert!(
+            generated.code.contains("let activo = true;"),
+            "{}",
+            generated.code
+        );
+        assert!(
+            generated.code.contains("assert_eq!(verdadero, r#tipo);"),
+            "{}",
+            generated.code
+        );
+        assert!(
+            generated.code.contains("#[allow(tipo)]"),
+            "{}",
+            generated.code
         );
     }
 }

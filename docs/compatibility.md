@@ -8,13 +8,13 @@ Esta matriz describe el **alcance verificado**, no compatibilidad general con Ru
 | Variables `let` | Alias `dejar`; patrón/tipo/expresión son Rust; terminador inferido solo en indentation | Parcial: generación, Syn y diagnóstico de tipo real mapeado a `.ox` |
 | Bloques | `:`+indent o `{}` según modo, nunca mezclados como bloques | Parcial: ambos estilos generan AST; generación inicial por AST |
 | Valor del bloque | Última expresión sin `;` retorna valor; con `;` devuelve `()` | Parcial: se preservan tail y control final; pruebas de AST y generación |
-| `if/else`, `loop`, `while`, `for` | Keywords bilingües y bloques en ambos modos | Parcial: generación sintáctica; aliases de cabecera siguen pendientes de Fase 6 |
-| Tipos y referencias | Sintaxis Rust preservada y parseada; semántica a `rustc` | Parcial: fragmentos validados con Syn; Cargo detecta y mapea un error de tipo |
-| `struct`, `enum`, `impl`, `trait`, `mod`, `use` | Rust passthrough en braces; soporte indentado solo para bloques estructurales listados en gramática | Parcial: escritura Rust con atributos/visibilidad y macros se conservan y validan en modo llaves; aliases y cuerpos indentados siguen pendientes |
+| `if/else`, `loop`, `while`, `for` | Keywords bilingües y bloques en ambos modos | Parcial: aliases y ejecución equivalente verificados para funciones/controles; nuevas formas siguen pendientes |
+| Tipos y referencias | Sintaxis Rust preservada y parseada; semántica a `rustc` | Parcial: aliases de keywords se normalizan en firmas y tipos; Cargo detecta y mapea errores de tipo |
+| `struct`, `enum`, `impl`, `trait`, `mod`, `use` | Rust passthrough en braces; soporte indentado solo para bloques estructurales listados en gramática | Parcial: aliases se normalizan fuera de grupos opacos; items con cuerpos indentados siguen pendientes de Fase 7 |
 | Expresiones, patrones y genéricos | Tokens Rust; parser Syn; `rustc` hace validación semántica | Parcial: expresiones/patrones/firma validados en el subconjunto parseado |
 | `match` | Keywords traducibles; brazos se escriben con `{}` también en modo indentation | No implementado |
 | Macros/atributos | Árboles opacos; no se traducen nombre, argumentos ni contenido | Parcial: se conserva y genera la invocación; el ejemplo probado usa `println!`; no se expanden macros externas |
-| Identificadores reservados y escape | `r#nombre` fuerza identificador; colisiones de alias reciben `OX3001` cuando corresponda | Parcial: `fn` y bindings simples de `let` sugieren `r#...`; patrones anidados y todos los contextos se amplían en Fase 6 |
+| Identificadores reservados y escape | `r#nombre` fuerza identificador; colisiones de alias reciben `OX3001` cuando corresponda | Parcial: sugerencia comprobada en funciones, parámetros, patrones anidados, bindings y `para`; contextos Rust adicionales siguen pendientes |
 | Macros procedurales | Cargo/rustc pueden ejecutarlas; no las analiza ni expande Óxido | No implementado |
 | `async`/`await` | Alias reservados; solo se aceptan donde el Rust resultante compila | No implementado |
 | `unsafe` | Semántica Rust intacta; el compilador Óxido prohíbe `unsafe` en su propio código y ofrecerá política para rechazarlo en fuente analizada | No implementado |

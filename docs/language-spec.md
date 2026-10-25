@@ -30,7 +30,7 @@ Una construcción solo se anuncia como soportada cuando aparece en la matriz de 
 
 La especificación define dos modos de bloques: `indentation` y `braces`. Un proyecto usa un modo; un archivo no puede cambiarlo. Ambos se traducen a un AST común y al mismo backend.
 
-El frontend propio analiza la selección del modo, alias, balance de grupos, elementos estructurales de Óxido y bloques. Las expresiones, tipos, patrones y tokens Rust se preservan como fragmentos Rust; Syn los valida sintácticamente y `rustc` valida el programa completo. Syn ofrece un parser de archivo mediante `parse_file` con las features `full` y `parsing`; la versión exacta se fijará en Fase 2 y se comprobará contra la toolchain elegida ([documentación de `syn::parse_file`](https://docs.rs/syn/latest/syn/fn.parse_file.html)).
+El frontend propio analiza la selección del modo, alias, balance de grupos, elementos estructurales de Óxido y bloques. En el subconjunto verificado, los aliases fuera de macros/atributos opacos se normalizan a tokens Rust; Syn valida la sintaxis y `rustc` el programa completo. La gramática de expresiones, tipos y patrones sigue siendo Rust, no una gramática española independiente.
 
 ## 4. Configuración
 

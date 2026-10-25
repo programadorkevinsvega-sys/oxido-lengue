@@ -189,6 +189,44 @@ fn diagnoses_reserved_aliases_used_as_function_and_binding_names() {
 }
 
 #[test]
+fn diagnoses_reserved_aliases_in_parameters_nested_patterns_and_for_bindings() {
+    for source in [
+        "sintaxis indentacion\nfuncion valida(tipo: i32):\n    retornar\n",
+        "sintaxis indentacion\nfuncion valida():\n    dejar Some(tipo) = Some(1)\n",
+        "sintaxis indentacion\nfuncion valida(valores: &[i32]):\n    para tipo en valores:\n        continuar\n",
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        assert!(parsed.has_errors(), "{source}: {:?}", parsed.diagnostics);
+        let diagnostic = parsed
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "OX3001")
+            .expect("colisión con alias reservado diagnosticada");
+        assert!(
+            diagnostic.message.contains("r#tipo"),
+            "{}",
+            diagnostic.message
+        );
+    }
+}
+
+#[test]
+fn diagnoses_reserved_aliases_in_rust_passthrough_member_names() {
+    for source in [
+        "sintaxis llaves\nstruct Dato { tipo: i32 }\n",
+        "sintaxis llaves\nextern \"C\" { fn externo(); }\n",
+    ] {
+        let parsed = parse(&SourceFile::new(source), LexOptions::default());
+        let diagnostic = parsed
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "OX3001")
+            .expect("colisión en item Rust passthrough diagnosticada");
+        assert!(diagnostic.message.contains("r#"), "{}", diagnostic.message);
+    }
+}
+
+#[test]
 fn diagnoses_missing_function_names_and_malformed_declarations() {
     for source in [
         "sintaxis llaves\nfn () {}\n",

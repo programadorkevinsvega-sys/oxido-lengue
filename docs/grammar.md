@@ -2,7 +2,7 @@
 
 **Versión:** Óxido 0.1. Las producciones son normativas para estructura propia. `RustTokens` representa un fragmento balanceado preservado y validado con Syn/rustc; no pretende redefinir la gramática de Rust.
 
-La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado por el parser de Fase 4 está enumerado en [fase-4-parser.md](fase-4-parser.md) y en la matriz de [compatibilidad](compatibility.md). Los items estructurales con cuerpo indentado y la normalización general de aliases se completan en fases posteriores; mientras tanto deben aparecer como parciales o pendientes, nunca como soportados.
+La gramática describe el alcance previsto de 0.1; no significa que todas las producciones estén implementadas en cada fase. El subconjunto comprobado está enumerado en los informes de [Fase 4](fase-4-parser.md) y [Fase 6](fase-6-sintaxis-bilinguismo.md), además de la matriz de [compatibilidad](compatibility.md). La equivalencia de funciones/bloques y la normalización de aliases para este subconjunto están implementadas; items con cuerpos indentados siguen pendientes de Fase 7.
 
 ## 1. Convenciones
 
@@ -45,7 +45,7 @@ BracedItemBlock  ::= "{" {Item | Member | NL} "}" ;
 IndentedItemBlock ::= ":" NL INDENT {Item | Member | NL} DEDENT ;
 ```
 
-`RustFunctionHeader`, `RustItemHeader` y `RustUseTree` son secuencias de tokens Rust balanceadas hasta el delimitador estructural. El frontend no cambia sus identificadores ni literales. Syn valida el fragmento en su contexto final.
+`RustFunctionHeader`, `RustItemHeader` y `RustUseTree` son secuencias de tokens Rust balanceadas hasta el delimitador estructural. Fuera de atributos e invocaciones de macros, el frontend normaliza tokens keyword que tengan alias español. Syn valida el fragmento en su contexto final.
 
 En modo indentación, el `:` final solo abre un bloque después de un encabezado reconocido y al nivel de delimitadores cero. Los dos puntos de parámetros, tipos, paths y expresiones no abren bloques.
 

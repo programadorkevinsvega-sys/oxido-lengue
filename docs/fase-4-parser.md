@@ -21,9 +21,9 @@ La revisión de cierre ejecuta formato, check, Clippy y la suite completa con `-
 
 ## Límites explícitos del parser inicial
 
-- Items superiores distintos de funciones y passthrough no están admitidos en modo indentación. Los items con cuerpos indentados (`struct`, `enum`, `impl`, `trait`, módulos) pertenecen a la ampliación de sintaxis de Fase 6.
-- No se normalizan aliases dentro de fragmentos de expresiones/tipos/patrones. El código allí debe ser Rust válido; la normalización general y detección de colisiones en patrones/contextos complejos se amplía en Fase 6. Los tokens opacos de macros/atributos nunca se normalizan.
+- Items superiores distintos de funciones y passthrough no están admitidos en modo indentación. Los items con cuerpos indentados (`struct`, `enum`, `impl`, `trait`, módulos) pertenecen a la ampliación de lenguaje de Fase 7.
+- En el cierre de Fase 4 no se normalizaban aliases dentro de fragmentos Rust; la normalización para el subconjunto de Fase 6 está documentada en [informe de Fase 6](fase-6-sintaxis-bilinguismo.md). Los tokens opacos de macros/atributos siguen sin normalizarse.
 - `match` se conserva como expresión Rust con brazos entre llaves; no existe sintaxis indentada para sus brazos.
 - Syn valida sintaxis, no resolución, tipos, macros expandidas, `build.rs` ni semántica de `rustc`.
 
-La matriz por característica está en [compatibilidad](compatibility.md). La decisión de separar estructura Óxido de fragmentos Rust está en [ADR-0001](adr/0001-parser-hibrido.md). La siguiente fase solo comienza tras registrar la evidencia de cierre; añadirá generación `.ox → .rs`, mapas de posiciones e integración Cargo.
+La matriz por característica está en [compatibilidad](compatibility.md). La decisión de separar estructura Óxido de fragmentos Rust está en [ADR-0001](adr/0001-parser-hibrido.md). Fase 5 añadió generación `.ox → .rs`, mapas de posiciones e integración Cargo; los cambios de Fase 6 están registrados en su informe.

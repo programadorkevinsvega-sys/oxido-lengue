@@ -1,0 +1,60 @@
+name: Release VSIX
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  vsix:
+    name: VSIX ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: linux-x64
+            server: oxido-lsp
+          - runner: windows-latest
+            target: win32-x64
+            server: oxido-lsp.exe
+          - runner: macos-14
+            target: darwin-arm64
+            server: oxido-lsp
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - run: cargo build --release -p oxido-lsp --locked
+      - run: node --version
+      - run: npm ci --prefix editors/vscode-oxido
+      - name: Empaquetar VSIX con el servidor de esta plataforma
+        env:
+          OXIDO_SERVER_BINARY: ${{ github.workspace }}/target/release/${{ matrix.server }}
+          OXIDO_VSIX_TARGET: ${{ matrix.target }}
+        run: npm run package:vsix:server --prefix editors/vscode-oxido
+      - name: Calcular SHA-256
+        run: node editors/vscode-oxido/scripts/write-sha256.js editors/vscode-oxido/dist/*.vsix
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oxido-vsix-${{ matrix.target }}
+          path: |
+            editors/vscode-oxido/dist/*.vsix
+            editors/vscode-oxido/dist/*.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oxido-lsp-${{ matrix.target }}
+          path: target/release/${{ matrix.server }}
+          if-no-files-found: error
+          retention-days: 30

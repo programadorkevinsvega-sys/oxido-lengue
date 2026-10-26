@@ -14,6 +14,7 @@ const HOST_PROFILES = [
   'navigation-workspace',
   'cancellation-workspace',
   'installed-workspace',
+  'bundled-workspace',
   'restricted-workspace'
 ];
 let executablePromise;
@@ -65,6 +66,55 @@ function packageVsix() {
     throw new Error(`el VSIX esperado no existe en ${vsix}`);
   }
   return vsix;
+}
+
+function vsCodeTarget() {
+  const architecture = process.arch === 'arm64' ? 'arm64' : process.arch === 'arm' ? 'armhf' : 'x64';
+  return `${process.platform}-${architecture}`;
+}
+
+function packageBundledVsix() {
+  const target = vsCodeTarget();
+  const binary = path.join(
+    repositoryRoot,
+    'target',
+    'release',
+    process.platform === 'win32' ? 'oxido-lsp.exe' : 'oxido-lsp'
+  );
+  if (!fs.existsSync(binary)) {
+    throw new Error('compila oxido-lsp en release antes de empaquetar el servidor incluido');
+  }
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const result = spawnSync(npm, ['run', 'package:vsix:server'], {
+    cwd: extensionRoot,
+    stdio: 'inherit',
+    shell: false,
+    env: {
+      ...process.env,
+      OXIDO_SERVER_BINARY: binary,
+      OXIDO_VSIX_TARGET: target
+    }
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`el empaquetado del VSIX con servidor terminó con estado ${result.status}`);
+  }
+  const vsix = path.join(
+    extensionRoot,
+    'dist',
+    `${packageJson.name}-${packageJson.version}-${target}.vsix`
+  );
+  if (!fs.existsSync(vsix)) {
+    throw new Error('el VSIX con servidor incluido no existe');
+  }
+  return vsix;
+}
+
+function findOnPath(name, pathValue) {
+  for (const entry of pathValue.split(path.delimiter)) {
+    if (entry && fs.existsSync(path.join(entry, name))) return true;
+  }
+  return false;
 }
 
 function installVsix(executable, profile, vsix) {
@@ -137,7 +187,7 @@ function prepareSlowFakeCargo(profile) {
 async function runHostCase({
   label,
   fixture,
-  extraArgs,
+  extraArgs = [],
   environment,
   developmentPath = extensionRoot
 }) {
@@ -257,6 +307,32 @@ async function main() {
         OXIDO_HOST_CASE: 'installed',
         OXIDO_EXPECT_INSTALLED_PATH: installedPath,
         OXIDO_EXPECT_VERSION: packageJson.version
+      }
+    });
+  }
+  if (!only || only === 'bundled') {
+    const vsix = packageBundledVsix();
+    const executable = await resolveExecutable();
+    const bundledProfile = path.join(extensionRoot, '.vscode-test', 'bundled-workspace');
+    const installedPath = installVsix(executable, bundledProfile, vsix);
+    const sanitizedPath = (process.env.PATH ?? '')
+      .split(path.delimiter)
+      .filter(entry => entry && path.resolve(entry) !== path.join(repositoryRoot, 'target', 'release'))
+      .join(path.delimiter);
+    if (findOnPath('oxido-lsp', sanitizedPath) || findOnPath('oxido-lsp.exe', sanitizedPath)) {
+      throw new Error('la prueba del servidor incluido requiere que oxido-lsp no esté en PATH');
+    }
+    await runHostCase({
+      label: 'bundled workspace',
+      fixture: path.join(__dirname, 'fixtures', 'trusted'),
+      developmentPath: harnessPath,
+      environment: {
+        PATH: sanitizedPath,
+        OXIDO_EXPECT_TRUSTED: 'false',
+        OXIDO_HOST_CASE: 'bundled',
+        OXIDO_EXPECT_INSTALLED_PATH: installedPath,
+        OXIDO_EXPECT_VERSION: packageJson.version,
+        OXIDO_EXPECT_BUNDLED_SERVER: 'true'
       }
     });
   }

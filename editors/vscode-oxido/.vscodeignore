@@ -1,5 +1,6 @@
 .vscode-test/**
 test/**
+scripts/**
 dist/**
 package-lock.json
 **/*.map

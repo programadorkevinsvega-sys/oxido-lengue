@@ -72,8 +72,11 @@
     "test": "node --test test/*.test.js",
     "test:host": "node test/run-host.js",
     "test:vsix": "node test/run-host.js installed",
-    "prepackage:vsix": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\"",
-    "package:vsix": "vsce package --skip-license --out dist/oxido-language-support-0.1.0.vsix"
+    "test:vsix:server": "node test/run-host.js bundled",
+    "prepackage:vsix": "node scripts/prepare-package.js",
+    "package:vsix": "vsce package --skip-license --out dist/oxido-language-support-0.1.0.vsix",
+    "package:vsix:server": "node scripts/package-vsix-server.js",
+    "checksum": "node scripts/write-sha256.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

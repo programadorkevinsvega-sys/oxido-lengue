@@ -1,19 +1,24 @@
 const vscode = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
+const { resolveServerCommand } = require('./server-path');
 
 let client;
 let cargoDiagnostics;
 
-async function startClient() {
+async function startClient(context) {
   if (client) {
     await client.stop();
     client = undefined;
   }
 
   const configuredPath = vscode.workspace.getConfiguration('oxido').get('serverPath', 'oxido-lsp');
+  const command = resolveServerCommand({
+    configuredPath,
+    extensionPath: context.extensionPath
+  });
   const workspace = vscode.workspace.workspaceFolders?.[0];
   const serverOptions = {
-    command: configuredPath,
+    command,
     args: [],
     options: workspace ? { cwd: workspace.uri.fsPath } : {}
   };
@@ -29,14 +34,14 @@ async function startClient() {
 async function activate(context) {
   cargoDiagnostics = vscode.languages.createDiagnosticCollection('oxido-cargo');
   context.subscriptions.push(cargoDiagnostics);
-  await startClient();
+  await startClient(context);
   const configWatcher = vscode.workspace.createFileSystemWatcher('**/oxido.toml');
   context.subscriptions.push(configWatcher);
-  context.subscriptions.push(configWatcher.onDidChange(() => restartAfterProjectConfigChange()));
-  context.subscriptions.push(configWatcher.onDidCreate(() => restartAfterProjectConfigChange()));
+  context.subscriptions.push(configWatcher.onDidChange(() => restartAfterProjectConfigChange(context)));
+  context.subscriptions.push(configWatcher.onDidCreate(() => restartAfterProjectConfigChange(context)));
   context.subscriptions.push(vscode.commands.registerCommand('oxido.restartLanguageServer', async () => {
     try {
-      await startClient();
+      await startClient(context);
       await vscode.window.showInformationMessage('Servidor de Óxido reiniciado.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'falló el reinicio del servidor';
@@ -106,10 +111,10 @@ async function activate(context) {
   }));
 }
 
-async function restartAfterProjectConfigChange() {
+async function restartAfterProjectConfigChange(context) {
   if (!client) return;
   try {
-    await startClient();
+    await startClient(context);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'falló el reinicio tras cambiar oxido.toml';
     await vscode.window.showErrorMessage(`Óxido: ${message}`);

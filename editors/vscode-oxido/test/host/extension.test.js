@@ -276,15 +276,34 @@ async function runInstalledCase(fixturePath, withTimeout, extension) {
     'la extensión activa procede del directorio de extensiones instaladas'
   );
   assert.equal(extension.packageJSON.version, process.env.OXIDO_EXPECT_VERSION);
-  for (const excluded of ['test', '.vscode-test', 'package-lock.json', 'dist']) {
+  for (const excluded of ['test', '.vscode-test', 'package-lock.json', 'dist', 'scripts']) {
     assert.ok(
       !fs.existsSync(path.join(extension.extensionPath, excluded)),
       `el VSIX no incluye ${excluded}`
     );
   }
+  const bundledBinary = path.join(
+    extension.extensionPath,
+    'server',
+    process.platform === 'win32' ? 'oxido-lsp.exe' : 'oxido-lsp'
+  );
+  if (process.env.OXIDO_EXPECT_BUNDLED_SERVER === 'true') {
+    assert.ok(fs.existsSync(bundledBinary), 'el VSIX incluye el servidor de esta plataforma');
+    if (process.platform !== 'win32') {
+      assert.ok(
+        (fs.statSync(bundledBinary).mode & 0o111) !== 0,
+        'el servidor incluido conserva el permiso de ejecución'
+      );
+    }
+  } else {
+    assert.ok(
+      !fs.existsSync(bundledBinary),
+      'el VSIX estándar no incluye un binario dependiente de plataforma'
+    );
+  }
   assert.ok(
     !fs.existsSync(path.join(extension.extensionPath, 'oxido-lsp')),
-    'el VSIX no empaqueta un binario oxido-lsp dependiente de plataforma'
+    'el VSIX no deja el binario en la raíz de la extensión'
   );
 
   const file = vscode.Uri.file(path.join(fixturePath, 'main.ox'));
@@ -305,7 +324,10 @@ async function runInstalledCase(fixturePath, withTimeout, extension) {
     diagnostics.some(diagnostic => diagnostic.code === 'OX1002'),
     `el LSP instalado publica OX1002: ${JSON.stringify(diagnostics)}`
   );
-  console.log('Installed host: VSIX instalado abrió .ox y recibió OX1002 desde oxido-lsp');
+  const label = process.env.OXIDO_EXPECT_BUNDLED_SERVER === 'true'
+    ? 'Bundled host: VSIX con oxido-lsp incluido abrió .ox sin servidor en PATH'
+    : 'Installed host: VSIX instalado abrió .ox y recibió OX1002 desde oxido-lsp';
+  console.log(label);
 }
 
 async function run() {
@@ -316,7 +338,9 @@ async function run() {
   const extension = vscode.extensions.getExtension('oxido-language.oxido-language-support');
   assert.ok(extension, 'manifest extension is installed in the host');
   await extension.activate();
-  const extensionApi = hostCase === 'installed' ? undefined : require('../../src/extension.js');
+  const extensionApi = ['installed', 'bundled'].includes(hostCase)
+    ? undefined
+    : require('../../src/extension.js');
   assert.equal(extension.isActive, true);
   const commands = await vscode.commands.getCommands();
   assert.ok(commands.includes('oxido.restartLanguageServer'));
@@ -327,7 +351,7 @@ async function run() {
   const expectedTrusted = process.env.OXIDO_EXPECT_TRUSTED === 'true';
   assert.equal(vscode.workspace.isTrusted, expectedTrusted);
 
-  if (hostCase === 'installed') {
+  if (hostCase === 'installed' || hostCase === 'bundled') {
     await runInstalledCase(fixturePath, withTimeout, extension);
     // Quit after the assertions so the installed extension and its language
     // client finish deactivating before the host process exits.

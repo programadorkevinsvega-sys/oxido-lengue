@@ -225,6 +225,36 @@ mod tests {
     }
 
     #[test]
+    fn recovers_diagnostics_after_a_full_document_change() {
+        let mut state = ServerState::default();
+        let opened = handle_json(
+            br#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"funcion main():\n\tdejar valor = 1\n"}}}"#,
+            &mut state,
+        )
+        .expect("valid didOpen notification");
+        assert!(
+            !opened[0]["params"]["diagnostics"]
+                .as_array()
+                .expect("diagnostics are an array")
+                .is_empty()
+        );
+
+        let changed = handle_json(
+            br#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///main.ox","version":2},"contentChanges":[{"text":"funcion main():\n    dejar valor = 1\n"}]}}"#,
+            &mut state,
+        )
+        .expect("valid full-document didChange notification");
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0]["method"], "textDocument/publishDiagnostics");
+        assert!(
+            changed[0]["params"]["diagnostics"]
+                .as_array()
+                .expect("diagnostics are an array")
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn returns_semantic_tokens_for_an_open_document() {
         let mut state = ServerState::default();
         handle_json(

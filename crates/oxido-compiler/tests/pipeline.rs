@@ -66,6 +66,72 @@ fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
 }
 
 #[test]
+fn differential_indented_ox_and_equivalent_rust_have_the_same_observable_result() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let ox = SourceFile::new(
+        "sintaxis indentacion\nfuncion clasificar(valor: i32) -> &'static str:\n    si valor >= 10:\n        \"alto\"\n    sino:\n        \"bajo\"\nfuncion main():\n    dejar valores = vector![3, 12, 5]\n    dejar resultado = valores.iter().map(|valor| clasificar(*valor)).collect::<Vector<_>>()\n    println!(\"{}\", resultado.join(\",\"));\n",
+    );
+    let rust = r#"fn clasificar(valor: i32) -> &'static str {
+    if valor >= 10 { "alto" } else { "bajo" }
+}
+fn main() {
+    let valores = vec![3, 12, 5];
+    let resultado = valores.iter().map(|valor| clasificar(*valor)).collect::<Vec<_>>();
+    println!("{}", resultado.join(","));
+}
+"#;
+
+    let ox_result = oxido_compiler::build_ox(&ox, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(
+        ox_result.success,
+        "{} {:?}",
+        ox_result.stderr, ox_result.diagnostics
+    );
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock is after Unix epoch")
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "oxido-rust-differential-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create differential test directory");
+    let source_path = directory.join("main.rs");
+    let binary_path = directory.join("direct-rust");
+    std::fs::write(&source_path, rust).expect("write direct Rust fixture");
+
+    let compile = Command::new("rustc")
+        .arg("--edition=2024")
+        .arg(&source_path)
+        .arg("-o")
+        .arg(&binary_path)
+        .output()
+        .expect("run rustc for direct Rust fixture");
+    assert!(
+        compile.status.success(),
+        "rustc failed: {}",
+        String::from_utf8_lossy(&compile.stderr)
+    );
+    let direct_result = Command::new(&binary_path)
+        .output()
+        .expect("run direct Rust fixture");
+    assert!(
+        direct_result.status.success(),
+        "direct Rust program failed: {}",
+        String::from_utf8_lossy(&direct_result.stderr)
+    );
+    let direct_stdout = String::from_utf8(direct_result.stdout).expect("UTF-8 Rust stdout");
+    assert_eq!(ox_result.program_output.join("\n") + "\n", direct_stdout);
+    std::fs::remove_dir_all(&directory).expect("remove differential test directory");
+}
+
+#[test]
 fn compiles_indented_declarative_macros_and_derive_attributes_as_rust() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

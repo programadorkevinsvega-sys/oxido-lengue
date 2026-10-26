@@ -104,6 +104,21 @@ La revisión encuentra cobertura para las producciones estructurales enumeradas 
 
 `--json` se admite en `compilar`, `ejecutar` y `probar`. Un error temprano se representa con `OX0001`; un fallo de Cargo sin diagnóstico mapeable usa `OX5001`. Los comandos ajenos a Cargo no prometen salida estructurada de éxito. El formato indentado normaliza sangría, espaciado y grupos multilínea; preserva grupos opacos de macros, comentarios y literales. Para las construcciones de la matriz, el Rust exportado coincide byte por byte con `rustfmt` 1.99.1. La presentación `.ox` sigue las convenciones de layout documentadas y probadas de Óxido; no pretende ser texto Rust idéntico, pues su sintaxis y palabras clave difieren.
 
+## Fuzzing
+
+`fuzz/` contiene cuatro harnesses de `cargo-fuzz`:
+
+| Target | Entrada | Propiedades comprobadas |
+|---|---|---|
+| `lexer` | Bytes; ignora secuencias que no sean UTF-8 válido | Ejecuta ambos modos, no debe panicar y todo span de token/diagnóstico debe estar en límites UTF-8 de la fuente |
+| `parser` | Bytes; ignora secuencias que no sean UTF-8 válido | Ejecuta parser en ambos modos, no debe panicar y spans de diagnósticos/labels/sugerencias deben ser válidos |
+| `config` | Bytes; ignora secuencias que no sean UTF-8 válido | Parsea `oxido.toml` declarativo; todo éxito debe respetar Rust 2024 y todo rechazo debe contener diagnóstico |
+| `backend` | Bytes; ignora secuencias que no sean UTF-8 válido | Para ambos modos, Rust generado por Syn parseable y rangos del mapa dentro de límites UTF-8 de la fuente |
+
+Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend}`. Corpus descubierto, crashes, cobertura y binarios se mantienen fuera del repositorio hasta revisarse. El job `fuzz-smoke` ejecuta 1.000 casos con límite de entrada de 8 KiB por target usando cargo-fuzz 0.13.2 y nightly 2026-10-16. Es un smoke determinista acotado, no reemplaza fuzzing continuo ni demuestra ausencia de bugs. Todavía faltan pruebas del decoder de mensajes LSP y de cancelación/recuperación.
+
+La regresión `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` compila y ejecuta una muestra equivalente en Óxido y Rust nativo, y compara stdout. Es evidencia para ese fixture concreto, no certifica equivalencia semántica general.
+
 ## Parser, backend y diagnóstico
 
 - Tipos, patrones y expresiones pasan a Syn y se exige consumo completo del fragmento.

@@ -1,0 +1,6 @@
+[language]
+syntax = "indentation"
+edition = "2024"
+
+[dependencies.itoa]
+version = "1.0"

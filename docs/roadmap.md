@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–9: completadas en el alcance documentado. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
+**Fases 0–9: completadas en el alcance documentado. Fase 10: en curso. Fases 11–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -258,6 +258,8 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** consolidar pruebas, compatibilidad, fuzzing y evidencia continua.
 
+**Estado actual:** en curso. El workspace ya tiene matrices de lexer/parser/configuración/pipeline/CLI, pruebas de modos equivalentes, roundtrip y límites; la cobertura previa está inventariada en [fase-10-laboratorio-validacion.md](fase-10-laboratorio-validacion.md). Hay targets `cargo-fuzz` iniciales para lexer, parser, backend y configuración, corpus semilla, una prueba diferencial ejecutable contra Rust directo y smoke de fuzzing en CI con nightly fijado. La cobertura aún no valida mapas, decoder LSP o cancelación; faltan ampliar diferenciales Rust, cerrar informes por commit/entorno y verificar cada característica anunciada contra un test identificable.
+
 ### Subfases
 
 1. Matriz de fixtures por lexer, parser, modos, alias, macros, backend y diagnósticos.
@@ -393,11 +395,12 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 5 | Completada (compilador inicial) | [Informe de Fase 5](fase-5-compilador.md); `cargo test -p oxido-cli --test cli --locked` comprueba exportar, compilar, ejecutar y roundtrip | Sin bloqueos dentro del subconjunto reversible y ejecutable |
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md); `cargo test -p oxido-language -p oxido-rust-backend --locked` | La ampliación de items estructurales se documenta en Fases 7–8 |
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
-| Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
+| Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; `site` apunta a `https://oxido-lengue.pages.dev`, sitemap y `404.html` personalizados construyen sin avisos |
 | 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
 | 9 | Completada (alcance documentado) | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Conformidad de Rust generado con rustfmt en la matriz estructural, revisión de cobertura y CI remota; ver Fase 9 |
-| 10–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
+| 10 | En curso | [Informe de Fase 10](fase-10-laboratorio-validacion.md); fuzz targets acotados en nightly, diferencial `.ox`/Rust y `cargo test --workspace --locked` | Completar diferenciales, cobertura por característica, informes y suites CI |
+| 11–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–9 están completadas para los alcances declarados. Las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–9 están completadas para los alcances declarados; la Fase 10 está en curso. Las limitaciones de la matriz no se consideran características implementadas.

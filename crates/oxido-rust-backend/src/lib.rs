@@ -951,13 +951,16 @@ fn parse_type_tokens(fragment: &str) -> Result<TokenStream, SynError> {
                             && matches!(&trees[index - 1], TokenTree::Punct(punct) if punct.as_char() == ':')
                             && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')) =>
                 {
-                    let translated =
+                    if let Some(translated) =
                         oxido_language::domain::syntax::type_translation(&ident.to_string())
-                            .expect("alias type context");
-                    normalized.extend([TokenTree::Ident(proc_macro2::Ident::new(
-                        translated,
-                        ident.span(),
-                    ))]);
+                    {
+                        normalized.extend([TokenTree::Ident(proc_macro2::Ident::new(
+                            translated,
+                            ident.span(),
+                        ))]);
+                    } else {
+                        normalized.extend([tree.clone()]);
+                    }
                 }
                 TokenTree::Group(group) => {
                     let mut replacement = proc_macro2::Group::new(

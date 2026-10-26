@@ -11,8 +11,8 @@ Este informe es una fotografía del repositorio en la fecha indicada. Sus afirma
 - Ruta de trabajo: `oxido-lengue`.
 - Rama activa: `main`, alineada con `origin/main` en el commit `2c3ba27` al momento de la auditoría.
 - El historial tiene dos commits: uno de documentación de Óxido y un commit previo cuyo mensaje es “Change greeting from 'Hello' to 'Goodbye'”.
-- Cambios locales pendientes al auditar: `plan` modificado; `a futuro`, `AGENTS.md`, los dos prompts de calidad/observabilidad y `docs/roadmap.md` presentes como cambios locales o no versionados.
-- El inventario versionado en HEAD contiene únicamente `plan` y `a futuro`.
+- Cambios locales pendientes al auditar: `plan` modificado; `docs/a-futuro.md`, `AGENTS.md`, los dos prompts de calidad/observabilidad y `docs/roadmap.md` presentes como cambios locales o no versionados.
+- El inventario versionado en HEAD contiene únicamente `plan` y `docs/a-futuro.md`.
 
 Se preservaron todos los cambios locales; esta auditoría no los restablece ni los descarta.
 
@@ -34,7 +34,7 @@ Se preservaron todos los cambios locales; esta auditoría no los restablece ni l
 | Extensión VS Code y LSP | Descritos en documentos | Propuestos, no implementados |
 | Seguridad y cadena de suministro | Requisitos escritos en `plan` y `AGENTS.md` | Política documental, controles aún no implementados |
 | Rendimiento y métricas | Objetivos documentados; no hay benchmarks | Pendiente de implementación |
-| Documentación | `plan`, `a futuro`, `AGENTS.md`, prompts de calidad/observabilidad y roadmap | Parcial; falta documentación técnica formal de `docs/` |
+| Documentación | `plan`, `docs/a-futuro.md`, `AGENTS.md`, prompts de calidad/observabilidad y roadmap | Parcial; falta documentación técnica formal de `docs/` |
 
 ## 3. Decisiones documentadas que guían Fase 1
 

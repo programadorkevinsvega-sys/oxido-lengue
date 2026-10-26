@@ -77,3 +77,6 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 ## Criterio documental de Fase 1
 
 La gramática, modos, alias/reservadas, política de macros, compatibilidad, errores, mapeo y pipeline tienen decisiones no ambiguas, y cada decisión tiene un criterio de aceptación asignado a una fase. Cerrar la fase documental no afirma que esos casos se hayan ejecutado. El harness inicial comienza en Fase 2 y se amplía en las fases siguientes.
+## Orquestadores de regresión
+
+Los scripts Python de `prueba/crud_sqlite_rust` y `prueba/crud_sqlite_export_rust` son lanzadores de pruebas de extremo a extremo. Se mantienen en Python porque solo coordinan procesos y solicitudes HTTP con la biblioteca estándar; el servidor, el cliente de carga y los binarios exportados que se miden son Rust. No forman parte del compilador ni de la toolchain distribuida.

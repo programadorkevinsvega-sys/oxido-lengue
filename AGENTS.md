@@ -2,7 +2,7 @@
 
 ## Fuentes de verdad
 
-- `plan` contiene la especificación del lenguaje; `ARCHITECTURE_RULES.md` es el contrato arquitectónico; `docs/roadmap.md` organiza fases y `a futuro` contiene objetivos, no capacidades implementadas.
+- `plan` contiene la especificación del lenguaje; `ARCHITECTURE_RULES.md` es el contrato arquitectónico; `docs/roadmap.md` organiza fases y `docs/a-futuro.md` contiene objetivos, no capacidades implementadas.
 - El código y las pruebas existentes determinan el estado real. No afirmes que una característica funciona solo porque aparece en los documentos.
 - Los antiguos documentos de Payvia se retiraron de este proyecto cuando imponían dominios o infraestructura ajenos a Óxido. Los prompts de calidad y observabilidad que permanecen son guías técnicas condicionales: solo aplican sus apartados cuando el componente existe o está aprobado en la especificación.
 

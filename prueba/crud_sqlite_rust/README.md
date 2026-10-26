@@ -28,6 +28,8 @@ Ejecuta el supervisor secuencial desde la raíz del repositorio:
 python3 prueba/crud_sqlite_rust/benchmark_secuencial.py --rondas 5
 ```
 
+El cliente de carga está escrito en Python para mantener una herramienta pequeña y transparente que use únicamente la biblioteca estándar; el servidor y el benchmark ejecutado dentro del proceso siguen siendo Rust. La comparación exige artefactos `--release` y ejecuta Óxido y Rust de forma secuencial.
+
 El script compila el CLI y el servidor/cliente Rust con `--locked --offline`, compila primero el servidor generado por Óxido con `--release` y lo inicia una vez para sacar la compilación del periodo medido. Comprueba que el proceso de Óxido ejecuta un binario ubicado en `target/release`, calienta ambos servidores con diez consultas GET, y luego mide cinco pares alternando el orden. Tras compilar, mide directamente el mismo ejecutable generado `release/oxido_generated`; así el proceso Cargo/CLI no forma parte de las rondas. En cada par inicia Óxido, ejecuta **el mismo binario `benchmark-rust` release**, detiene Óxido y comprueba que el puerto quedó libre; solo entonces inicia y mide Rust nativo. Si el puerto ya estaba ocupado, el script se niega a empezar.
 
 Ambos usan la misma ruta SQLite, vaciada al arrancar cada servidor. Los lockfiles tienen el mismo grafo, versiones y checksums de dependencias de registro; solo cambia el nombre del paquete raíz. La compilación queda fuera de las mediciones. Cada invocación del cliente reporta dos repeticiones por nivel de carga (50, 100 y 200), QPS, p50/p95/p99, errores, ticks de CPU y RSS muestreado.

@@ -505,18 +505,11 @@ fn export_ox(args: &[OsString]) -> Result<(), String> {
         if let Err(error) =
             create_output_directories(&output_root, relative_parent, &mut created_directories)
         {
-            for directory in created_directories.iter().rev() {
-                let _ = fs::remove_dir(directory);
-            }
+            cleanup_export_paths(&created_files, &created_directories)?;
             return Err(error);
         }
         if let Err(error) = write_new(path, contents) {
-            for created in created_files.iter().rev() {
-                let _ = fs::remove_file(created);
-            }
-            for directory in created_directories.iter().rev() {
-                let _ = fs::remove_dir(directory);
-            }
+            cleanup_export_paths(&created_files, &created_directories)?;
             return Err(error);
         }
         created_files.push(path.clone());
@@ -525,6 +518,32 @@ fn export_ox(args: &[OsString]) -> Result<(), String> {
         println!("Rust exportado a {}", path.display());
     }
     Ok(())
+}
+
+fn cleanup_export_paths(files: &[PathBuf], directories: &[PathBuf]) -> Result<(), String> {
+    let mut failures = Vec::new();
+    for path in files.iter().rev() {
+        if let Err(error) = fs::remove_file(path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                failures.push(format!("{}: {error}", path.display()));
+            }
+        }
+    }
+    for path in directories.iter().rev() {
+        if let Err(error) = fs::remove_dir(path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                failures.push(format!("{}: {error}", path.display()));
+            }
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "no se pudieron limpiar salidas temporales: {}",
+            failures.join("; ")
+        ))
+    }
 }
 
 fn import_rust(args: &[OsString]) -> Result<(), String> {

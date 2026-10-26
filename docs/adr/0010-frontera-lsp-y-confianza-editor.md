@@ -10,7 +10,7 @@ Abrir un proyecto Rust puede ejecutar `build.rs` y macros procedurales si se inv
 
 ## Decisión
 
-1. `oxido-lsp` comparte lexer/parser y diagnósticos del compilador; no inicia Cargo ni `rust-analyzer` al abrir o editar documentos.
+1. `oxido-lsp` comparte lexer/parser y diagnósticos del compilador; no inicia Cargo ni `rust-analyzer` al abrir o editar documentos. Un comando explícito `oxido/check` puede ejecutar el chequeo aislado de Cargo solo cuando el cliente envía confianza explícita; la extensión solo lo envía desde un workspace confiable.
 2. El modo del proyecto se lee de `oxido.toml` como datos declarativos, limitado a 64 KiB y solo desde la raíz del workspace; los archivos con cabecera pueden determinar su modo cuando el proyecto no lo configura.
 3. La extensión usa `Workspace Trust` en modo `limited`. El análisis estático puede operar en Restricted Mode. Cualquier función futura que compile o active macros/build scripts debe comprobar `workspace.isTrusted` en cada punto de entrada y solo ejecutarse por acción explícita.
 4. La ruta configurable del ejecutable LSP es una configuración restringida en workspaces no confiables. Los procesos se lanzan con ejecutable y argumentos separados, nunca mediante shell.
@@ -19,5 +19,5 @@ Abrir un proyecto Rust puede ejecutar `build.rs` y macros procedurales si se inv
 ## Consecuencias
 
 - La extensión puede ofrecer análisis básico sin ejecutar código del proyecto.
-- La inferencia de tipos y las acciones dependientes de Cargo quedan pendientes hasta implementar el bridge y sus controles de confianza.
+- La inferencia de tipos, el bridge de `rust-analyzer` y las acciones dependientes de un Cargo.toml con dependencias quedan pendientes hasta implementar sus controles de confianza y mapeo.
 - La aceptación de Workspace Trust requiere pruebas reales en VS Code Restricted Mode y en un workspace confiable; el manifiesto por sí solo no prueba el comportamiento completo.

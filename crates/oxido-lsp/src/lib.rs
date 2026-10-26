@@ -150,6 +150,11 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 if cancel_request(&request, &pending) {
                     continue;
                 }
+                if request.get("method").and_then(Value::as_str) == Some("oxido/check") {
+                    let response = cargo_check_response(&request, &state);
+                    write_lsp_message(&mut output, &response)?;
+                    continue;
+                }
                 if request.get("method").and_then(Value::as_str)
                     == Some("textDocument/semanticTokens/full")
                     && let Some(id) = request.get("id").cloned()
@@ -604,6 +609,52 @@ fn diagnostic_notification(
         Some(json!({"range":{"start":start,"end":end},"severity":severity,"message":diagnostic.message,"code":diagnostic.code,"source":"oxido"}))
     }).collect::<Vec<_>>();
     json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":diagnostics}})
+}
+
+fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
+    let id = request.get("id").cloned().unwrap_or(Value::Null);
+    let trusted = request.pointer("/params/trusted").and_then(Value::as_bool) == Some(true);
+    if !trusted {
+        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32003,"message":"Cargo requiere confianza explícita del workspace"}});
+    }
+    let Some(uri) = request
+        .pointer("/params/textDocument/uri")
+        .and_then(Value::as_str)
+    else {
+        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"falta textDocument.uri"}});
+    };
+    let Some(document) = state.documents.get(uri) else {
+        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"el documento no está abierto"}});
+    };
+    let source = SourceFile::new(&document.text);
+    let result = oxido_compiler::build_ox(
+        &source,
+        LexOptions {
+            project_mode: state.project_mode,
+        },
+        oxido_compiler::application::cargo::CargoAction::CheckTrusted,
+    );
+    let diagnostics = match result {
+        Ok(result) => result
+            .diagnostics
+            .into_iter()
+            .filter_map(|diagnostic| {
+                let source_location = diagnostic.source?;
+                let start = lsp_position(&document.text, source_location.start)?;
+                let end = lsp_position(&document.text, source_location.end).unwrap_or(start.clone());
+                Some(json!({"range":{"start":start,"end":end},"severity":1,"code":diagnostic.code,"source":"cargo","message":diagnostic.message}))
+            })
+            .collect::<Vec<_>>(),
+        Err(diagnostics) => diagnostics
+            .into_iter()
+            .filter_map(|diagnostic| {
+                let start = lsp_position(&document.text, diagnostic.primary_span.start())?;
+                let end = lsp_position(&document.text, diagnostic.primary_span.end()).unwrap_or(start.clone());
+                Some(json!({"range":{"start":start,"end":end},"severity":1,"code":diagnostic.code,"source":"oxido","message":diagnostic.message}))
+            })
+            .collect::<Vec<_>>(),
+    };
+    json!({"jsonrpc":"2.0","id":id,"result":{"uri":uri,"diagnostics":diagnostics}})
 }
 
 fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
@@ -1571,6 +1622,19 @@ mod tests {
             &mut state,
         );
         assert_eq!(references[0]["result"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn cargo_check_requires_explicit_workspace_trust() {
+        let state = ServerState::default();
+        let response = cargo_check_response(
+            &json!({
+                "jsonrpc":"2.0", "id":9, "method":"oxido/check",
+                "params":{"trusted":false,"textDocument":{"uri":"file:///main.ox"}}
+            }),
+            &state,
+        );
+        assert_eq!(response["error"]["code"], -32003);
     }
 
     #[test]

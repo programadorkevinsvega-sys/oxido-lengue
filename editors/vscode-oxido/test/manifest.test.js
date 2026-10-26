@@ -13,8 +13,8 @@ test('contributes .ox as the Óxido language and gates executable path settings'
   assert.ok(manifest.contributes.commands.some(command => command.command === 'oxido.restartLanguageServer'));
 });
 
-test('extension source has no Cargo, shell, or rust-analyzer launch path', () => {
+test('extension source has no shell or rust-analyzer launch path', () => {
   const extension = fs.readFileSync(path.join(root, 'src', 'extension.js'), 'utf8');
-  assert.doesNotMatch(extension, /\b(cargo|rust-analyzer)\b/);
   assert.doesNotMatch(extension, /shell\s*:\s*true/);
+  assert.doesNotMatch(extension, /rust-analyzer/);
 });

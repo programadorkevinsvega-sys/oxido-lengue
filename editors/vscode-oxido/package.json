@@ -33,6 +33,10 @@
       {
         "command": "oxido.restartLanguageServer",
         "title": "Óxido: Reiniciar servidor de lenguaje"
+      },
+      {
+        "command": "oxido.checkCargo",
+        "title": "Óxido: Comprobar con Cargo"
       }
     ],
     "configuration": {

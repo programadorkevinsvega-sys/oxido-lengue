@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
 
 let client;
+let cargoDiagnostics;
 
 async function startClient() {
   if (client) {
@@ -23,6 +24,8 @@ async function startClient() {
 }
 
 async function activate(context) {
+  cargoDiagnostics = vscode.languages.createDiagnosticCollection('oxido-cargo');
+  context.subscriptions.push(cargoDiagnostics);
   await startClient();
   const configWatcher = vscode.workspace.createFileSystemWatcher('**/oxido.toml');
   context.subscriptions.push(configWatcher);
@@ -34,6 +37,35 @@ async function activate(context) {
       await vscode.window.showInformationMessage('Servidor de Óxido reiniciado.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'falló el reinicio del servidor';
+      await vscode.window.showErrorMessage(`Óxido: ${message}`);
+    }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('oxido.checkCargo', async () => {
+    if (!vscode.workspace.isTrusted) {
+      await vscode.window.showWarningMessage('Óxido: confía en el workspace antes de ejecutar Cargo.');
+      return;
+    }
+    if (!client || !vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.languageId !== 'oxido') {
+      await vscode.window.showWarningMessage('Óxido: abre un archivo .ox antes de comprobarlo.');
+      return;
+    }
+    try {
+      const result = await client.sendRequest('oxido/check', {
+        trusted: true,
+        textDocument: { uri: vscode.window.activeTextEditor.document.uri.toString() }
+      });
+      const diagnostics = (result?.diagnostics ?? []).map(diagnostic => new vscode.Diagnostic(
+        new vscode.Range(
+          new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
+          new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
+        ),
+        diagnostic.message,
+        vscode.DiagnosticSeverity.Error
+      ));
+      cargoDiagnostics.set(vscode.window.activeTextEditor.document.uri, diagnostics);
+      await vscode.window.showInformationMessage(`Óxido: Cargo terminó con ${diagnostics.length} diagnóstico(s).`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'falló la comprobación con Cargo';
       await vscode.window.showErrorMessage(`Óxido: ${message}`);
     }
   }));

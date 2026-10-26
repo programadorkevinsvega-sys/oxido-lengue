@@ -6,4 +6,5 @@ node_modules/
 **/dist/
 **/.astro/
 **/*.rs.bk
+editors/vscode-oxido/server/
 .vscode/

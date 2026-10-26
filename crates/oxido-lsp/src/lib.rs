@@ -340,15 +340,36 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                     let worker_cancellation = Arc::clone(&cancellation);
                     let worker_tx = events_tx.clone();
                     let worker_text = document_text.clone();
+                    let worker_uri = uri.clone();
                     let worker_id = id.clone();
                     let worker_key = key.clone();
                     let project_mode = state.project_mode;
+                    let worker_documents = state
+                        .documents
+                        .iter()
+                        .map(|(uri, document)| {
+                            (
+                                uri.clone(),
+                                document.text.clone(),
+                                document.version,
+                                uri.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let worker_project_root = state.project_root.clone();
                     let worker = thread::Builder::new()
                         .name("oxido-lsp-semantic-tokens".to_owned())
                         .spawn(move || {
-                            let response = match semantic_tokens_cancellable(
+                            let symbols = workspace_symbols_from_documents(
+                                &worker_documents,
+                                worker_project_root.as_deref(),
+                                project_mode,
+                            );
+                            let response = match semantic_tokens_with_symbols(
                                 &worker_text,
                                 project_mode,
+                                worker_uri.as_deref().unwrap_or(""),
+                                &symbols,
                                 &worker_cancellation,
                             ) {
                                 Some(data) => {
@@ -796,7 +817,7 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
                 .map(PathBuf::from)
                 .and_then(|path| std::fs::canonicalize(path).ok())
                 .filter(|path| path.is_dir());
-            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"inlayHintProvider":true,"documentFormattingProvider":true}}}))
+            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator","namespace"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"inlayHintProvider":true,"documentFormattingProvider":true}}}))
         },
         "shutdown" => id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":null})),
         "textDocument/semanticTokens/full" => id.map(|id| semantic_response(id, request.get("params"), state)),
@@ -1450,7 +1471,7 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
     };
     if let Some(response) =
         rust_analyzer_response("textDocument/references", &id, params, state, text)
-        && rust_analyzer_succeeded(&response)
+        && has_navigation_result(&response)
     {
         return response;
     }
@@ -2270,12 +2291,48 @@ fn file_uri(path: &std::path::Path) -> String {
 }
 
 fn workspace_symbols(state: &ServerState) -> Vec<WorkspaceSymbol> {
+    workspace_symbols_from_documents(
+        &workspace_documents(state),
+        state.project_root.as_deref(),
+        state.project_mode,
+    )
+}
+
+/// Índice de los documentos abiertos para clasificar semantic tokens sin
+/// recorrer el sistema de archivos en cada edición. Los archivos cerrados
+/// siguen disponibles para navegación, pero sus nombres no se usan para
+/// colorear tokens; en ese caso se conserva el fallback léxico.
+fn open_workspace_symbols(state: &ServerState) -> Vec<WorkspaceSymbol> {
+    let documents = state
+        .documents
+        .iter()
+        .map(|(uri, document)| {
+            (
+                uri.clone(),
+                document.text.clone(),
+                document.version,
+                uri.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    workspace_symbols_from_documents(
+        &documents,
+        state.project_root.as_deref(),
+        state.project_mode,
+    )
+}
+
+fn workspace_symbols_from_documents(
+    documents: &[(String, String, Option<i64>, String)],
+    project_root: Option<&std::path::Path>,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+) -> Vec<WorkspaceSymbol> {
     let mut symbols = Vec::new();
-    for (uri, text, _, _) in workspace_documents(state) {
-        let module_path = file_module_path(&uri, state.project_root.as_deref());
-        let declarations = declared_symbols(&text, state.project_mode);
+    for (uri, text, _, _) in documents {
+        let module_path = file_module_path(uri, project_root);
+        let declarations = declared_symbols(text, project_mode);
         if declarations.is_empty() {
-            for (name, selection, range) in textual_function_declarations(&text) {
+            for (name, selection, range) in textual_function_declarations(text) {
                 symbols.push(WorkspaceSymbol {
                     uri: uri.clone(),
                     name,
@@ -2290,10 +2347,10 @@ fn workspace_symbols(state: &ServerState) -> Vec<WorkspaceSymbol> {
         }
         for declaration in declarations {
             let (Some(selection_start), Some(selection_end), Some(range_start), Some(range_end)) = (
-                lsp_position(&text, declaration.name_start),
-                lsp_position(&text, declaration.name_end),
-                lsp_position(&text, declaration.range_start),
-                lsp_position(&text, declaration.range_end),
+                lsp_position(text, declaration.name_start),
+                lsp_position(text, declaration.name_end),
+                lsp_position(text, declaration.range_start),
+                lsp_position(text, declaration.range_end),
             ) else {
                 continue;
             };
@@ -2572,8 +2629,16 @@ fn semantic_response(id: Value, params: Option<&Value>, state: &ServerState) -> 
         .and_then(|value| value.pointer("/textDocument/uri"))
         .and_then(Value::as_str);
     let data = uri
-        .and_then(|uri| state.documents.get(uri))
-        .map(|document| semantic_tokens(&document.text, state.project_mode))
+        .and_then(|uri| {
+            let document = state.documents.get(uri)?;
+            let symbols = open_workspace_symbols(state);
+            Some(semantic_tokens(
+                &document.text,
+                state.project_mode,
+                uri,
+                &symbols,
+            ))
+        })
         .unwrap_or_default();
     json!({"jsonrpc":"2.0","id":id,"result":{"data":data}})
 }
@@ -2581,18 +2646,24 @@ fn semantic_response(id: Value, params: Option<&Value>, state: &ServerState) -> 
 fn semantic_tokens(
     text: &str,
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    uri: &str,
+    symbols: &[WorkspaceSymbol],
 ) -> Vec<u32> {
     let cancellation = AtomicBool::new(false);
-    semantic_tokens_cancellable(text, project_mode, &cancellation).unwrap_or_default()
+    semantic_tokens_with_symbols(text, project_mode, uri, symbols, &cancellation)
+        .unwrap_or_default()
 }
 
-fn semantic_tokens_cancellable(
+fn semantic_tokens_with_symbols(
     text: &str,
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    uri: &str,
+    symbols: &[WorkspaceSymbol],
     cancellation: &AtomicBool,
 ) -> Option<Vec<u32>> {
     let source = SourceFile::new(text);
     let lexed = lex(&source, LexOptions { project_mode });
+    let declarations = semantic_declarations(symbols, uri, text);
     let mut semantic = Vec::<(usize, usize, usize, usize)>::new();
     let mut previous_significant = None;
     for (index, token) in lexed.tokens.iter().enumerate() {
@@ -2615,6 +2686,9 @@ fn semantic_tokens_cancellable(
             previous_significant,
             lexed.tokens.get(index + 1),
             &source,
+            text,
+            symbols,
+            &declarations,
         ) else {
             continue;
         };
@@ -2741,6 +2815,9 @@ fn semantic_kind(
     previous: Option<&oxido_language::domain::syntax::Token>,
     next: Option<&oxido_language::domain::syntax::Token>,
     source: &SourceFile,
+    text: &str,
+    symbols: &[WorkspaceSymbol],
+    declarations: &BTreeMap<(usize, usize), usize>,
 ) -> Option<usize> {
     match &token.kind {
         TokenKind::Keyword { .. } => Some(0),
@@ -2750,6 +2827,12 @@ fn semantic_kind(
         TokenKind::Punctuation => Some(7),
         TokenKind::Identifier { .. } => {
             let word = source.slice(token.span);
+            if let Some(kind) = declarations.get(&(token.span.start(), token.span.end())) {
+                return Some(*kind);
+            }
+            if let Some(kind) = semantic_reference_kind(symbols, text, token.span.start(), word) {
+                return Some(kind);
+            }
             if let Some(oxido_language::domain::syntax::Token {
                 kind: TokenKind::Keyword { rust_keyword, .. },
                 ..
@@ -2772,6 +2855,56 @@ fn semantic_kind(
             }
         }
         _ => None,
+    }
+}
+
+fn semantic_declarations(
+    symbols: &[WorkspaceSymbol],
+    uri: &str,
+    text: &str,
+) -> BTreeMap<(usize, usize), usize> {
+    let mut declarations = BTreeMap::new();
+    for symbol in symbols.iter().filter(|symbol| symbol.uri == uri) {
+        let start = symbol
+            .selection
+            .get("start")
+            .and_then(|position| offset_at_position(text, position));
+        let end = symbol
+            .selection
+            .get("end")
+            .and_then(|position| offset_at_position(text, position));
+        if let (Some(start), Some(end)) = (start, end) {
+            declarations.insert((start, end), semantic_token_type(symbol.kind));
+        }
+    }
+    declarations
+}
+
+fn semantic_reference_kind(
+    symbols: &[WorkspaceSymbol],
+    text: &str,
+    token_start: usize,
+    name: &str,
+) -> Option<usize> {
+    let qualifier = module_qualifier_before(text, token_start);
+    let segments = qualifier.map(qualifier_segments).unwrap_or_default();
+    let mut candidates = symbols
+        .iter()
+        .filter(|symbol| symbol.name == name)
+        .filter(|symbol| segments.is_empty() || matches_qualifier(symbol, &segments));
+    let first = candidates.next()?;
+    if candidates.all(|symbol| symbol.kind == first.kind) {
+        Some(semantic_token_type(first.kind))
+    } else {
+        None
+    }
+}
+
+fn semantic_token_type(kind: SymbolKind) -> usize {
+    match kind {
+        SymbolKind::Function | SymbolKind::Method => 1,
+        SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Trait | SymbolKind::TypeAlias => 6,
+        SymbolKind::Module => 8,
     }
 }
 
@@ -3090,6 +3223,86 @@ mod tests {
         assert_eq!(response[0]["result"]["data"][1], 0);
         assert_eq!(response[0]["result"]["data"][2], 7);
         assert_eq!(response[0]["result"]["data"][3], 0);
+    }
+
+    #[test]
+    fn semantic_tokens_resolve_project_symbols_instead_of_only_lexical_classes() {
+        let text = concat!(
+            "sintaxis indentacion\n",
+            "\n",
+            "modulo util:\n",
+            "    publico funcion saludo():\n",
+            "        imprimir!(\"hola\")\n",
+            "\n",
+            "estructura entero:\n",
+            "    valor: i32\n",
+            "\n",
+            "funcion identidad(valor: entero):\n",
+            "    dejar copia = identidad\n",
+            "    retornar valor\n",
+            "\n",
+            "funcion principal():\n",
+            "    util::saludo()\n",
+            "    identidad(1)\n",
+        );
+        let mut state = configured_test_state();
+        handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///semantic_tokens.ox","version":1,"text":text}}
+            }),
+            &mut state,
+        );
+        let response = handle(
+            json!({
+                "jsonrpc":"2.0", "id":2, "method":"textDocument/semanticTokens/full",
+                "params":{"textDocument":{"uri":"file:///semantic_tokens.ox"}}
+            }),
+            &mut state,
+        );
+        let data = response[0]["result"]["data"]
+            .as_array()
+            .expect("semantic token data")
+            .iter()
+            .map(|value| {
+                u32::try_from(value.as_u64().expect("token component"))
+                    .expect("token component fits u32")
+            })
+            .collect::<Vec<_>>();
+        // Declaraciones del documento abierto.
+        assert_eq!(semantic_token_type_at(&data, 2, 7), Some(8));
+        assert_eq!(semantic_token_type_at(&data, 3, 20), Some(1));
+        assert_eq!(semantic_token_type_at(&data, 6, 11), Some(6));
+        assert_eq!(semantic_token_type_at(&data, 9, 8), Some(1));
+        // Parámetros y enlaces locales conservan el fallback léxico.
+        assert_eq!(semantic_token_type_at(&data, 9, 18), Some(2));
+        assert_eq!(semantic_token_type_at(&data, 10, 10), Some(2));
+        // El índice resuelve el uso del tipo declarado, no su forma léxica.
+        assert_eq!(semantic_token_type_at(&data, 9, 25), Some(6));
+        // Referencias a funciones, incluidas las cualificadas por módulo.
+        assert_eq!(semantic_token_type_at(&data, 10, 18), Some(1));
+        assert_eq!(semantic_token_type_at(&data, 14, 4), Some(8));
+        assert_eq!(semantic_token_type_at(&data, 14, 10), Some(1));
+        assert_eq!(semantic_token_type_at(&data, 15, 4), Some(1));
+    }
+
+    fn semantic_token_type_at(data: &[u32], line: usize, character: usize) -> Option<u32> {
+        let mut current_line = 0_usize;
+        let mut current_character = 0_usize;
+        for chunk in data.as_chunks::<5>().0 {
+            let delta_line = usize::try_from(chunk[0]).ok()?;
+            let delta_character = usize::try_from(chunk[1]).ok()?;
+            if delta_line == 0 {
+                current_character = current_character.checked_add(delta_character)?;
+            } else {
+                current_line = current_line.checked_add(delta_line)?;
+                current_character = delta_character;
+            }
+            if current_line == line && current_character == character {
+                return Some(chunk[3]);
+            }
+        }
+        None
     }
 
     #[test]
@@ -4023,9 +4236,11 @@ mod tests {
     fn canceled_semantic_token_work_stops_and_returns_request_cancelled() {
         let cancellation = AtomicBool::new(true);
         assert_eq!(
-            semantic_tokens_cancellable(
+            semantic_tokens_with_symbols(
                 "funcion a():\nfuncion b():\n",
                 Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
+                "file:///cancel.ox",
+                &[],
                 &cancellation
             ),
             None

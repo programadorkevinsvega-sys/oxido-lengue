@@ -1,6 +1,6 @@
 # Extensión de VS Code para Óxido
 
-La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe diagnósticos del lexer/parser y semantic tokens léxicos. El estado por subfase y sus límites están en [Fase 11](../../docs/fase-11-vscode-lsp.md).
+La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe diagnósticos del lexer/parser y semantic tokens. Los tokens clasifican declaraciones y referencias de los documentos abiertos con el índice local y conservan el fallback léxico para lo no resuelto. El estado por subfase, la evidencia host y sus límites están en [Fase 11](../../docs/fase-11-vscode-lsp.md) y [ADR 0011](../../docs/adr/0011-cierre-fase-11-y-distribucion.md).
 
 ## Desarrollo local
 
@@ -19,7 +19,7 @@ La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe d
    npm test
    ```
 
-   Para las pruebas de host (descarga VS Code 1.143.1 si no se proporciona `VSCODE_EXECUTABLE_PATH`), compila primero el servidor y ejecuta `npm run test:host`. La suite corre en un workspace confiable, en Restricted Mode, desde un VSIX estándar instalado y desde un VSIX con el servidor incluido. `npm run test:vsix` empaqueta, instala y prueba la ruta distribuible estándar; `npm run test:vsix:server` hace lo mismo con `oxido-lsp` incluido y exige que no haya otro `oxido-lsp` en `PATH`.
+   Para las pruebas de host (descarga VS Code 1.143.1 si no se proporciona `VSCODE_EXECUTABLE_PATH`), compila primero el servidor y ejecuta `npm run test:host`. La suite corre en un workspace confiable, en Restricted Mode, desde un VSIX estándar instalado y desde un VSIX con el servidor incluido. Comprueba contenido semántico de tokens, completado, inlay hints, símbolos, referencias, edición incremental, documento incompleto y solicitudes concurrentes. `npm run test:vsix` empaqueta, instala y prueba la ruta distribuible estándar; `npm run test:vsix:server` hace lo mismo con `oxido-lsp` incluido y exige que no haya otro `oxido-lsp` en `PATH`.
 
 3. Empaqueta e instala el VSIX local:
 
@@ -37,7 +37,7 @@ La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe d
    code --install-extension dist/oxido-language-support-0.1.0-linux-x64.vsix
    ```
 
-   El binario incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp`; una ruta configurada explícitamente tiene prioridad. Ningún paquete está firmado ni se publica en un marketplace. `vsce` es una dependencia de desarrollo y no se incluye en el VSIX. El workflow `.github/workflows/release.yml` prepara la matriz Linux x64, Windows x64 y macOS arm64 con checksums, pero solo Linux x64 se ha ejecutado localmente.
+   El binario incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp`; una ruta configurada explícitamente tiene prioridad. Ningún paquete está firmado ni se publica en un marketplace. `vsce` es una dependencia de desarrollo y no se incluye en el VSIX. El workflow `.github/workflows/release.yml` prepara la matriz Linux x64, Windows x64 y macOS arm64 con checksums; solo Linux x64 se ha ejecutado localmente. La ejecución de la matriz, la firma, la notarización y la publicación son criterios de Fase 12.
 
 4. Desde este directorio, inicia el Extension Development Host con `code --extensionDevelopmentPath=. --new-window ../../prueba/modulos_jerarquicos`.
 
@@ -45,4 +45,4 @@ También se puede establecer `oxido.serverPath` en los ajustes de usuario. En Re
 
 ## Límites actuales
 
-El servidor ofrece hover, completado, símbolos, definición, referencias e inlay hints desde el AST. Definición, referencias y completado local recorren todos los `.ox` abiertos y conservan la URI del módulo. En workspace confiable las consultas semánticas se reenvían al `rust-analyzer` real sobre Rust generado en un workspace temporal persistente; en Restricted Mode se usa el fallback local y no se inicia ningún proceso. El formato LSP funciona para ambos modos, aunque la conformance completa del modo indentado con la CLI sigue pendiente. Los diagnósticos de cambios se calculan de forma asíncrona y versionada. El VSIX 0.1.0 estándar se empaqueta e instala localmente; un VSIX adicional por plataforma incluye `server/oxido-lsp`, verificado solo en Linux x64. Ningún paquete está firmado, notarizado ni publicado en un marketplace, y la matriz Windows/macOS del workflow de release no se ha ejecutado. Antes de habilitar cualquier análisis que ejecute `build.rs` o macros procedurales habrá que comprobar Workspace Trust en el propio host, según [ADR 0010](../../docs/adr/0010-frontera-lsp-y-confianza-editor.md).
+El servidor ofrece hover, completado, símbolos, definición, referencias e inlay hints desde el AST. Definición, referencias y completado local recorren todos los `.ox` abiertos y conservan la URI del módulo. En workspace confiable las consultas semánticas se reenvían al `rust-analyzer` real sobre Rust generado en un workspace temporal persistente; en Restricted Mode se usa el fallback local y no se inicia ningún proceso. El formato LSP funciona para ambos modos, aunque la conformance completa del modo indentado con la CLI sigue pendiente. Los diagnósticos de cambios se calculan de forma asíncrona y versionada. Los semantic tokens resuelven nombres declarados y referencias de documentos abiertos; un nombre no resuelto conserva la clase léxica, y no se afirma resolución de tipos universal. No hay renombrado ni índice incremental persistente. El VSIX 0.1.0 estándar se empaqueta e instala localmente; un VSIX adicional por plataforma incluye `server/oxido-lsp`, verificado solo en Linux x64. Ningún paquete está firmado, notarizado ni publicado en un marketplace, y la matriz Windows/macOS del workflow de release no se ha ejecutado. La distribución, firma y publicación se cierran en Fase 12. Antes de habilitar cualquier análisis que ejecute `build.rs` o macros procedurales habrá que comprobar Workspace Trust en el propio host, según [ADR 0010](../../docs/adr/0010-frontera-lsp-y-confianza-editor.md).

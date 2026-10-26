@@ -15,6 +15,59 @@ async function openFixture(fixturePath, name) {
   return file;
 }
 
+function decodeSemanticTokens(data) {
+  assert.ok(Array.isArray(data), `datos de semantic tokens: ${JSON.stringify(data)}`);
+  assert.equal(data.length % 5, 0, 'cada token ocupa cinco enteros');
+  const tokens = [];
+  let line = 0;
+  let character = 0;
+  for (let index = 0; index < data.length; index += 5) {
+    const deltaLine = data[index];
+    const deltaCharacter = data[index + 1];
+    if (deltaLine === 0) {
+      character += deltaCharacter;
+    } else {
+      line += deltaLine;
+      character = deltaCharacter;
+    }
+    tokens.push({
+      line,
+      character,
+      length: data[index + 2],
+      type: data[index + 3]
+    });
+  }
+  return tokens;
+}
+
+function semanticTokenAt(tokens, line, character) {
+  return tokens.find(token => token.line === line && token.character === character);
+}
+
+function collectDocumentSymbolNames(symbols, output = []) {
+  for (const symbol of Array.isArray(symbols) ? symbols : []) {
+    if (typeof symbol?.name === 'string') output.push(symbol.name);
+    if (Array.isArray(symbol?.children)) collectDocumentSymbolNames(symbol.children, output);
+  }
+  return output;
+}
+
+function completionLabels(completion) {
+  const items = Array.isArray(completion)
+    ? completion
+    : Array.isArray(completion?.items)
+      ? completion.items
+      : [];
+  return items
+    .map(item => item?.label ?? item?.textEdit?.newText ?? '')
+    .filter(label => typeof label === 'string' && label.length > 0);
+}
+
+function locationUris(locations) {
+  return (Array.isArray(locations) ? locations : [])
+    .map(location => location?.uri ?? location?.targetUri ?? '');
+}
+
 async function runCargoCase(fixturePath, withTimeout) {
   const activeFile = await openFixture(fixturePath, 'check_error.ox');
   const lockfile = path.join(fixturePath, 'Cargo.lock');
@@ -163,7 +216,172 @@ async function runNavigationCase(fixturePath, withTimeout, extensionApi) {
     'sintaxis indentacion\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n',
     'el LSP aplica el mismo formato canónico que la CLI'
   );
+
+  const completion = await withTimeout(
+    request('textDocument/completion', { line: 9, character: 10 }),
+    'completado local'
+  );
+  const labels = completionLabels(completion);
+  assert.ok(
+    labels.includes('funcion'),
+    `el completado incluye alias de Óxido: ${JSON.stringify(labels.slice(0, 8))}`
+  );
+  assert.ok(
+    labels.includes('repetida'),
+    `el completado incluye declaraciones del workspace: ${JSON.stringify(labels.slice(0, 8))}`
+  );
+
+  const hints = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/inlayHint', {
+      textDocument: { uri: activeFile.toString() },
+      range: { start: { line: 0, character: 0 }, end: { line: 20, character: 0 } }
+    }),
+    'inlay hints locales'
+  );
+  assert.ok(Array.isArray(hints), `inlay hints: ${JSON.stringify(hints)}`);
+  const cantidadHint = hints.find(
+    hint => hint?.position?.line === 9 && hint?.label === ': i32'
+  );
+  assert.ok(
+    cantidadHint,
+    `el hint infiere el tipo de cantidad: ${JSON.stringify(hints)}`
+  );
+
+  const symbols = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/documentSymbol', {
+      textDocument: { uri: alphaFile.toString() }
+    }),
+    'símbolos locales'
+  );
+  const symbolNames = collectDocumentSymbolNames(symbols);
+  assert.ok(
+    symbolNames.includes('repetida'),
+    `documentSymbol incluye la función declarada: ${JSON.stringify(symbolNames)}`
+  );
+
+  const semantic = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+      textDocument: { uri: activeFile.toString() }
+    }),
+    'semantic tokens locales'
+  );
+  const semanticTokens = decodeSemanticTokens(semantic?.data);
+  assert.ok(semanticTokens.length > 0, 'el documento abierto produce semantic tokens');
+  assert.equal(
+    semanticTokenAt(semanticTokens, 1, 0)?.type,
+    0,
+    'la palabra clave de la primera función se clasifica como tal'
+  );
+
+  const incrementalFile = await openFixture(fixturePath, 'incremental.ox');
+  const incrementalDocument = await vscode.workspace.openTextDocument(incrementalFile);
+  try {
+    const rename = new vscode.WorkspaceEdit();
+    rename.replace(
+      incrementalFile,
+      new vscode.Range(new vscode.Position(1, 8), new vscode.Position(1, 15)),
+      'renombrada'
+    );
+    assert.ok(await vscode.workspace.applyEdit(rename), 'la edición incremental se aplica');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    assert.equal(
+      incrementalDocument.getText(new vscode.Range(new vscode.Position(1, 8), new vscode.Position(1, 18))),
+      'renombrada',
+      'el documento refleja el cambio incremental'
+    );
+    const editedSymbols = await withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/documentSymbol', {
+        textDocument: { uri: incrementalFile.toString() }
+      }),
+      'símbolos tras edición'
+    );
+    const editedNames = collectDocumentSymbolNames(editedSymbols);
+    assert.ok(
+      editedNames.includes('renombrada'),
+      `el índice ve el nombre editado: ${JSON.stringify(editedNames)}`
+    );
+    assert.ok(
+      !editedNames.includes('inicial'),
+      'el índice descarta el nombre anterior'
+    );
+    const editedTokens = await withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+        textDocument: { uri: incrementalFile.toString() }
+      }),
+      'semantic tokens tras edición'
+    );
+    assert.ok(
+      Array.isArray(editedTokens?.data),
+      `semantic tokens responde tras la edición: ${JSON.stringify(editedTokens)}`
+    );
+  } finally {
+    const restore = new vscode.WorkspaceEdit();
+    restore.replace(
+      incrementalFile,
+      new vscode.Range(new vscode.Position(1, 8), new vscode.Position(1, 18)),
+      'inicial'
+    );
+    await vscode.workspace.applyEdit(restore);
+  }
+
+  const incompleteFile = await openFixture(fixturePath, 'incompleta.ox');
+  const incompleteTokens = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+      textDocument: { uri: incompleteFile.toString() }
+    }),
+    'semantic tokens de documento incompleto'
+  );
+  decodeSemanticTokens(incompleteTokens?.data);
+  const incompleteSymbols = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/documentSymbol', {
+      textDocument: { uri: incompleteFile.toString() }
+    }),
+    'símbolos de documento incompleto'
+  );
+  assert.ok(
+    Array.isArray(incompleteSymbols),
+    `documentSymbol tolera un documento incompleto: ${JSON.stringify(incompleteSymbols)}`
+  );
+  assert.ok(
+    vscode.languages.getDiagnostics(incompleteFile).some(diagnostic => diagnostic.code === 'OX1001'),
+    `el documento incompleto conserva un diagnóstico local: ${JSON.stringify(vscode.languages.getDiagnostics(incompleteFile))}`
+  );
+
+  const loadStarted = Date.now();
+  const loadResponses = await Promise.all([
+    withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+        textDocument: { uri: activeFile.toString() }
+      }),
+      'semantic tokens concurrentes main'
+    ),
+    withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+        textDocument: { uri: alphaFile.toString() }
+      }),
+      'semantic tokens concurrentes alpha'
+    ),
+    withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+        textDocument: { uri: ambiguaFile.toString() }
+      }),
+      'semantic tokens concurrentes ambigua'
+    )
+  ]);
+  for (const response of loadResponses) {
+    decodeSemanticTokens(response?.data);
+  }
+  assert.ok(
+    Date.now() - loadStarted < 5000,
+    'tres solicitudes concurrentes de semantic tokens responden dentro del límite'
+  );
+  const stats = await withTimeout(
+    extensionApi.sendLanguageServerRequest('oxido/stats', {}),
+    'estadísticas tras carga'
+  );
+  assert.ok(stats.openDocuments >= 1, 'el servidor sigue respondiendo después de la carga');
   console.log('Navigation host: módulos, referencias inversas y ambigüedad segura sin confianza');
+  console.log('Semantic host: completado, hints, símbolos, tokens, edición incremental y carga');
 }
 
 function waitForMarker(marker, timeoutMs = 5000) {
@@ -508,6 +726,66 @@ async function run() {
       'hover semántico entre módulos'
     );
     console.log(`RA host: hover entre módulos con firma Rust (${JSON.stringify(moduleHover.contents.value)})`);
+
+    const tokensFile = vscode.Uri.file(path.join(fixturePath, 'semantic_tokens.ox'));
+    const tokensDocument = await vscode.workspace.openTextDocument(tokensFile);
+    await vscode.window.showTextDocument(tokensDocument, { preview: false });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const tokensResponse = await withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/semanticTokens/full', {
+        textDocument: { uri: tokensFile.toString() }
+      }),
+      'semantic tokens del índice de declaraciones'
+    );
+    const semanticTokens = decodeSemanticTokens(tokensResponse?.data);
+    const expectedTokens = [
+      [2, 7, 8, 'módulo declarado'],
+      [3, 20, 1, 'función declarada dentro de un módulo'],
+      [6, 11, 6, 'estructura declarada'],
+      [9, 8, 1, 'función declarada'],
+      [9, 25, 6, 'tipo declarado usado como anotación'],
+      [10, 18, 1, 'función usada como valor'],
+      [15, 4, 8, 'módulo usado en una llamada cualificada'],
+      [15, 10, 1, 'función resuelta a través del módulo'],
+      [16, 4, 1, 'función llamada localmente']
+    ];
+    for (const [line, character, expectedType, label] of expectedTokens) {
+      const token = semanticTokenAt(semanticTokens, line, character);
+      assert.ok(token, `${label}: token en ${line}:${character}`);
+      assert.equal(
+        token.type,
+        expectedType,
+        `${label}: tipo ${token.type} en lugar de ${expectedType}`
+      );
+    }
+    console.log('Semantic host: tipos, funciones y módulos resueltos por el índice local');
+
+    const tokensSymbols = await withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/documentSymbol', {
+        textDocument: { uri: tokensFile.toString() }
+      }),
+      'símbolos del fixture semántico'
+    );
+    const tokensSymbolNames = collectDocumentSymbolNames(tokensSymbols);
+    for (const expectedName of ['saludo', 'entero', 'identidad']) {
+      assert.ok(
+        tokensSymbolNames.includes(expectedName),
+        `documentSymbol incluye ${expectedName}: ${JSON.stringify(tokensSymbolNames)}`
+      );
+    }
+    const tokensReferences = await withTimeout(
+      extensionApi.sendLanguageServerRequest('textDocument/references', {
+        textDocument: { uri: tokensFile.toString() },
+        position: { line: 9, character: 8 },
+        context: { includeDeclaration: true }
+      }),
+      'referencias del fixture semántico'
+    );
+    const tokenReferenceUris = locationUris(tokensReferences);
+    assert.ok(
+      tokenReferenceUris.filter(uri => uri.endsWith('/semantic_tokens.ox')).length >= 2,
+      `las referencias de identidad incluyen declaración y llamadas: ${JSON.stringify(tokenReferenceUris)}`
+    );
   }
 
   await vscode.commands.executeCommand('workbench.action.quit');

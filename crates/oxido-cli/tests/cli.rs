@@ -483,6 +483,28 @@ fn formats_braced_source_idempotently_without_losing_comments() {
         first_result.find("// comentario al final del archivo") > first_result.find("funcion main")
     );
 
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["exportar", "comentarios.ox", "--salida", "comentarios.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let rustfmt_check = Command::new("rustfmt")
+        .env("RUSTUP_TOOLCHAIN", "1.99.1")
+        .current_dir(&work)
+        .args(["--check", "--edition", "2024", "comentarios.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        rustfmt_check.status.success(),
+        "el Rust exportado del modo llaves no está en formato rustfmt: {}",
+        String::from_utf8_lossy(&rustfmt_check.stderr)
+    );
+
     let check_after = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&work)
         .args(["formato", "comentarios.ox", "--comprobar"])
@@ -587,7 +609,7 @@ fn formats_indented_source_with_rust_like_spacing_and_canonical_nested_indentati
     );
     assert_eq!(
         fs::read_to_string(&source_path).unwrap(),
-        "sintaxis indentacion\nfuncion identidad<T: Clone>(valor: T) -> T:\n    retornar valor\n\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n\nfuncion principal():\n    dejar resultado = suma(\n        1,\n        2\n    )  // llamada   \n    si resultado > 0:\n        afirmar_igual!(identidad(resultado),3)\n    sino:\n        afirmar_igual!(resultado,0)\n"
+        "sintaxis indentacion\nfuncion identidad<T: Clone>(valor: T) -> T:\n    retornar valor\n\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n\nfuncion principal():\n    dejar resultado = suma(\n        1,\n        2\n    )  // llamada\n    si resultado > 0:\n        afirmar_igual!(identidad(resultado),3)\n    sino:\n        afirmar_igual!(resultado,0)\n"
     );
 
     let check = Command::new(env!("CARGO_BIN_EXE_oxido"))
@@ -658,18 +680,18 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
     let cases = [
         (
             "items-y-tipos",
-            "sintaxis indentacion\nusar std::collections::{HashMap,HashSet};\n#[derive(Clone,Debug)]\npub estructura Inventario<T:Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T:Clone>(valor:T)->Resultado<T,Cadena>:\n    dejar copia=valor.clone()\n    Bien(copia)\n",
-            "sintaxis indentacion\nusar std::collections::{HashMap, HashSet};\n#[derive(Clone,Debug)]\npub estructura Inventario<T: Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T: Clone>(valor: T) -> Resultado<T, Cadena>:\n    dejar copia = valor.clone()\n    Bien(copia)\n",
+            "sintaxis indentacion\n#![allow(dead_code)]\n//! Documentación interna del módulo.\nusar std::collections::{HashMap,HashSet};\n#[derive(Clone,Debug)]\n/// Inventario genérico documentado.\npub estructura Inventario<T:Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T:Clone>(valor:T)->Resultado<T,Cadena>:\n    dejar copia=valor.clone()\n    Bien(copia)\n",
+            "sintaxis indentacion\n#![allow(dead_code)]\n//! Documentación interna del módulo.\nusar std::collections::{HashMap, HashSet};\n#[derive(Clone,Debug)]\n/// Inventario genérico documentado.\npub estructura Inventario<T: Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T: Clone>(valor: T) -> Resultado<T, Cadena>:\n    dejar copia = valor.clone()\n    Bien(copia)\n",
         ),
         (
             "contenedores-y-control",
-            "sintaxis indentacion\nestructura Contenedor<T>:\n    valor:T\n\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo)->usize;\n\nimplementar<T:Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION:u32=1;\n    publico funcion nuevo(valor:T)->Contenedor<T>:\n        Contenedor{valor:valor}\n\n    funcion obtener(&mismo)->&T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo,valor:T):\n        mismo.valor=valor\n\nmodulo interno:\n    funcion sumar(valores:&Vector<i32>)->i32:\n        valores.iter().map(|valor|*valor).sum()\n\nfuncion evaluar(valor:i32)->i32:\n    coincidir valor:\n        0=>1\n        1=>\n            dejar resultado=2\n            resultado\n        _=>3\n",
-            "sintaxis indentacion\nestructura Contenedor<T>:\n    valor: T\n\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo) -> usize;\n\nimplementar<T: Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION: u32 = 1;\n    publico funcion nuevo(valor: T) -> Contenedor<T>:\n        Contenedor { valor: valor }\n\n    funcion obtener(&mismo) -> &T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo, valor: T):\n        mismo.valor = valor\n\nmodulo interno:\n    funcion sumar(valores: &Vector<i32>) -> i32:\n        valores.iter().map(|valor| *valor).sum()\n\nfuncion evaluar(valor: i32) -> i32:\n    coincidir valor:\n        0 => 1\n        1 =>\n            dejar resultado = 2\n            resultado\n        _ => 3\n",
+            "sintaxis indentacion\n/// Contenedor usado por el ejemplo.\nestructura Contenedor<T>:\n    valor:T\n\n/// Trait con tipo asociado y método predeterminado.\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo)->usize;\n    funcion es_positivo(&mismo)->bool:\n        mismo.medir()>0\n\nimplementar Medible for Contenedor<i32>:\n    tipo Medida=usize;\n    funcion medir(&mismo)->usize:\n        mismo.valor como usize\n\nimplementar<T:Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION:u32=1;\n    publico funcion nuevo(valor:T)->Contenedor<T>:\n        Contenedor{valor:valor}\n\n    funcion obtener(&mismo)->&T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo,valor:T):\n        mismo.valor=valor\n\nmodulo interno:\n    funcion sumar(valores:&Vector<i32>)->i32:\n        valores.iter().map(|valor|*valor).sum()\n\nfuncion evaluar(valor:i32)->i32:\n    coincidir valor:\n        0=>1\n        1=>\n            dejar resultado=2\n            resultado\n        _=>3\n",
+            "sintaxis indentacion\n/// Contenedor usado por el ejemplo.\nestructura Contenedor<T>:\n    valor: T\n\n/// Trait con tipo asociado y método predeterminado.\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo) -> usize;\n    funcion es_positivo(&mismo) -> bool:\n        mismo.medir() > 0\n\nimplementar Medible for Contenedor<i32>:\n    tipo Medida = usize;\n    funcion medir(&mismo) -> usize:\n        mismo.valor como usize\n\nimplementar<T: Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION: u32 = 1;\n    publico funcion nuevo(valor: T) -> Contenedor<T>:\n        Contenedor { valor: valor }\n\n    funcion obtener(&mismo) -> &T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo, valor: T):\n        mismo.valor = valor\n\nmodulo interno:\n    funcion sumar(valores: &Vector<i32>) -> i32:\n        valores.iter().map(|valor| *valor).sum()\n\nfuncion evaluar(valor: i32) -> i32:\n    coincidir valor:\n        0 => 1\n        1 =>\n            dejar resultado = 2\n            resultado\n        _ => 3\n",
         ),
         (
             "macros-comentarios-y-async",
-            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor:i32)->i32:\n    dejar texto=r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total=0\n    para valor en [1,2,3].iter():\n        total+=*valor\n    mientras total>0:\n        romper\n    imprimir!(\"{}\",total)\n",
-            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor: i32) -> i32:\n    dejar texto = r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total = 0\n    para valor en [1, 2, 3].iter():\n        total += *valor\n    mientras total > 0:\n        romper\n    imprimir!(\"{}\",total)\n",
+            "sintaxis indentacion\n// comentario de archivo\nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor:i32)->i32:\n    dejar texto=r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total=0\n    para valor en [1,2,3].iter():\n        total+=*valor\n    mientras total>0:\n        romper\n    imprimir!(\"{}\",total)\n",
+            "sintaxis indentacion\n// comentario de archivo\nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor: i32) -> i32:\n    dejar texto = r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total = 0\n    para valor en [1, 2, 3].iter():\n        total += *valor\n    mientras total > 0:\n        romper\n    imprimir!(\"{}\",total)\n",
         ),
         (
             "expresiones-y-patrones",
@@ -678,8 +700,8 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
         ),
         (
             "control-y-bloques",
-            "sintaxis indentacion\nfuncion ciclo(limite:bool)->i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion seleccionar(valor:bool)->i32:\n    si valor:\n        1\n    sino:\n        2\n",
-            "sintaxis indentacion\nfuncion ciclo(limite: bool) -> i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion seleccionar(valor: bool) -> i32:\n    si valor:\n        1\n    sino:\n        2\n",
+            "sintaxis indentacion\nfuncion ciclo(limite:bool)->i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion ciclo_con_etiqueta(limite:bool)->i32:\n    'salida: loop { if limite { break 'salida 3; } continue 'salida; }\n\nfuncion seleccionar(valor:bool)->i32:\n    si valor:\n        1\n    sino:\n        2\n\nfuncion seleccionar_anidado(valor:i32)->i32:\n    si valor<0:\n        -1\n    sino si valor==0:\n        0\n    sino:\n        valor\n\nfuncion devolver_sin_valor():\n    retornar\n\nfuncion semicolon_y_tail()->i32:\n    1;\n    0\n",
+            "sintaxis indentacion\nfuncion ciclo(limite: bool) -> i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion ciclo_con_etiqueta(limite: bool) -> i32:\n    'salida: loop { if limite { break 'salida 3; } continue 'salida; }\n\nfuncion seleccionar(valor: bool) -> i32:\n    si valor:\n        1\n    sino:\n        2\n\nfuncion seleccionar_anidado(valor: i32) -> i32:\n    si valor < 0:\n        -1\n    sino si valor == 0:\n        0\n    sino:\n        valor\n\nfuncion devolver_sin_valor():\n    retornar\n\nfuncion semicolon_y_tail() -> i32:\n    1;\n    0\n",
         ),
     ];
 
@@ -703,6 +725,7 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
             "caso {name}: {}",
             String::from_utf8_lossy(&before_export.stderr)
         );
+        let before_generated = fs::read_to_string(&before_rust).unwrap();
         let formatted_before = Command::new("rustfmt")
             .env("RUSTUP_TOOLCHAIN", "1.99.1")
             .current_dir(&temp.0)
@@ -715,6 +738,10 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
             String::from_utf8_lossy(&formatted_before.stderr)
         );
         let before_rustfmt = fs::read_to_string(&before_rust).unwrap();
+        assert_eq!(
+            before_generated, before_rustfmt,
+            "el Rust exportado antes de oxido formato no coincide con rustfmt, caso {name}"
+        );
 
         let formatted_ox = Command::new(env!("CARGO_BIN_EXE_oxido"))
             .current_dir(&temp.0)
@@ -761,6 +788,7 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
             "caso {name}: {}",
             String::from_utf8_lossy(&after_export.stderr)
         );
+        let after_generated = fs::read_to_string(temp.0.join("after.rs")).unwrap();
         let formatted_after = Command::new("rustfmt")
             .env("RUSTUP_TOOLCHAIN", "1.99.1")
             .current_dir(&temp.0)
@@ -772,9 +800,13 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
             "rustfmt tras oxido formato, caso {name}: {}",
             String::from_utf8_lossy(&formatted_after.stderr)
         );
+        let after_rustfmt = fs::read_to_string(temp.0.join("after.rs")).unwrap();
         assert_eq!(
-            before_rustfmt,
-            fs::read_to_string(temp.0.join("after.rs")).unwrap(),
+            after_generated, after_rustfmt,
+            "el Rust exportado por oxido formato no coincide con rustfmt, caso {name}"
+        );
+        assert_eq!(
+            before_rustfmt, after_rustfmt,
             "`oxido formato` alteró el Rust normalizado por rustfmt, caso {name}"
         );
 

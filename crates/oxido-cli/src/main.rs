@@ -641,7 +641,7 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
             None => (*line, ""),
         };
         let (leading, body) = split_indentation(content);
-        let expected_depth = indentation
+        let mut expected_depth = indentation
             .get(index)
             .copied()
             .flatten()
@@ -656,6 +656,20 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
                         .unwrap_or(0)
                 }
             });
+        let is_doc_comment = comment_lines.get(index).copied().unwrap_or(false)
+            && tokens_by_line[index]
+                .iter()
+                .find(|token| matches!(token.kind, TokenKind::Comment))
+                .is_some_and(|token| {
+                    let text = source.slice(token.span);
+                    text.starts_with("///") || text.starts_with("//!")
+                });
+        if is_doc_comment {
+            expected_depth = indentation[index + 1..]
+                .iter()
+                .find_map(|depth| *depth)
+                .unwrap_or(expected_depth);
+        }
         if body.is_empty() {
             // Las líneas vacías no conservan espacios de sangría.
         } else if preserve_lines.get(index).copied().unwrap_or(false) {
@@ -948,7 +962,8 @@ fn format_indented_comment_line(
     let comment_and_suffix = source
         .text()
         .get(comment.span.start()..content_end)
-        .unwrap_or(comment_text);
+        .unwrap_or(comment_text)
+        .trim_end_matches([' ', '\t']);
     format!("{formatted_code}  {comment_and_suffix}")
 }
 

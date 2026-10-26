@@ -8,7 +8,7 @@ use std::{
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 static NEXT_WORKSPACE: AtomicU64 = AtomicU64::new(0);
@@ -229,6 +229,25 @@ pub fn build_generated_with_dependencies(
     )
 }
 
+pub fn build_generated_with_dependencies_cancellable(
+    rust: &str,
+    source_map: &SourceMap,
+    dependencies: &[crate::config::ResolvedDependency],
+    persistent_lockfile: Option<&Path>,
+    action: CargoAction,
+    cancellation: Option<&AtomicBool>,
+) -> io::Result<CargoBuildResult> {
+    build_generated_project_with_dependencies_cancellable(
+        rust,
+        source_map,
+        &[],
+        dependencies,
+        persistent_lockfile,
+        action,
+        cancellation,
+    )
+}
+
 pub fn build_generated_project_with_dependencies(
     rust: &str,
     source_map: &SourceMap,
@@ -236,6 +255,26 @@ pub fn build_generated_project_with_dependencies(
     dependencies: &[crate::config::ResolvedDependency],
     persistent_lockfile: Option<&Path>,
     action: CargoAction,
+) -> io::Result<CargoBuildResult> {
+    build_generated_project_with_dependencies_cancellable(
+        rust,
+        source_map,
+        additional_sources,
+        dependencies,
+        persistent_lockfile,
+        action,
+        None,
+    )
+}
+
+pub fn build_generated_project_with_dependencies_cancellable(
+    rust: &str,
+    source_map: &SourceMap,
+    additional_sources: &[GeneratedModule],
+    dependencies: &[crate::config::ResolvedDependency],
+    persistent_lockfile: Option<&Path>,
+    action: CargoAction,
+    cancellation: Option<&AtomicBool>,
 ) -> io::Result<CargoBuildResult> {
     if !dependencies.is_empty()
         && matches!(
@@ -283,8 +322,17 @@ pub fn build_generated_project_with_dependencies(
             | CargoAction::FetchUpdate
     ) {
         if !lock_path.is_file() || update_lock {
-            let output =
-                oxido_cargo::run(workspace.path(), &[OsString::from("generate-lockfile")])?;
+            if cancellation_requested(cancellation) {
+                return Ok(canceled_build_result());
+            }
+            let output = oxido_cargo::run_cancellable(
+                workspace.path(),
+                &[OsString::from("generate-lockfile")],
+                cancellation,
+            )?;
+            if cancellation_requested(cancellation) {
+                return Ok(canceled_build_result());
+            }
             if !output.success {
                 return Ok(CargoBuildResult {
                     success: false,
@@ -316,10 +364,17 @@ pub fn build_generated_project_with_dependencies(
             });
         }
 
-        let output = oxido_cargo::run(
+        if cancellation_requested(cancellation) {
+            return Ok(canceled_build_result());
+        }
+        let output = oxido_cargo::run_cancellable(
             workspace.path(),
             &[OsString::from("fetch"), OsString::from("--locked")],
+            cancellation,
         )?;
+        if cancellation_requested(cancellation) {
+            return Ok(canceled_build_result());
+        }
         if output.success
             && let Some(persistent_lockfile) = persistent_lockfile
             && (update_lock || !persistent_lockfile.exists())
@@ -354,13 +409,20 @@ pub fn build_generated_project_with_dependencies(
                 stderr: String::new(),
             });
         }
-        let lock = oxido_cargo::run(
+        if cancellation_requested(cancellation) {
+            return Ok(canceled_build_result());
+        }
+        let lock = oxido_cargo::run_cancellable(
             workspace.path(),
             &[
                 OsString::from("generate-lockfile"),
                 OsString::from("--offline"),
             ],
+            cancellation,
         )?;
+        if cancellation_requested(cancellation) {
+            return Ok(canceled_build_result());
+        }
         if !lock.success {
             return Ok(CargoBuildResult {
                 success: false,
@@ -420,7 +482,13 @@ pub fn build_generated_project_with_dependencies(
     .into_iter()
     .map(OsString::from)
     .collect::<Vec<_>>();
-    let output = oxido_cargo::run(workspace.path(), &args)?;
+    if cancellation_requested(cancellation) {
+        return Ok(canceled_build_result());
+    }
+    let output = oxido_cargo::run_cancellable(workspace.path(), &args, cancellation)?;
+    if cancellation_requested(cancellation) {
+        return Ok(canceled_build_result());
+    }
     Ok(CargoBuildResult {
         success: output.success,
         timed_out: output.timed_out,
@@ -436,6 +504,21 @@ pub fn build_generated_project_with_dependencies(
         program_output: output.non_json_stdout,
         stderr: output.stderr,
     })
+}
+
+fn cancellation_requested(cancellation: Option<&AtomicBool>) -> bool {
+    cancellation.is_some_and(|flag| flag.load(Ordering::Relaxed))
+}
+
+fn canceled_build_result() -> CargoBuildResult {
+    CargoBuildResult {
+        success: false,
+        timed_out: false,
+        exit_code: None,
+        diagnostics: Vec::new(),
+        program_output: Vec::new(),
+        stderr: String::new(),
+    }
 }
 
 fn persist_lockfile(generated: &Path, destination: &Path, replace: bool) -> io::Result<()> {

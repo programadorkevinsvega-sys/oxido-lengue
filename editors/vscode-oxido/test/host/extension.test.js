@@ -114,6 +114,78 @@ async function runNavigationCase(fixturePath, withTimeout, extensionApi) {
   console.log('Navigation host: cualificadores, tipos anidados y métodos resueltos sin confianza');
 }
 
+function waitForMarker(marker, timeoutMs = 5000) {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    const poll = () => {
+      if (fs.existsSync(marker)) {
+        resolve();
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`Cargo no creó el marcador ${path.basename(marker)}`));
+        return;
+      }
+      setTimeout(poll, 50);
+    };
+    poll();
+  });
+}
+
+async function runCancellationCase(fixturePath, withTimeout, extensionApi) {
+  assert.equal(vscode.workspace.isTrusted, true, 'la cancelación Cargo exige confianza');
+  const activeFile = await openFixture(fixturePath, 'main.ox');
+  const startedMarker = process.env.OXIDO_CARGO_STARTED;
+  const finishedMarker = process.env.OXIDO_CARGO_FINISHED;
+  assert.ok(startedMarker && finishedMarker, 'la prueba define los marcadores de Cargo');
+  fs.rmSync(startedMarker, { force: true });
+  fs.rmSync(finishedMarker, { force: true });
+
+  const cancellation = new vscode.CancellationTokenSource();
+  const check = extensionApi.sendLanguageServerRequest('oxido/check', {
+    trusted: true,
+    textDocument: { uri: activeFile.toString() }
+  }, cancellation.token);
+  let settled = false;
+  check.then(() => { settled = true; }, () => { settled = true; });
+
+  const early = await Promise.race([
+    waitForMarker(startedMarker).then(() => undefined),
+    check.then(
+      result => ({ result }),
+      error => ({ error: error instanceof Error ? error.message : String(error) })
+    )
+  ]);
+  assert.equal(
+    early,
+    undefined,
+    `la comprobación terminó antes de que Cargo arrancara: ${JSON.stringify(early)}`
+  );
+  assert.equal(settled, false, 'Cargo sigue en curso cuando se solicitan estadísticas');
+  const statsStarted = Date.now();
+  const stats = await withTimeout(
+    extensionApi.sendLanguageServerRequest('oxido/stats', {}),
+    'estadísticas durante Cargo',
+    1500
+  );
+  assert.ok(Date.now() - statsStarted < 1500, 'las estadísticas no esperan a Cargo');
+  assert.equal(typeof stats.openDocuments, 'number');
+  assert.equal(stats.openDocuments >= 1, true);
+
+  cancellation.cancel();
+  let canceled = false;
+  try {
+    await withTimeout(check, 'cancelación de Cargo', 5000);
+  } catch (error) {
+    canceled = error?.code === -32800
+      || /cancel/i.test(error instanceof Error ? error.message : String(error));
+  }
+  assert.ok(canceled, 'la solicitud Cargo cancelada devuelve -32800');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.ok(!fs.existsSync(finishedMarker), 'la cancelación mata el proceso Cargo');
+  console.log('Cancellation host: stats respondió durante Cargo y la cancelación lo detuvo');
+}
+
 async function runRestrictedCase(fixturePath, withTimeout) {
   assert.equal(vscode.workspace.isTrusted, false, 'el host arranca en Restricted Mode');
   const activeFile = await openFixture(fixturePath, 'main.ox');
@@ -169,11 +241,19 @@ async function run() {
   }
   if (hostCase === 'restricted') {
     await runRestrictedCase(fixturePath, withTimeout);
-    await vscode.commands.executeCommand('workbench.action.closeWindow');
+    // The Restricted Mode banner initializes asynchronously.  Quit the
+    // application after the assertions instead of closing the window while
+    // that startup work can still race the host shutdown.
+    await vscode.commands.executeCommand('workbench.action.quit');
     return;
   }
   if (hostCase === 'navigation') {
     await runNavigationCase(fixturePath, withTimeout, extensionApi);
+    await vscode.commands.executeCommand('workbench.action.closeWindow');
+    return;
+  }
+  if (hostCase === 'cancellation') {
+    await runCancellationCase(fixturePath, withTimeout, extensionApi);
     await vscode.commands.executeCommand('workbench.action.closeWindow');
     return;
   }

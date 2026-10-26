@@ -6,6 +6,19 @@ const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
 const extensionRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(extensionRoot, '..', '..');
 const testRunner = path.join(__dirname, 'host', 'runner.js');
+const HOST_PROFILES = [
+  'trusted-workspace',
+  'cargo-workspace',
+  'navigation-workspace',
+  'cancellation-workspace',
+  'restricted-workspace'
+];
+
+function cleanHostProfiles() {
+  for (const name of HOST_PROFILES) {
+    fs.rmSync(path.join(extensionRoot, '.vscode-test', name), { recursive: true, force: true });
+  }
+}
 
 function prepareCargoHome(profile) {
   const vendor = path.join(repositoryRoot, 'tests', 'fixtures', 'cargo-registry', 'vendor');
@@ -29,6 +42,20 @@ function prepareFakeCargo(profile) {
   const script = `#!/bin/sh\n: > '${marker.replaceAll("'", "'\\''")}'\nexit 97\n`;
   fs.writeFileSync(path.join(directory, 'cargo'), script, { mode: 0o755 });
   return { directory, marker };
+}
+
+function prepareSlowFakeCargo(profile) {
+  if (process.platform === 'win32') {
+    return undefined;
+  }
+  const directory = path.join(profile, 'slow-cargo');
+  const started = path.join(profile, 'cargo-started');
+  const finished = path.join(profile, 'cargo-finished');
+  fs.mkdirSync(directory, { recursive: true });
+  const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
+  const script = `#!/bin/sh\n: > ${quote(started)}\nsleep 30\n: > ${quote(finished)}\nexit 0\n`;
+  fs.writeFileSync(path.join(directory, 'cargo'), script, { mode: 0o755 });
+  return { directory, started, finished };
 }
 
 async function runHostCase({ label, fixture, extraArgs, environment }) {
@@ -74,6 +101,7 @@ async function runHostCase({ label, fixture, extraArgs, environment }) {
 }
 
 async function main() {
+  cleanHostProfiles();
   const only = process.env.OXIDO_HOST_ONLY;
   const cargoProfile = path.join(extensionRoot, '.vscode-test', 'cargo-workspace');
   const cargoHome = prepareCargoHome(cargoProfile);
@@ -108,6 +136,30 @@ async function main() {
         OXIDO_HOST_CASE: 'navigation'
       }
     });
+  }
+  if (!only || only === 'cancellation') {
+    const cancellationProfile = path.join(extensionRoot, '.vscode-test', 'cancellation-workspace');
+    const fakeCargo = prepareSlowFakeCargo(cancellationProfile);
+    if (fakeCargo) {
+      fs.rmSync(fakeCargo.started, { force: true });
+      fs.rmSync(fakeCargo.finished, { force: true });
+      const cancellationPath = `${fakeCargo.directory}${path.delimiter}${process.env.PATH ?? ''}`;
+      await runHostCase({
+        label: 'cancellation workspace',
+        fixture: path.join(__dirname, 'fixtures', 'navigation'),
+        extraArgs: ['--disable-workspace-trust'],
+        environment: {
+          OXIDO_EXPECT_TRUSTED: 'true',
+          OXIDO_HOST_CASE: 'cancellation',
+          OXIDO_CARGO_STARTED: fakeCargo.started,
+          OXIDO_CARGO_FINISHED: fakeCargo.finished,
+          OXIDO_CARGO_BINARY: path.join(fakeCargo.directory, 'cargo'),
+          PATH: cancellationPath
+        }
+      });
+    } else {
+      process.stdout.write('VS Code host test: el caso de cancelación se omite en Windows\n');
+    }
   }
   if (!only || only === 'restricted') {
     const restrictedProfile = path.join(extensionRoot, '.vscode-test', 'restricted-workspace');

@@ -3,7 +3,7 @@
 //! Casos de uso del compilador, sin transporte ni acceso directo a procesos.
 
 use oxido_language::SourceFile;
-use std::{fs, path::Path};
+use std::{fs, path::Path, sync::atomic::AtomicBool};
 
 pub mod config;
 pub mod application {
@@ -82,13 +82,26 @@ pub fn build_ox_in_project(
     lockfile: Option<&Path>,
     action: application::cargo::CargoAction,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    build_ox_in_project_cancellable(source, options, dependencies, lockfile, action, None)
+}
+
+/// Igual que [`build_ox_in_project`], pero aborta Cargo cuando la bandera se active.
+pub fn build_ox_in_project_cancellable(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    dependencies: &[config::ResolvedDependency],
+    lockfile: Option<&Path>,
+    action: application::cargo::CargoAction,
+    cancellation: Option<&AtomicBool>,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
     let generated = generate_ox(source, options)?;
-    let mut result = application::cargo::build_generated_with_dependencies(
+    let mut result = application::cargo::build_generated_with_dependencies_cancellable(
         &generated.rust,
         &generated.source_map,
         dependencies,
         lockfile,
         action,
+        cancellation,
     )
     .map_err(|error| {
         let span = source
@@ -142,6 +155,27 @@ pub fn build_ox_project_in_project(
     action: application::cargo::CargoAction,
     project_root: &Path,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    build_ox_project_in_project_cancellable(
+        source,
+        options,
+        dependencies,
+        lockfile,
+        action,
+        project_root,
+        None,
+    )
+}
+
+/// Igual que [`build_ox_project_in_project`], pero aborta Cargo cuando la bandera se active.
+pub fn build_ox_project_in_project_cancellable(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    dependencies: &[config::ResolvedDependency],
+    lockfile: Option<&Path>,
+    action: application::cargo::CargoAction,
+    project_root: &Path,
+    cancellation: Option<&AtomicBool>,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
     let generated = generate_ox(source, options)?;
     let resolved = application::modules::resolve_project_modules(
         source,
@@ -169,13 +203,14 @@ pub fn build_ox_project_in_project(
     if let Some(relative_source) = relative_source {
         source_map.set_source_relative_path(relative_source);
     }
-    let mut result = application::cargo::build_generated_project_with_dependencies(
+    let mut result = application::cargo::build_generated_project_with_dependencies_cancellable(
         &generated.rust,
         &source_map,
         &resolved.modules,
         dependencies,
         lockfile,
         action,
+        cancellation,
     )
     .map_err(|error| {
         let span = source

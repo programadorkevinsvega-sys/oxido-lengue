@@ -8,6 +8,7 @@ use std::{
     io::{self, Read},
     path::Path,
     process::{Command, Stdio},
+    sync::atomic::{AtomicBool, Ordering},
     thread,
     time::{Duration, Instant},
 };
@@ -29,6 +30,15 @@ pub fn run(cwd: &Path, args: &[OsString]) -> io::Result<CargoOutput> {
     run_with_timeout(cwd, args, None, DEFAULT_TIMEOUT)
 }
 
+/// Ejecuta Cargo y permite abortar el proceso cuando la bandera se active.
+pub fn run_cancellable(
+    cwd: &Path,
+    args: &[OsString],
+    cancellation: Option<&AtomicBool>,
+) -> io::Result<CargoOutput> {
+    run_with_timeout_cancellable(cwd, args, None, DEFAULT_TIMEOUT, cancellation)
+}
+
 /// Ejecuta Cargo usando un `CARGO_HOME` aislado del proyecto anfitrión cuando se indique.
 pub fn run_with_cargo_home(
     cwd: &Path,
@@ -44,7 +54,21 @@ pub fn run_with_timeout(
     cargo_home: Option<&Path>,
     timeout: Duration,
 ) -> io::Result<CargoOutput> {
-    let mut command = Command::new("cargo");
+    run_with_timeout_cancellable(cwd, args, cargo_home, timeout, None)
+}
+
+pub fn run_with_timeout_cancellable(
+    cwd: &Path,
+    args: &[OsString],
+    cargo_home: Option<&Path>,
+    timeout: Duration,
+    cancellation: Option<&AtomicBool>,
+) -> io::Result<CargoOutput> {
+    if cancellation.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+        return Ok(canceled_output());
+    }
+    let program = std::env::var_os("OXIDO_CARGO_BINARY").unwrap_or_else(|| OsString::from("cargo"));
+    let mut command = Command::new(program);
     command
         .args(args)
         .current_dir(cwd)
@@ -83,7 +107,13 @@ pub fn run_with_timeout(
     });
     let started = Instant::now();
     let mut timed_out = false;
+    let mut canceled = false;
     let status = loop {
+        if cancellation.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            canceled = true;
+            kill_process_tree(&mut child)?;
+            break child.wait()?;
+        }
         if started.elapsed() >= timeout {
             timed_out = true;
             kill_process_tree(&mut child)?;
@@ -102,13 +132,24 @@ pub fn run_with_timeout(
         .map_err(|_| io::Error::other("falló el lector de stderr de Cargo"))??;
     let (messages, non_json_stdout) = parse_stdout(&String::from_utf8_lossy(&stdout));
     Ok(CargoOutput {
-        success: status.success() && !timed_out,
+        success: status.success() && !timed_out && !canceled,
         timed_out,
         exit_code: status.code(),
         messages,
         non_json_stdout,
         stderr: String::from_utf8_lossy(&stderr).into_owned(),
     })
+}
+
+fn canceled_output() -> CargoOutput {
+    CargoOutput {
+        success: false,
+        timed_out: false,
+        exit_code: None,
+        messages: Vec::new(),
+        non_json_stdout: Vec::new(),
+        stderr: String::new(),
+    }
 }
 
 fn kill_process_tree(child: &mut std::process::Child) -> io::Result<()> {
@@ -183,5 +224,24 @@ mod tests {
         .expect("debe poder iniciar y detener Cargo");
         assert!(result.timed_out);
         assert!(!result.success);
+    }
+
+    #[test]
+    fn honors_a_cancellation_flag_before_spawning_cargo() {
+        let cancellation = AtomicBool::new(true);
+        let result = run_with_timeout_cancellable(
+            Path::new(env!("CARGO_MANIFEST_DIR")),
+            &["--version".into()],
+            None,
+            DEFAULT_TIMEOUT,
+            Some(&cancellation),
+        )
+        .expect("la cancelación no debe fallar al no iniciar Cargo");
+        assert!(!result.success);
+        assert!(!result.timed_out);
+        assert_eq!(result.exit_code, None);
+        assert!(result.messages.is_empty());
+        assert!(result.non_json_stdout.is_empty());
+        assert!(result.stderr.is_empty());
     }
 }

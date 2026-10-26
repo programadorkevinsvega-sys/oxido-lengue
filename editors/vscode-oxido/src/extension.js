@@ -123,11 +123,13 @@ async function deactivate() {
   }
 }
 
-async function sendLanguageServerRequest(method, params) {
+async function sendLanguageServerRequest(method, params, token) {
   if (!client) {
     throw new Error('el servidor de lenguaje de Óxido no está iniciado');
   }
-  return client.sendRequest(method, params);
+  return token
+    ? client.sendRequest(method, params, token)
+    : client.sendRequest(method, params);
 }
 
 module.exports = { activate, deactivate, sendLanguageServerRequest };

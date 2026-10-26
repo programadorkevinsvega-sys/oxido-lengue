@@ -26,6 +26,7 @@ use symbols::{SymbolKind, declared_symbols};
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_HEADER_LINE_BYTES: usize = 8 * 1024;
 const MAX_PENDING_SEMANTIC_REQUESTS: usize = 4;
+const MAX_PENDING_CARGO_REQUESTS: usize = 1;
 const MAX_QUEUED_LSP_EVENTS: usize = 8;
 const MAX_OPEN_DOCUMENTS: usize = 64;
 const MAX_OPEN_DOCUMENT_BYTES: usize = 16 * 1024 * 1024;
@@ -121,11 +122,40 @@ struct PendingDiagnostic {
     cancellation: Arc<AtomicBool>,
 }
 
+struct PendingCargoRequest {
+    id: Value,
+    cancellation: Arc<AtomicBool>,
+    snapshot: CargoCheckSnapshot,
+}
+
+#[derive(Clone, Debug)]
+struct CargoCheckSnapshot {
+    uri: String,
+    document_version: Option<i64>,
+    document_text: String,
+    source_path: Option<PathBuf>,
+    project_root: Option<PathBuf>,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+}
+
+struct CargoCheckOutcome {
+    result: Result<
+        oxido_compiler::application::cargo::CargoBuildResult,
+        Vec<oxido_language::domain::diagnostics::Diagnostic>,
+    >,
+    dependency_count: usize,
+    lockfile_present: bool,
+}
+
 enum ServerEvent {
     Frame(Vec<u8>),
     AsyncResponse {
         key: String,
         response: Value,
+    },
+    CargoReady {
+        key: String,
+        outcome: CargoCheckOutcome,
     },
     DiagnosticReady {
         uri: String,
@@ -201,6 +231,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
 
     let mut state = ServerState::default();
     let mut pending = HashMap::<String, PendingSemanticRequest>::new();
+    let mut pending_cargo = HashMap::<String, PendingCargoRequest>::new();
     let mut pending_diagnostics = HashMap::<String, PendingDiagnostic>::new();
     let mut dirty_diagnostics = BTreeSet::<String>::new();
     let mut input_error = None;
@@ -209,12 +240,65 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
         match event {
             ServerEvent::Frame(body) => {
                 let request = serde_json::from_slice::<Value>(&body).map_err(io::Error::other)?;
-                if cancel_request(&request, &pending) {
+                if cancel_request(&request, &pending, &pending_cargo) {
                     continue;
                 }
                 if request.get("method").and_then(Value::as_str) == Some("oxido/check") {
-                    let response = cargo_check_response(&request, &state);
-                    write_lsp_message(&mut output, &response)?;
+                    let id = request.get("id").cloned().unwrap_or(Value::Null);
+                    let key = id.to_string();
+                    let snapshot = match cargo_check_snapshot(&request, &state) {
+                        Ok(snapshot) => snapshot,
+                        Err(response) => {
+                            write_lsp_message(&mut output, &response)?;
+                            continue;
+                        }
+                    };
+                    if pending_cargo.contains_key(&key) {
+                        write_lsp_message(
+                            &mut output,
+                            &json!({"jsonrpc":"2.0","id":id,"error":{"code":-32600,"message":"id de solicitud duplicado"}}),
+                        )?;
+                        continue;
+                    }
+                    if pending_cargo.len() >= MAX_PENDING_CARGO_REQUESTS {
+                        write_lsp_message(
+                            &mut output,
+                            &json!({"jsonrpc":"2.0","id":id,"error":{"code":-32002,"message":"ya hay una comprobación Cargo en curso"}}),
+                        )?;
+                        continue;
+                    }
+                    let cancellation = Arc::new(AtomicBool::new(false));
+                    let worker_cancellation = Arc::clone(&cancellation);
+                    let worker_tx = events_tx.clone();
+                    let worker_key = key.clone();
+                    let worker_snapshot = snapshot.clone();
+                    let worker = thread::Builder::new()
+                        .name("oxido-lsp-cargo-check".to_owned())
+                        .spawn(move || {
+                            let outcome = run_cargo_check(worker_snapshot, &worker_cancellation);
+                            if let Err(error) = worker_tx.send(ServerEvent::CargoReady {
+                                key: worker_key,
+                                outcome,
+                            }) {
+                                eprintln!("LSP Cargo event receiver closed: {error}");
+                            }
+                        });
+                    match worker {
+                        Ok(_) => {
+                            pending_cargo.insert(
+                                key,
+                                PendingCargoRequest {
+                                    id,
+                                    cancellation,
+                                    snapshot,
+                                },
+                            );
+                        }
+                        Err(error) => write_lsp_message(
+                            &mut output,
+                            &json!({"jsonrpc":"2.0","id":id,"error":{"code":-32603,"message":format!("no se pudo iniciar la comprobación Cargo: {error}")}}),
+                        )?,
+                    }
                     continue;
                 }
                 if request.get("method").and_then(Value::as_str) == Some("oxido/stats") {
@@ -358,7 +442,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 if let Some(request) = pending.remove(&key) {
                     let final_response = if request.cancellation.load(Ordering::Relaxed) {
                         canceled_response(request.id)
-                    } else if document_was_modified(&state, &request) {
+                    } else if semantic_request_was_modified(&state, &request) {
                         json!({"jsonrpc":"2.0","id":request.id,"error":{"code":CONTENT_MODIFIED_ERROR_CODE,"message":"el documento cambió durante el cálculo"}})
                     } else {
                         response
@@ -367,7 +451,37 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                         write_lsp_message(&mut output, &final_response)?;
                     }
                 }
-                if input_ended && pending.is_empty() && pending_diagnostics.is_empty() {
+                if input_ended
+                    && pending.is_empty()
+                    && pending_cargo.is_empty()
+                    && pending_diagnostics.is_empty()
+                {
+                    break;
+                }
+            }
+            ServerEvent::CargoReady { key, outcome } => {
+                if let Some(request) = pending_cargo.remove(&key) {
+                    let final_response = if request.cancellation.load(Ordering::Relaxed) {
+                        canceled_response(request.id)
+                    } else if document_was_modified(
+                        &state,
+                        &request.snapshot.uri,
+                        request.snapshot.document_version,
+                        &request.snapshot.document_text,
+                    ) {
+                        json!({"jsonrpc":"2.0","id":request.id,"error":{"code":CONTENT_MODIFIED_ERROR_CODE,"message":"el documento cambió durante la comprobación Cargo"}})
+                    } else {
+                        cargo_check_outcome_response(request.id, outcome, &state, &request.snapshot)
+                    };
+                    if !input_ended {
+                        write_lsp_message(&mut output, &final_response)?;
+                    }
+                }
+                if input_ended
+                    && pending.is_empty()
+                    && pending_cargo.is_empty()
+                    && pending_diagnostics.is_empty()
+                {
                     break;
                 }
             }
@@ -410,7 +524,11 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                     &mut dirty_diagnostics,
                     &mut pending_diagnostics,
                 );
-                if input_ended && pending.is_empty() && pending_diagnostics.is_empty() {
+                if input_ended
+                    && pending.is_empty()
+                    && pending_cargo.is_empty()
+                    && pending_diagnostics.is_empty()
+                {
                     break;
                 }
             }
@@ -419,11 +537,15 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 for request in pending.values() {
                     request.cancellation.store(true, Ordering::Relaxed);
                 }
+                for request in pending_cargo.values() {
+                    request.cancellation.store(true, Ordering::Relaxed);
+                }
                 for diagnostic in pending_diagnostics.values() {
                     diagnostic.cancellation.store(true, Ordering::Relaxed);
                 }
                 dirty_diagnostics.clear();
-                if pending.is_empty() && pending_diagnostics.is_empty() {
+                if pending.is_empty() && pending_cargo.is_empty() && pending_diagnostics.is_empty()
+                {
                     break;
                 }
             }
@@ -433,17 +555,24 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 for request in pending.values() {
                     request.cancellation.store(true, Ordering::Relaxed);
                 }
+                for request in pending_cargo.values() {
+                    request.cancellation.store(true, Ordering::Relaxed);
+                }
                 for diagnostic in pending_diagnostics.values() {
                     diagnostic.cancellation.store(true, Ordering::Relaxed);
                 }
                 dirty_diagnostics.clear();
-                if pending.is_empty() && pending_diagnostics.is_empty() {
+                if pending.is_empty() && pending_cargo.is_empty() && pending_diagnostics.is_empty()
+                {
                     break;
                 }
             }
         }
     }
     for request in pending.values() {
+        request.cancellation.store(true, Ordering::Relaxed);
+    }
+    for request in pending_cargo.values() {
         request.cancellation.store(true, Ordering::Relaxed);
     }
     reader
@@ -467,14 +596,22 @@ fn write_lsp_message(output: &mut impl Write, message: &Value) -> io::Result<()>
     output.flush()
 }
 
-fn cancel_request(request: &Value, pending: &HashMap<String, PendingSemanticRequest>) -> bool {
+fn cancel_request(
+    request: &Value,
+    pending: &HashMap<String, PendingSemanticRequest>,
+    pending_cargo: &HashMap<String, PendingCargoRequest>,
+) -> bool {
     if request.get("method").and_then(Value::as_str) != Some("$/cancelRequest") {
         return false;
     }
-    if let Some(id) = request.pointer("/params/id")
-        && let Some(request) = pending.get(&id.to_string())
-    {
-        request.cancellation.store(true, Ordering::Relaxed);
+    if let Some(id) = request.pointer("/params/id") {
+        let key = id.to_string();
+        if let Some(request) = pending.get(&key) {
+            request.cancellation.store(true, Ordering::Relaxed);
+        }
+        if let Some(request) = pending_cargo.get(&key) {
+            request.cancellation.store(true, Ordering::Relaxed);
+        }
     }
     true
 }
@@ -483,12 +620,16 @@ fn canceled_response(id: Value) -> Value {
     json!({"jsonrpc":"2.0","id":id,"error":{"code":CANCELED_ERROR_CODE,"message":"solicitud cancelada"}})
 }
 
-fn document_was_modified(state: &ServerState, request: &PendingSemanticRequest) -> bool {
-    let Some(uri) = request.uri.as_deref() else {
-        return false;
-    };
-    state.documents.get(uri).is_none_or(|document| {
-        document.version != request.document_version || document.text != request.document_text
+fn document_was_modified(state: &ServerState, uri: &str, version: Option<i64>, text: &str) -> bool {
+    state
+        .documents
+        .get(uri)
+        .is_none_or(|document| document.version != version || document.text != text)
+}
+
+fn semantic_request_was_modified(state: &ServerState, request: &PendingSemanticRequest) -> bool {
+    request.uri.as_deref().is_some_and(|uri| {
+        document_was_modified(state, uri, request.document_version, &request.document_text)
     })
 }
 
@@ -698,30 +839,49 @@ fn diagnostic_notification(
     json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":diagnostics}})
 }
 
-fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
+fn cargo_check_snapshot(request: &Value, state: &ServerState) -> Result<CargoCheckSnapshot, Value> {
     let id = request.get("id").cloned().unwrap_or(Value::Null);
     let trusted = state.trusted_workspace
         && request.pointer("/params/trusted").and_then(Value::as_bool) == Some(true);
     if !trusted {
-        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32003,"message":"Cargo requiere confianza explícita del workspace"}});
+        return Err(
+            json!({"jsonrpc":"2.0","id":id,"error":{"code":-32003,"message":"Cargo requiere confianza explícita del workspace"}}),
+        );
     }
     let Some(uri) = request
         .pointer("/params/textDocument/uri")
         .and_then(Value::as_str)
     else {
-        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"falta textDocument.uri"}});
+        return Err(
+            json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"falta textDocument.uri"}}),
+        );
     };
     let Some(document) = state.documents.get(uri) else {
-        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"el documento no está abierto"}});
+        return Err(
+            json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"el documento no está abierto"}}),
+        );
     };
-    let source_path = file_uri_path(uri).map(PathBuf::from);
-    let source = source_path.as_deref().map_or_else(
-        || SourceFile::new(&document.text),
-        |path| SourceFile::with_path(path, &document.text),
+    Ok(CargoCheckSnapshot {
+        uri: uri.to_owned(),
+        document_version: document.version,
+        document_text: document.text.clone(),
+        source_path: file_uri_path(uri).map(PathBuf::from),
+        project_root: state.project_root.clone(),
+        project_mode: state.project_mode,
+    })
+}
+
+fn run_cargo_check(snapshot: CargoCheckSnapshot, cancellation: &AtomicBool) -> CargoCheckOutcome {
+    let source = snapshot.source_path.as_deref().map_or_else(
+        || SourceFile::new(&snapshot.document_text),
+        |path| SourceFile::with_path(path, &snapshot.document_text),
     );
+    let options = LexOptions {
+        project_mode: snapshot.project_mode,
+    };
     let mut dependency_count = 0_usize;
     let mut lockfile_present = false;
-    let result = if let Some(project_root) = state.project_root.as_deref() {
+    let result = if let Some(project_root) = snapshot.project_root.as_deref() {
         let config_path = project_root.join("oxido.toml");
         let lockfile_path = project_root.join("Cargo.lock");
         lockfile_present = lockfile_path.is_file();
@@ -732,15 +892,14 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
             Ok(config) => match config.resolve_dependencies(project_root) {
                 Ok(dependencies) => {
                     dependency_count = dependencies.len();
-                    oxido_compiler::build_ox_project_in_project(
+                    oxido_compiler::build_ox_project_in_project_cancellable(
                         &source,
-                        LexOptions {
-                            project_mode: state.project_mode,
-                        },
+                        options,
                         &dependencies,
                         Some(&lockfile_path),
                         oxido_compiler::application::cargo::CargoAction::CheckTrusted,
                         project_root,
+                        Some(cancellation),
                     )
                 }
                 Err(error) => Err(vec![
@@ -764,15 +923,29 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
             ]),
         }
     } else {
-        oxido_compiler::build_ox(
+        oxido_compiler::build_ox_in_project_cancellable(
             &source,
-            LexOptions {
-                project_mode: state.project_mode,
-            },
+            options,
+            &[],
+            None,
             oxido_compiler::application::cargo::CargoAction::CheckTrusted,
+            Some(cancellation),
         )
     };
-    let (success, timed_out, exit_code, files) = match result {
+    CargoCheckOutcome {
+        result,
+        dependency_count,
+        lockfile_present,
+    }
+}
+
+fn cargo_check_outcome_response(
+    id: Value,
+    outcome: CargoCheckOutcome,
+    state: &ServerState,
+    snapshot: &CargoCheckSnapshot,
+) -> Value {
+    let (success, timed_out, exit_code, files) = match outcome.result {
         Ok(result) => (
             result.success,
             result.timed_out,
@@ -781,15 +954,15 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
                 &result.diagnostics,
                 result.success,
                 state,
-                uri,
-                &document.text,
+                &snapshot.uri,
+                &snapshot.document_text,
             ),
         ),
         Err(diagnostics) => (
             false,
             false,
             None,
-            compiler_diagnostics_by_uri(&diagnostics, uri, &document.text),
+            compiler_diagnostics_by_uri(&diagnostics, &snapshot.uri, &snapshot.document_text),
         ),
     };
     json!({
@@ -799,8 +972,8 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
             "success":success,
             "timedOut":timed_out,
             "exitCode":exit_code,
-            "dependencyCount":dependency_count,
-            "lockfilePresent":lockfile_present,
+            "dependencyCount":outcome.dependency_count,
+            "lockfilePresent":outcome.lockfile_present,
             "files":files
         }
     })
@@ -1385,6 +1558,7 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
     json!({"jsonrpc":"2.0","id":id,"result":[{"range":{"start":{"line":0,"character":0},"end":end},"newText":formatted}]})
 }
 
+#[cfg(target_os = "linux")]
 fn resident_memory_kib() -> Option<u64> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     status.lines().find_map(|line| {
@@ -1395,6 +1569,11 @@ fn resident_memory_kib() -> Option<u64> {
             .trim();
         value.parse().ok()
     })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn resident_memory_kib() -> Option<u64> {
+    None
 }
 
 fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
@@ -2972,13 +3151,14 @@ mod tests {
     #[test]
     fn cargo_check_requires_explicit_workspace_trust() {
         let state = ServerState::default();
-        let response = cargo_check_response(
+        let response = cargo_check_snapshot(
             &json!({
                 "jsonrpc":"2.0", "id":9, "method":"oxido/check",
                 "params":{"trusted":false,"textDocument":{"uri":"file:///main.ox"}}
             }),
             &state,
-        );
+        )
+        .expect_err("untrusted Cargo request is rejected");
         assert_eq!(response["error"]["code"], -32003);
     }
 
@@ -3652,12 +3832,47 @@ mod tests {
             "params":{"id":42}
         });
 
-        assert!(cancel_request(&notification, &pending));
+        assert!(cancel_request(
+            &notification,
+            &pending,
+            &HashMap::<String, PendingCargoRequest>::new()
+        ));
         assert!(cancellation.load(Ordering::Relaxed));
         assert_eq!(
             canceled_response(json!(42))["error"]["code"],
             CANCELED_ERROR_CODE
         );
+    }
+
+    #[test]
+    fn cancel_request_notification_marks_a_pending_cargo_check() {
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let pending_cargo = HashMap::from([(
+            "43".to_owned(),
+            PendingCargoRequest {
+                id: json!(43),
+                cancellation: Arc::clone(&cancellation),
+                snapshot: CargoCheckSnapshot {
+                    uri: "file:///main.ox".to_owned(),
+                    document_version: Some(1),
+                    document_text: String::new(),
+                    source_path: None,
+                    project_root: None,
+                    project_mode: None,
+                },
+            },
+        )]);
+        let notification = json!({
+            "jsonrpc":"2.0",
+            "method":"$/cancelRequest",
+            "params":{"id":43}
+        });
+        assert!(cancel_request(
+            &notification,
+            &HashMap::<String, PendingSemanticRequest>::new(),
+            &pending_cargo
+        ));
+        assert!(cancellation.load(Ordering::Relaxed));
     }
 
     #[test]

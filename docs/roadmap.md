@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–8: completadas en el alcance documentado. Fase 9: en curso. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 ya tiene regresiones para comandos, importación de árboles, diagnósticos JSON y formato de ambos modos; el cruce de producciones estructurales del formateador está completado en `testing.md`, y queda validar estos cambios con la CI remota.
+**Fases 0–9: completadas en el alcance documentado. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -233,7 +233,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** entregar comandos estables y seguros para tareas habituales.
 
-**Estado actual:** en curso. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, que `formato` sea idempotente y conserve comentarios en ambos modos, y que el formato indentado reindente bloques/continuaciones, normalice espaciado, envuelva listas largas y mantenga comentarios, literales y grupos opacos. La importación de árboles cubre `.rs`/`.ox` mixtos, reescritura de `#[path]` relativo y rechazos de rutas inseguras. `compilar`, `ejecutar` y `probar` ofrecen `--json` con diagnósticos y ubicaciones relativas cuando están disponibles. La matriz CLI fija la salida `.ox`, exige que Rust exportado antes/después coincida carácter por carácter con `rustfmt` 1.99.1, compila ambos con `rustc` y ejecuta un fixture. El cruce de todas las producciones estructurales iniciales está documentado en [testing.md](testing.md); no afirma equivalencia universal para cada expresión Rust delegada a Syn.
+**Estado actual:** completada para el alcance documentado. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, que `formato` sea idempotente y conserve comentarios en ambos modos, y que el formato indentado reindente bloques/continuaciones, normalice espaciado, envuelva listas largas y mantenga comentarios, literales y grupos opacos. La importación de árboles cubre `.rs`/`.ox` mixtos, reescritura de `#[path]` relativo y rechazos de rutas inseguras. `compilar`, `ejecutar` y `probar` ofrecen `--json` con diagnósticos y ubicaciones relativas cuando están disponibles. La matriz CLI fija la salida `.ox`, exige que Rust exportado antes/después coincida carácter por carácter con `rustfmt` 1.99.1, compila ambos con `rustc` y ejecuta un fixture. El cruce de todas las producciones estructurales iniciales está documentado en [testing.md](testing.md); no afirma equivalencia universal para cada expresión Rust delegada a Syn. La suite remota del commit de cierre pasó.
 
 ### Subfases
 
@@ -248,7 +248,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Entregables:** CLI documentada y pruebas de integración de comandos.
 
-**Criterio de salida:** la revisión de cobertura estructural está completada y cruzada con fixtures en `testing.md`. Para los fixtures de la matriz, el Rust exportado debe coincidir carácter por carácter con `rustfmt`; el `.ox` indentado sigue convenciones de layout propias de Óxido y no tiene que ser texto Rust idéntico. La matriz compila los exports y ejecuta un caso; no pretende enumerar todas las expresiones Rust que Syn admite. La fase queda pendiente hasta ejecutar correctamente la suite remota sobre el commit con esta revisión. Los demás comandos y escenarios enumerados tienen pruebas CLI positivas/negativas, resultados verificables, destinos de importación restringidos y roundtrip ejecutable de árboles mixtos con `#[path]`.
+**Criterio de salida:** cumplido para el alcance documentado. La revisión de cobertura estructural está cruzada con fixtures en `testing.md`. Para los fixtures de la matriz, el Rust exportado coincide carácter por carácter con `rustfmt`; `.ox` sigue convenciones de layout propias de Óxido. La matriz compila los exports y ejecuta un caso; no pretende enumerar todas las expresiones Rust que Syn admite. Los comandos y escenarios enumerados tienen pruebas CLI positivas/negativas, resultados verificables, destinos de importación restringidos, roundtrip ejecutable de árboles mixtos con `#[path]` y CI remota en verde.
 
 **Dependencia:** Fases 5–8 según comando.
 
@@ -395,9 +395,9 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
 | 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
-| 9 | En curso | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Completar pruebas de conformidad del formato indentado frente al estilo Rust; ver Fase 9 |
+| 9 | Completada (alcance documentado) | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Conformidad de Rust generado con rustfmt en la matriz estructural, revisión de cobertura y CI remota; ver Fase 9 |
 | 10–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–8 están completadas para los alcances declarados. La Fase 9 está en curso. Las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–9 están completadas para los alcances declarados. Las limitaciones de la matriz no se consideran características implementadas.

@@ -45,31 +45,46 @@ async function activate(context) {
   }));
   context.subscriptions.push(vscode.commands.registerCommand('oxido.checkCargo', async () => {
     if (!vscode.workspace.isTrusted) {
-      await vscode.window.showWarningMessage('Óxido: confía en el workspace antes de ejecutar Cargo.');
-      return;
+      void vscode.window.showWarningMessage('Óxido: confía en el workspace antes de ejecutar Cargo.');
+      return undefined;
     }
     if (!client || !vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.languageId !== 'oxido') {
-      await vscode.window.showWarningMessage('Óxido: abre un archivo .ox antes de comprobarlo.');
-      return;
+      void vscode.window.showWarningMessage('Óxido: abre un archivo .ox antes de comprobarlo.');
+      return undefined;
     }
     try {
       const result = await client.sendRequest('oxido/check', {
         trusted: true,
         textDocument: { uri: vscode.window.activeTextEditor.document.uri.toString() }
       });
-      const diagnostics = (result?.diagnostics ?? []).map(diagnostic => new vscode.Diagnostic(
-        new vscode.Range(
-          new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
-          new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
-        ),
-        diagnostic.message,
-        vscode.DiagnosticSeverity.Error
-      ));
-      cargoDiagnostics.set(vscode.window.activeTextEditor.document.uri, diagnostics);
-      await vscode.window.showInformationMessage(`Óxido: Cargo terminó con ${diagnostics.length} diagnóstico(s).`);
+      cargoDiagnostics.clear();
+      let diagnosticCount = 0;
+      for (const file of result?.files ?? []) {
+        const diagnostics = (file.diagnostics ?? []).map(diagnostic => {
+          const item = new vscode.Diagnostic(
+            new vscode.Range(
+              new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
+              new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
+            ),
+            diagnostic.message,
+            diagnostic.severity === 2 ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error
+          );
+          item.code = diagnostic.code;
+          item.source = diagnostic.source ?? 'cargo';
+          return item;
+        });
+        diagnosticCount += diagnostics.length;
+        cargoDiagnostics.set(vscode.Uri.parse(file.uri), diagnostics);
+      }
+      const summary = result?.success ? 'sin errores' : `${diagnosticCount} diagnóstico(s)`;
+      void vscode.window.showInformationMessage(
+        `Óxido: Cargo terminó ${summary} con ${result?.dependencyCount ?? 0} dependencia(s).`
+      );
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'falló la comprobación con Cargo';
-      await vscode.window.showErrorMessage(`Óxido: ${message}`);
+      void vscode.window.showErrorMessage(`Óxido: ${message}`);
+      return undefined;
     }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('oxido.showResourceStats', async () => {

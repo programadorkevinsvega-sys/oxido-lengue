@@ -11,6 +11,8 @@ test('contributes .ox as the Óxido language and gates executable path settings'
   assert.equal(manifest.capabilities.untrustedWorkspaces.supported, 'limited');
   assert.ok(manifest.capabilities.untrustedWorkspaces.restrictedConfigurations.includes('oxido.serverPath'));
   assert.ok(manifest.contributes.commands.some(command => command.command === 'oxido.restartLanguageServer'));
+  assert.ok(manifest.contributes.commands.some(command => command.command === 'oxido.checkCargo'));
+  assert.ok(manifest.contributes.commands.some(command => command.command === 'oxido.showResourceStats'));
 });
 
 test('extension source has no shell or rust-analyzer launch path', () => {

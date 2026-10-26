@@ -706,23 +706,30 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
         || SourceFile::new(&document.text),
         |path| SourceFile::with_path(path, &document.text),
     );
+    let mut dependency_count = 0_usize;
+    let mut lockfile_present = false;
     let result = if let Some(project_root) = state.project_root.as_deref() {
         let config_path = project_root.join("oxido.toml");
+        let lockfile_path = project_root.join("Cargo.lock");
+        lockfile_present = lockfile_path.is_file();
         let config_text = std::fs::read_to_string(&config_path).map_err(|error| error.to_string());
         match config_text.and_then(|text| {
             oxido_compiler::config::ProjectConfig::parse(&text).map_err(|error| error.to_string())
         }) {
             Ok(config) => match config.resolve_dependencies(project_root) {
-                Ok(dependencies) => oxido_compiler::build_ox_project_in_project(
-                    &source,
-                    LexOptions {
-                        project_mode: state.project_mode,
-                    },
-                    &dependencies,
-                    Some(&project_root.join("Cargo.lock")),
-                    oxido_compiler::application::cargo::CargoAction::CheckTrusted,
-                    project_root,
-                ),
+                Ok(dependencies) => {
+                    dependency_count = dependencies.len();
+                    oxido_compiler::build_ox_project_in_project(
+                        &source,
+                        LexOptions {
+                            project_mode: state.project_mode,
+                        },
+                        &dependencies,
+                        Some(&lockfile_path),
+                        oxido_compiler::application::cargo::CargoAction::CheckTrusted,
+                        project_root,
+                    )
+                }
                 Err(error) => Err(vec![
                     oxido_language::domain::diagnostics::Diagnostic::error(
                         "OX7003",
@@ -752,27 +759,173 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
             oxido_compiler::application::cargo::CargoAction::CheckTrusted,
         )
     };
-    let diagnostics = match result {
-        Ok(result) => result
-            .diagnostics
-            .into_iter()
-            .filter_map(|diagnostic| {
-                let source_location = diagnostic.source?;
-                let start = lsp_position(&document.text, source_location.start)?;
-                let end = lsp_position(&document.text, source_location.end).unwrap_or(start.clone());
-                Some(json!({"range":{"start":start,"end":end},"severity":1,"code":diagnostic.code,"source":"cargo","message":diagnostic.message}))
-            })
-            .collect::<Vec<_>>(),
-        Err(diagnostics) => diagnostics
-            .into_iter()
-            .filter_map(|diagnostic| {
-                let start = lsp_position(&document.text, diagnostic.primary_span.start())?;
-                let end = lsp_position(&document.text, diagnostic.primary_span.end()).unwrap_or(start.clone());
-                Some(json!({"range":{"start":start,"end":end},"severity":1,"code":diagnostic.code,"source":"oxido","message":diagnostic.message}))
-            })
-            .collect::<Vec<_>>(),
+    let (success, timed_out, exit_code, files) = match result {
+        Ok(result) => (
+            result.success,
+            result.timed_out,
+            result.exit_code,
+            cargo_diagnostics_by_uri(
+                &result.diagnostics,
+                result.success,
+                state,
+                uri,
+                &document.text,
+            ),
+        ),
+        Err(diagnostics) => (
+            false,
+            false,
+            None,
+            compiler_diagnostics_by_uri(&diagnostics, uri, &document.text),
+        ),
     };
-    json!({"jsonrpc":"2.0","id":id,"result":{"uri":uri,"diagnostics":diagnostics}})
+    json!({
+        "jsonrpc":"2.0",
+        "id":id,
+        "result":{
+            "success":success,
+            "timedOut":timed_out,
+            "exitCode":exit_code,
+            "dependencyCount":dependency_count,
+            "lockfilePresent":lockfile_present,
+            "files":files
+        }
+    })
+}
+
+fn cargo_diagnostic_severity(level: &str) -> u8 {
+    match level {
+        "error" | "failure-note" => 1,
+        "warning" => 2,
+        "note" => 3,
+        "help" => 4,
+        _ => 1,
+    }
+}
+
+fn safe_lsp_position(text: &str, offset: usize) -> Option<Value> {
+    let mut offset = offset.min(text.len());
+    while offset > 0 && !text.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    lsp_position(text, offset)
+}
+
+fn source_text_for_diagnostic(
+    diagnostic: &oxido_compiler::application::cargo::MappedCargoDiagnostic,
+    state: &ServerState,
+    fallback_uri: &str,
+    fallback_text: &str,
+) -> (String, String) {
+    let Some(relative) = diagnostic.source_file.as_deref() else {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    };
+    let Some(project_root) = state.project_root.as_deref() else {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    };
+    let relative = std::path::Path::new(relative);
+    if relative.is_absolute() {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    }
+    let Ok(canonical) = project_root.join(relative).canonicalize() else {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    };
+    if !canonical.starts_with(project_root) {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    }
+    let Ok(metadata) = std::fs::symlink_metadata(&canonical) else {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    };
+    if !metadata.is_file() || metadata.len() > MAX_SINGLE_DOCUMENT_BYTES as u64 {
+        return (fallback_uri.to_owned(), fallback_text.to_owned());
+    }
+    let uri = file_uri(&canonical);
+    let text = state
+        .documents
+        .get(&uri)
+        .map(|document| document.text.clone())
+        .or_else(|| std::fs::read_to_string(&canonical).ok());
+    text.map_or_else(
+        || (fallback_uri.to_owned(), fallback_text.to_owned()),
+        |text| (uri, text),
+    )
+}
+
+fn cargo_diagnostics_by_uri(
+    diagnostics: &[oxido_compiler::application::cargo::MappedCargoDiagnostic],
+    success: bool,
+    state: &ServerState,
+    fallback_uri: &str,
+    fallback_text: &str,
+) -> Vec<Value> {
+    let mut groups = BTreeMap::<String, Vec<Value>>::new();
+    for diagnostic in diagnostics {
+        if diagnostic.level == "failure-note" {
+            continue;
+        }
+        let (uri, text) =
+            source_text_for_diagnostic(diagnostic, state, fallback_uri, fallback_text);
+        let start = diagnostic
+            .source
+            .and_then(|location| safe_lsp_position(&text, location.start))
+            .unwrap_or_else(|| json!({"line":0,"character":0}));
+        let end = diagnostic
+            .source
+            .and_then(|location| safe_lsp_position(&text, location.end))
+            .unwrap_or_else(|| start.clone());
+        groups.entry(uri).or_default().push(json!({
+            "range":{"start":start,"end":end},
+            "severity":cargo_diagnostic_severity(&diagnostic.level),
+            "code":diagnostic.code,
+            "source":"cargo",
+            "message":diagnostic.message
+        }));
+    }
+    if groups.is_empty() && !success {
+        groups
+            .entry(fallback_uri.to_owned())
+            .or_default()
+            .push(json!({
+                "range":{"start":{"line":0,"character":0},"end":{"line":0,"character":0}},
+                "severity":1,
+                "code":"OX5001",
+                "source":"cargo",
+                "message":"Cargo terminó sin un diagnóstico mapeable"
+            }));
+    }
+    groups
+        .into_iter()
+        .map(|(uri, diagnostics)| json!({"uri":uri,"diagnostics":diagnostics}))
+        .collect()
+}
+
+fn compiler_diagnostics_by_uri(
+    diagnostics: &[oxido_language::domain::diagnostics::Diagnostic],
+    uri: &str,
+    text: &str,
+) -> Vec<Value> {
+    let diagnostics = diagnostics
+        .iter()
+        .filter_map(|diagnostic| {
+            let start = safe_lsp_position(text, diagnostic.primary_span.start())?;
+            let end = safe_lsp_position(text, diagnostic.primary_span.end())
+                .unwrap_or_else(|| start.clone());
+            let severity = match diagnostic.severity {
+                oxido_language::domain::diagnostics::Severity::Error => 1,
+                oxido_language::domain::diagnostics::Severity::Warning => 2,
+                oxido_language::domain::diagnostics::Severity::Info => 3,
+                oxido_language::domain::diagnostics::Severity::Hint => 4,
+            };
+            Some(json!({
+                "range":{"start":start,"end":end},
+                "severity":severity,
+                "code":diagnostic.code,
+                "source":"oxido",
+                "message":diagnostic.message
+            }))
+        })
+        .collect::<Vec<_>>();
+    vec![json!({"uri":uri,"diagnostics":diagnostics})]
 }
 
 fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
@@ -2679,6 +2832,114 @@ mod tests {
             &state,
         );
         assert_eq!(response["error"]["code"], -32003);
+    }
+
+    #[test]
+    fn maps_cargo_diagnostics_to_their_sources_and_utf16_columns() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../editors/vscode-oxido/test/fixtures/cargo")
+            .canonicalize()
+            .expect("cargo fixture root exists");
+        let source_text =
+            std::fs::read_to_string(root.join("util_error.ox")).expect("fixture is readable");
+        let start = source_text
+            .find("\"texto\"")
+            .expect("fixture has the error literal");
+        let end = start + "\"texto\"".len();
+        let diagnostic = oxido_compiler::application::cargo::MappedCargoDiagnostic {
+            level: "error".to_owned(),
+            code: Some("E0308".to_owned()),
+            message: "tipos incompatibles".to_owned(),
+            source_file: Some("util_error.ox".to_owned()),
+            source: Some(oxido_compiler::application::source_map::SourceLocation {
+                line: 4,
+                column: 25,
+                start,
+                end,
+            }),
+        };
+        let state = ServerState {
+            project_root: Some(root),
+            ..ServerState::default()
+        };
+        let files = cargo_diagnostics_by_uri(
+            &[diagnostic],
+            false,
+            &state,
+            "file:///check_error.ox",
+            "fallback",
+        );
+        assert_eq!(files.len(), 1);
+        assert!(
+            files[0]["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/util_error.ox"))
+        );
+        assert_eq!(
+            files[0]["diagnostics"][0]["range"]["start"],
+            json!({"line": 3, "character": 24})
+        );
+        assert_eq!(files[0]["diagnostics"][0]["code"], "E0308");
+    }
+
+    #[test]
+    fn cargo_mapping_preserves_utf16_columns_and_omits_failure_notes() {
+        let root =
+            std::env::temp_dir().join(format!("oxido-lsp-cargo-mapping-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("temporary fixture directory is created");
+        let source_text = "sintaxis indentacion\nfuncion f():\n    dejar ñ = \"😀\"; dejar numero: i32 = \"texto\"\n";
+        std::fs::write(root.join("modulo.ox"), source_text).expect("temporary source is written");
+        let start = source_text
+            .find("\"texto\"")
+            .expect("temporary source has the error literal");
+        let line_start = source_text[..start]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let expected_character = source_text[line_start..start].encode_utf16().count();
+        let diagnostic = oxido_compiler::application::cargo::MappedCargoDiagnostic {
+            level: "error".to_owned(),
+            code: Some("E0308".to_owned()),
+            message: "tipos incompatibles".to_owned(),
+            source_file: Some("modulo.ox".to_owned()),
+            source: Some(oxido_compiler::application::source_map::SourceLocation {
+                line: 3,
+                column: 1,
+                start,
+                end: start + "\"texto\"".len(),
+            }),
+        };
+        let failure_note = oxido_compiler::application::cargo::MappedCargoDiagnostic {
+            level: "failure-note".to_owned(),
+            code: Some("E0308".to_owned()),
+            message: "nota sin ubicación".to_owned(),
+            source_file: None,
+            source: None,
+        };
+        let state = ServerState {
+            project_root: Some(root.clone()),
+            ..ServerState::default()
+        };
+        let files = cargo_diagnostics_by_uri(
+            &[diagnostic, failure_note],
+            false,
+            &state,
+            "file:///fallback.ox",
+            "fallback",
+        );
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0]["diagnostics"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            files[0]["diagnostics"][0]["range"]["start"],
+            json!({"line": 2, "character": expected_character})
+        );
+        std::fs::remove_dir_all(root).expect("temporary fixture directory is removed");
+    }
+
+    #[test]
+    fn successful_cargo_check_without_diagnostics_has_no_synthetic_error() {
+        let state = ServerState::default();
+        let files = cargo_diagnostics_by_uri(&[], true, &state, "file:///main.ox", "");
+        assert!(files.is_empty());
     }
 
     #[test]

@@ -240,7 +240,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 1. Definir nombres, argumentos, ayuda y códigos de salida.
 2. Crear proyectos con plantillas mínimas verificables.
 3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. `probar` invoca `cargo test` sobre el proyecto temporal del archivo; sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
-4. **Formato:** existe un prototipo `oxido formato <archivo.ox> [--comprobar]`, pero al reimportar genera modo llaves y no conserva el modo indentado. No se considera una función lista. Implementar preservación de modo/comentarios y pruebas de idempotencia antes de promoverla.
+4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresión de idempotencia y comentarios para modo llaves. El reimportador genera modo llaves y no preserva fuentes indentadas; implementar ese modo antes de ampliar el soporte.
 5. **Diagnósticos CLI:** los mensajes humanos existen; un contrato de salida estructurada estable para CI sigue pendiente.
 6. **Importación/exportación:** exportación recursiva e importación inicial de árboles existen; falta una regresión de ida y vuelta para árboles, especialmente con `#[path]` y fuentes mixtas.
 7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables).

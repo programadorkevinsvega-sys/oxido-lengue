@@ -58,7 +58,7 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 - Comentarios `//` y `/* ... */` no se traducen y conservan su texto al exportar/importar fuera de grupos opacos.
 - Se comprueban comentarios antes de items, inline, dentro/final de bloques, entre brazos, multilínea y al final del archivo.
 - Las líneas añadidas por comentarios se reflejan en el mapa de posiciones `.ox`↔`.rs`.
-- `oxido formato` es un prototipo y actualmente reimporta la salida en modo llaves; no usar con fuentes indentadas. Falta implementar y probar formato que preserve modo, comentarios e idempotencia.
+- La regresión CLI `formats_braced_source_idempotently_without_losing_comments` comprueba comentarios previos, doc, inline, bloque, al final, texto de cadenas, `--comprobar` y dos ejecuciones idénticas en modo llaves. El prototipo reimporta en modo llaves; no preserva fuentes indentadas.
 
 ## Parser, backend y diagnóstico
 

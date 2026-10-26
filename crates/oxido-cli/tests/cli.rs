@@ -30,6 +30,84 @@ impl Drop for TestDirectory {
 }
 
 #[test]
+fn formats_braced_source_idempotently_without_losing_comments() {
+    let temp = TestDirectory::new();
+    let work = temp.0.join("project");
+    fs::create_dir(&work).unwrap();
+    let source_path = work.join("comentarios.ox");
+    let original = "sintaxis llaves\n// comentario antes del item\n/// documentación del programa\nfuncion main() {\n    let texto = \"cadena // intacta\"; // comentario al final de línea\n    /* comentario de bloque */\n    println!(\"{}\", texto);\n}\n// comentario al final del archivo\n";
+    fs::write(&source_path, original).unwrap();
+
+    let check_before = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "comentarios.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(!check_before.status.success());
+    assert_eq!(fs::read_to_string(&source_path).unwrap(), original);
+
+    let formatted = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "comentarios.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    let first_result = fs::read_to_string(&source_path).unwrap();
+    assert!(first_result.starts_with("sintaxis llaves\n"));
+    for comment in [
+        "// comentario antes del item",
+        "documentación del programa",
+        "// comentario al final de línea",
+        "/* comentario de bloque */",
+        "// comentario al final del archivo",
+        "cadena // intacta",
+    ] {
+        assert!(
+            first_result.contains(comment),
+            "falta {comment:?}:\n{first_result}"
+        );
+    }
+    assert!(
+        first_result.find("// comentario antes del item")
+            < first_result.find("documentación del programa")
+    );
+    assert!(first_result.find("documentación del programa") < first_result.find("funcion main"));
+    assert!(
+        first_result.contains("let texto = \"cadena // intacta\"; // comentario al final de línea")
+    );
+    assert!(
+        first_result.find("// comentario al final del archivo") > first_result.find("funcion main")
+    );
+
+    let check_after = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "comentarios.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(
+        check_after.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check_after.stderr)
+    );
+
+    let formatted_again = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "comentarios.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted_again.status.success(),
+        "{}",
+        String::from_utf8_lossy(&formatted_again.stderr)
+    );
+    assert_eq!(fs::read_to_string(&source_path).unwrap(), first_result);
+}
+
+#[test]
 fn exports_compiles_and_runs_the_hello_world_fixture() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");

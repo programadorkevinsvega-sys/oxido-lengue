@@ -18,7 +18,7 @@ Para generar y ejecutar con las optimizaciones del perfil release de Cargo, aña
 
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` convierte un único archivo dentro del subconjunto reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol y mantiene los items Rust no convertidos como passthrough; `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 
-La CLI incluye `nuevo <directorio>`, `formato <archivo.ox> [--comprobar]` y `probar <archivo.ox>`. `formato` es un prototipo: reimporta como modo llaves y no conserva fuentes indentadas; no lo uses para reformatear esas fuentes. `probar` delega en `cargo test`, por lo que un archivo sin funciones `#[test]` puede mostrar cero pruebas.
+La CLI incluye `nuevo <directorio>`, `formato <archivo.ox> [--comprobar]` y `probar <archivo.ox>`. `formato` conserva comentarios y es idempotente en modo llaves según una prueba CLI; reimporta como modo llaves y convierte fuentes indentadas. `probar` delega en `cargo test`, por lo que un archivo sin funciones `#[test]` puede mostrar cero pruebas.
 
 La CLI admite dependencias locales y versiones de crates.io mediante `oxido.toml`:
 

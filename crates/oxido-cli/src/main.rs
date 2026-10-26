@@ -462,19 +462,15 @@ fn format_ox(args: &[OsString]) -> Result<(), String> {
     let settings = project_settings(&path)?;
     let generated = generate_ox(&source, settings.options)
         .map_err(|diagnostics| format_diagnostics(&source, &path, &diagnostics))?;
-    let formatted = oxido_compiler::format_rust(&SourceFile::new(generated.rust.clone()))
-        .map_err(|error| format!("no se pudo formatear Rust generado: {error}"))?;
+    let imported = oxido_compiler::import_rust(&SourceFile::new(generated.rust))?;
     if check {
-        if formatted != generated.rust {
+        if imported != source.text() {
             return Err(
                 "el archivo no está formateado; ejecuta `oxido formato <archivo.ox>`".into(),
             );
         }
         println!("{} está formateado.", path.display());
     } else {
-        // El formateador conserva el modo y la sintaxis Óxido mediante la
-        // importación reversible del Rust formateado.
-        let imported = oxido_compiler::import_rust(&SourceFile::new(formatted))?;
         fs::write(&path, imported)
             .map_err(|error| format!("no se pudo escribir {}: {error}", path.display()))?;
         println!("Óxido formateado: {}", path.display());

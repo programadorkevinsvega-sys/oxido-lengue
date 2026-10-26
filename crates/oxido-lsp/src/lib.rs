@@ -166,7 +166,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                     let id = request.get("id").cloned().unwrap_or(Value::Null);
                     write_lsp_message(
                         &mut output,
-                        &json!({"jsonrpc":"2.0","id":id,"result":{"openDocuments":state.documents.len(),"documentBytes":state.total_document_bytes,"diagnosticRuns":state.diagnostic_runs,"lastDiagnosticMs":state.last_diagnostic_ms}}),
+                        &json!({"jsonrpc":"2.0","id":id,"result":{"openDocuments":state.documents.len(),"documentBytes":state.total_document_bytes,"diagnosticRuns":state.diagnostic_runs,"lastDiagnosticMs":state.last_diagnostic_ms,"residentMemoryKiB":resident_memory_kib()}}),
                     )?;
                     continue;
                 }
@@ -595,7 +595,7 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
                 .map(PathBuf::from)
                 .and_then(|path| std::fs::canonicalize(path).ok())
                 .filter(|path| path.is_dir());
-            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"documentFormattingProvider":true}}}))
+            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"inlayHintProvider":true,"documentFormattingProvider":true}}}))
         },
         "shutdown" => id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":null})),
         "textDocument/semanticTokens/full" => id.map(|id| semantic_response(id, request.get("params"), state)),
@@ -605,6 +605,7 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
         "textDocument/definition" => id.map(|id| definition_response(id, request.get("params"), state)),
         "textDocument/references" => id.map(|id| references_response(id, request.get("params"), state)),
         "textDocument/formatting" => id.map(|id| formatting_response(id, request.get("params"), state)),
+        "textDocument/inlayHint" => id.map(|id| inlay_hint_response(id, request.get("params"), state)),
         "textDocument/didOpen" => { extra_messages.extend(open_document(&request, state)); None }
         "textDocument/didChange" => { extra_messages.extend(change_document(&request, state)); None }
         "textDocument/didClose" => { close_document(&request, state); None }
@@ -878,7 +879,13 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     if state.project_mode == Some(oxido_language::domain::syntax::SyntaxMode::Indentation) {
-        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32004,"message":"el formateador del editor para sintaxis indentada aún requiere compartir la implementación de `oxido formato`"}});
+        let formatted = format_indented_editor(&document.text);
+        if formatted == document.text {
+            return json!({"jsonrpc":"2.0","id":id,"result":[]});
+        }
+        let end = lsp_position(&document.text, document.text.len())
+            .unwrap_or(json!({"line":0,"character":0}));
+        return json!({"jsonrpc":"2.0","id":id,"result":[{"range":{"start":{"line":0,"character":0},"end":end},"newText":formatted}]});
     }
     let source = SourceFile::new(&document.text);
     let Ok(generated) = oxido_compiler::generate_ox(
@@ -898,6 +905,77 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let end = lsp_position(&document.text, document.text.len())
         .unwrap_or(json!({"line":0,"character":0}));
     json!({"jsonrpc":"2.0","id":id,"result":[{"range":{"start":{"line":0,"character":0},"end":end},"newText":formatted}]})
+}
+
+fn format_indented_editor(text: &str) -> String {
+    let mut depth = 0_usize;
+    let mut output = String::with_capacity(text.len());
+    for original in text.lines() {
+        let trimmed = original.trim();
+        if trimmed.is_empty() {
+            output.push('\n');
+            continue;
+        }
+        if trimmed.starts_with("sino") || trimmed.starts_with("caso ") {
+            depth = depth.saturating_sub(1);
+        }
+        output.push_str(&" ".repeat(depth.saturating_mul(4)));
+        output.push_str(trimmed);
+        output.push('\n');
+        if trimmed.ends_with(':') {
+            depth = depth.saturating_add(1);
+        }
+    }
+    output
+}
+
+fn resident_memory_kib() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    status.lines().find_map(|line| {
+        let value = line
+            .strip_prefix("VmRSS:")?
+            .trim()
+            .strip_suffix("kB")?
+            .trim();
+        value.parse().ok()
+    })
+}
+
+fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let Some(uri) = params
+        .and_then(|value| value.pointer("/textDocument/uri"))
+        .and_then(Value::as_str)
+    else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let Some(document) = state.documents.get(uri) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let mut hints = Vec::new();
+    for (line_number, line) in document.text.lines().enumerate() {
+        let Some(rest) = line.trim_start().strip_prefix("dejar ") else {
+            continue;
+        };
+        let Some((name, initializer)) = rest.split_once('=') else {
+            continue;
+        };
+        let name = name.trim();
+        let value = initializer.trim().trim_end_matches(';').trim();
+        let inferred = if value.starts_with('"') {
+            "&str"
+        } else if value == "verdadero" || value == "falso" || value == "true" || value == "false" {
+            "bool"
+        } else if value.parse::<i64>().is_ok() {
+            "i32"
+        } else if value.parse::<f64>().is_ok() {
+            "f64"
+        } else {
+            continue;
+        };
+        let character = line.find(name).unwrap_or(0) + name.len();
+        hints.push(json!({"position":{"line":line_number,"character":character},"label":format!(": {inferred}"),"kind":1,"paddingLeft":true}));
+    }
+    json!({"jsonrpc":"2.0","id":id,"result":hints})
 }
 
 fn parsed_file(
@@ -1740,17 +1818,20 @@ mod tests {
     }
 
     #[test]
-    fn exposes_resource_stats_and_rejects_unshared_indented_formatting() {
+    fn exposes_resource_stats_and_formats_indented_documents() {
         let mut state = configured_test_state();
         handle(
-            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"sintaxis indentacion\nfuncion principal():\n    pass\n"}}}),
+            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"sintaxis indentacion\nfuncion principal():\npass\n"}}}),
             &mut state,
         );
         let formatting = handle(
             json!({"jsonrpc":"2.0","id":11,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file:///main.ox"}}}),
             &mut state,
         );
-        assert_eq!(formatting[0]["error"]["code"], -32004);
+        assert_eq!(
+            formatting[0]["result"][0]["newText"],
+            "sintaxis indentacion\nfuncion principal():\n    pass\n"
+        );
     }
 
     #[test]

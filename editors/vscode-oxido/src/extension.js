@@ -78,6 +78,7 @@ async function activate(context) {
       await vscode.window.showInformationMessage(
         `Óxido: ${stats.openDocuments} documento(s), ${stats.documentBytes} bytes, ` +
         `${stats.diagnosticRuns} diagnóstico(s), último cálculo ${stats.lastDiagnosticMs ?? 'n/d'} ms, ` +
+        `memoria residente ${stats.residentMemoryKiB ?? 'n/d'} KiB, ` +
         `respuesta ${roundTripMs} ms.`
       );
     } catch (error) {

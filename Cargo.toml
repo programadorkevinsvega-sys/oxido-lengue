@@ -6,6 +6,7 @@ members = [
     "crates/oxido-cargo",
     "crates/oxido-compiler",
     "crates/oxido-cli",
+    "crates/oxido-lsp",
 ]
 default-members = ["crates/oxido-cli"]
 

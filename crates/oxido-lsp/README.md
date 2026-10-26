@@ -1,3 +1,7 @@
-# oxido-lsp — plan
+# oxido-lsp
 
-Adapter LSP que reutiliza casos de uso del compilador, cancela solicitudes obsoletas y publica diagnósticos/semantic tokens. Aún no es un crate funcional.
+Servidor LSP mínimo sobre stdio. Responde a `initialize`, `shutdown` y semantic tokens sin iniciar Cargo ni ejecutar código al abrir un documento. La integración de compilación requiere Workspace Trust del cliente.
+
+```sh
+cargo run --locked -p oxido-lsp
+```

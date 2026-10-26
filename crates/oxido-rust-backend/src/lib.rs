@@ -462,10 +462,10 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     let mut replacements = Vec::new();
     for item in &file.items {
         let syn::Item::Fn(function) = item else {
-            return Err(SynError::new(
-                item.span(),
-                "la importación reversible inicial solo admite funciones libres",
-            ));
+            // Items Rust que no contienen una función se conservan como
+            // passthrough; esto permite importar la raíz de un árbol con
+            // declaraciones `mod` y archivos mixtos.
+            continue;
         };
         if function.sig.constness.is_some()
             || function.sig.unsafety.is_some()

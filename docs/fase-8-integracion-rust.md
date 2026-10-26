@@ -17,7 +17,7 @@ Las macros de bibliotecas deben funcionar sin modificar la biblioteca. Admitirla
 | Macros declarativas y DSL | E2E ejecuta `macro_rules!`, `serde_json::json!` 1.0.154, `tokio::select!` 1.54.1 y `paste::paste!` 1.0.15; aliases `si`/`tipo`/`verdadero`, cadenas y grupos anidados llegan sin traducirse dentro de las DSL | Ampliar el corpus a otras formas y versiones de crates; no implementar un expansor Óxido |
 | Macros procedurales | E2E offline ejecuta derive/atributo de Serde 1.0.229 y `tokio::main`; `paste!` recibe `[<macro_ si>]`, genera una función usada y ejecutada | Compatibilidad general no demostrada; mantener pruebas por crate/forma y diagnosticar errores del compilador |
 | `async/await` | Future con `.await` ejecutado mediante `futures-executor` | Probar más patrones async y runtimes externos de referencia; no crear runtime propio |
-| `unsafe` | Auditoría estática acotada y opción explícita de rechazo | Añadir regresión que compile/ejecute interoperabilidad válida con una API `unsafe` y demostrar que la auditoría por defecto no la bloquea |
+| `unsafe` | Auditoría estática acotada y opción explícita de rechazo; una regresión compila una API de puntero válida y la auditoría por defecto no bloquea | La auditoría no ve llamadas indirectas ni expansiones |
 | Diagnósticos | Cargo JSON y mapas por módulo relacionan errores con `.ox` cuando existe correspondencia | Ampliar corpus de diagnósticos a macros, dependencias y casos sin mapa, conservando errores externos correctamente |
 
 Estas brechas son trabajo pendiente de la Fase 8 y deben cerrarse antes de avanzar a Fase 9. La Fase 10 podrá aportar infraestructura común de laboratorio; no es propietaria ni aplaza estos criterios. Ningún caso se declara aprobado sin ejecución reproducible.
@@ -93,7 +93,7 @@ Las pruebas crean un `CARGO_HOME` temporal que solo apunta al directorio vendori
 
 ## Subfase 6 — Async/await y concurrencia
 
-**Estado:** verificada para futures inmediatamente listos y concurrencia estándar; sin runtime propio.
+**Estado:** verificada para futures inmediatamente listos, Tokio en la matriz de macros y concurrencia estándar; sin runtime propio.
 
 La prueba E2E con la dependencia real `futures-executor` vendorizada ejecuta un future que usa `.await` y compara la salida. También valida el Rust generado (`async fn`, `.await`) con rustc; la tarea `std::thread::spawn` ejecuta y comprueba su resultado. Óxido no incorpora runtime async, executor, scheduler ni aliases de concurrencia: el proyecto elige la biblioteca/runtime y la semántica de suspensión sigue delegada a esa dependencia.
 

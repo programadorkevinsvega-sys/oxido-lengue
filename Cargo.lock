@@ -76,6 +76,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxido-lsp"
+version = "0.1.0"
+dependencies = [
+ "oxido-language",
+ "serde_json",
+]
+
+[[package]]
 name = "oxido-rust-backend"
 version = "0.1.0"
 dependencies = [

@@ -239,6 +239,12 @@ pub fn analyze_rust(source: &SourceFile) -> Result<Analysis, String> {
     })
 }
 
+/// Formatea una fuente Rust ya validada con el backend compartido.
+pub fn format_rust(source: &SourceFile) -> Result<String, String> {
+    let file = oxido_rust_backend::parse(source).map_err(|error| error.to_string())?;
+    Ok(oxido_rust_backend::format(&file))
+}
+
 /// Parse a source file and validate preserved Rust fragments through the Rust backend.
 pub fn parse_ox(
     source: &SourceFile,

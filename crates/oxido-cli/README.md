@@ -1,3 +1,3 @@
 # oxido-cli
 
-CLI del compilador inicial. Comandos: `analizar-rust`, `exportar`, `importar`, `compilar` y `ejecutar`. Solo `ejecutar` inicia el binario generado; los demás comandos no ejecutan el programa fuente.
+CLI del compilador inicial. Comandos: `analizar-rust`, `nuevo`, `formato`, `exportar`, `importar`, `importar-proyecto`, `compilar`, `probar` y `ejecutar`. `probar` ejecuta Cargo test; `ejecutar` inicia el binario generado.

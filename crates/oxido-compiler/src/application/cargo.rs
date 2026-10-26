@@ -29,6 +29,10 @@ pub enum CargoAction {
     Run,
     /// Run after the operator explicitly trusts declared dependencies.
     RunTrusted,
+    /// Run tests without user dependencies.
+    Test,
+    /// Run tests after the operator explicitly trusts declared dependencies.
+    TestTrusted,
     /// Run with release optimizations without user dependencies.
     RunRelease,
     /// Run with release optimizations after explicitly trusting dependencies.
@@ -240,6 +244,7 @@ pub fn build_generated_project_with_dependencies(
                 | CargoAction::Run
                 | CargoAction::CheckRelease
                 | CargoAction::RunRelease
+                | CargoAction::Test
         )
     {
         return Ok(CargoBuildResult {
@@ -391,6 +396,13 @@ pub fn build_generated_project_with_dependencies(
         CargoAction::RunRelease | CargoAction::RunReleaseTrusted => vec![
             "run",
             "--release",
+            "--locked",
+            "--offline",
+            "--message-format=json",
+            "--quiet",
+        ],
+        CargoAction::Test | CargoAction::TestTrusted => vec![
+            "test",
             "--locked",
             "--offline",
             "--message-format=json",

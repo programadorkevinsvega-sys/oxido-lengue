@@ -13,7 +13,7 @@ La decisión de limitar el parser propio a estructura Óxido y preservar fragmen
 | `oxido-rust-backend` | Emitir Rust desde el AST con quote/proc_macro2; validar y formatear con Syn/prettyplease | Adapter de salida |
 | `oxido-cli` | `analizar-rust`, `exportar`, `importar`, `compilar` y `ejecutar` | Adapter de entrada |
 | `oxido-cargo` | Invocar Cargo por argv, limitar tiempo y leer mensajes JSON | Adapter de proceso |
-| `oxido-lsp` | Protocolo de editor que reutiliza compiler | Previsto para fase posterior |
+| `oxido-lsp` | Transporte LSP stdio y capacidades iniciales del editor | Adapter inicial; compilación desde el editor requiere Workspace Trust |
 | `editors/vscode-oxido` | Integración y presentación en VS Code | Cliente separado |
 | `website` | Portal estático Markdown con documentación por audiencia y referencia | Frontend documental; Astro Starlight |
 
@@ -21,4 +21,4 @@ El producto corre localmente como herramienta de desarrollo. Las APIs entre esto
 
 ## Estado de los directorios
 
-Fase 2 materializó cuatro paquetes base y Fase 5 incorporó `oxido-cargo` al workspace como adaptador funcional. Fase 3 añadió el lexer y Fase 4 el parser/AST inicial. `website/` contiene el frontend documental en Astro Starlight; sus páginas de referencia se generan desde los Markdown canónicos en `docs/` para evitar mantener dos copias editables. `oxido-lsp` y `editors/` siguen preparados para sus fases; `examples/hola_mundo.ox` y `tests/` contienen el primer flujo end-to-end. La separación no obliga a crear un crate por cada carpeta interna.
+Fase 2 materializó cuatro paquetes base y Fase 5 incorporó `oxido-cargo` al workspace como adaptador funcional. Fase 3 añadió el lexer y Fase 4 el parser/AST inicial. `website/` contiene el frontend documental en Astro Starlight; sus páginas de referencia se generan desde los Markdown canónicos en `docs/` para evitar mantener dos copias editables. `oxido-lsp` ofrece ahora el transporte inicial; Workspace Trust y compilación iniciada desde el editor siguen siendo controles posteriores. `examples/hola_mundo.ox` y `tests/` contienen el primer flujo end-to-end. La separación no obliga a crear un crate por cada carpeta interna.

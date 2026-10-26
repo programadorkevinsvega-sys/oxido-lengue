@@ -65,10 +65,7 @@ pub fn resolve_project_modules(
     let mut root_replacements = Vec::new();
     graph.visit_items(
         &parsed.items,
-        source_root,
-        source_root,
-        Path::new(""),
-        Path::new(""),
+        &ModulePaths::root(source_root),
         0,
         &mut root_replacements,
     )?;
@@ -87,14 +84,35 @@ struct ModuleGraph<'a> {
     total_bytes: u64,
 }
 
+struct ModulePaths {
+    module_directory: PathBuf,
+    attribute_directory: PathBuf,
+    generated_attribute_directory: PathBuf,
+}
+
+impl ModulePaths {
+    fn root(source_root: &Path) -> Self {
+        Self {
+            module_directory: source_root.to_owned(),
+            attribute_directory: source_root.to_owned(),
+            generated_attribute_directory: PathBuf::new(),
+        }
+    }
+
+    fn child(&self, name: &str) -> Self {
+        Self {
+            module_directory: self.module_directory.join(name),
+            attribute_directory: self.attribute_directory.join(name),
+            generated_attribute_directory: self.generated_attribute_directory.join(name),
+        }
+    }
+}
+
 impl ModuleGraph<'_> {
     fn visit_items(
         &mut self,
         items: &[Item],
-        module_directory: &Path,
-        attribute_directory: &Path,
-        generated_directory: &Path,
-        generated_attribute_directory: &Path,
+        paths: &ModulePaths,
         depth: usize,
         replacements: &mut Vec<Replacement>,
     ) -> Result<(), String> {
@@ -109,30 +127,22 @@ impl ModuleGraph<'_> {
             };
             let name = module.ident.unraw().to_string();
             if let Some((_, child_items)) = &module.content {
-                self.visit_items(
-                    child_items,
-                    &module_directory.join(&name),
-                    &attribute_directory.join(&name),
-                    &generated_directory.join(&name),
-                    &generated_attribute_directory.join(&name),
-                    depth + 1,
-                    replacements,
-                )?;
+                self.visit_items(child_items, &paths.child(&name), depth + 1, replacements)?;
                 continue;
             }
             let explicit_path = path_attribute(module)?;
             let candidate = match &explicit_path {
                 Some((path, _)) => resolve_explicit_candidate(
-                    attribute_directory,
+                    &paths.attribute_directory,
                     path,
                     self.project_root,
                     &name,
                 )?,
-                None => resolve_candidate(module_directory, &name, self.project_root)?.ok_or_else(
+                None => resolve_candidate(&paths.module_directory, &name, self.project_root)?.ok_or_else(
                     || {
                         format!(
                             "no se encontró el archivo del módulo `{name}` desde `{}`; se admite `<módulo>.ox` o `<módulo>/mod.ox` (y sus equivalentes `.rs`)",
-                            relative_path(self.project_root, module_directory)
+                            relative_path(self.project_root, &paths.module_directory)
                         )
                     },
                 )?,
@@ -140,7 +150,7 @@ impl ModuleGraph<'_> {
             let output_path = rust_relative_path(self.source_root, &candidate)?;
             if let Some((_, literal_span)) = &explicit_path {
                 let generated_target =
-                    relative_path_between(generated_attribute_directory, &output_path)?;
+                    relative_path_between(&paths.generated_attribute_directory, &output_path)?;
                 replacements.push(Replacement {
                     range: literal_span.clone(),
                     value: rust_string_literal(&generated_target),
@@ -253,29 +263,21 @@ impl ModuleGraph<'_> {
         } else {
             module_child_directory(&canonical)
         };
-        let generated_module_directory = if was_path_attribute {
-            output_path
-                .parent()
-                .unwrap_or_else(|| Path::new("."))
-                .to_path_buf()
-        } else {
-            module_child_directory(&output_path)
-        };
         let generated_attribute_directory = output_path
             .parent()
             .unwrap_or_else(|| Path::new("."))
             .to_path_buf();
         self.active_sources.insert(canonical.clone());
         let mut replacements = Vec::new();
-        let visited = self.visit_items(
-            &parsed.items,
-            &child_directory,
-            canonical.parent().unwrap_or_else(|| Path::new(".")),
-            &generated_module_directory,
-            &generated_attribute_directory,
-            depth,
-            &mut replacements,
-        );
+        let paths = ModulePaths {
+            module_directory: child_directory,
+            attribute_directory: canonical
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .to_path_buf(),
+            generated_attribute_directory,
+        };
+        let visited = self.visit_items(&parsed.items, &paths, depth, &mut replacements);
         self.active_sources.remove(&canonical);
         visited?;
         let rust = apply_replacements(&rust, replacements)?;

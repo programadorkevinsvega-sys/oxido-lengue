@@ -42,8 +42,12 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         "auditar-proyecto" => audit_project(&args[1..]),
         "exportar" => export_ox(&args[1..]),
         "importar" => import_rust(&args[1..]),
+        "importar-proyecto" => import_project(&args[1..]),
         "compilar" => cargo_ox(&args[1..], CargoAction::Check),
         "ejecutar" => cargo_ox(&args[1..], CargoAction::Run),
+        "probar" => cargo_ox(&args[1..], CargoAction::Test),
+        "nuevo" => new_project(&args[1..]),
+        "formato" => format_ox(&args[1..]),
         "descargar-dependencias" => fetch_dependencies(&args[1..]),
         _ => Err(usage().into()),
     }
@@ -421,6 +425,63 @@ fn analyze_rust(args: &[OsString]) -> Result<(), String> {
     Ok(())
 }
 
+fn new_project(args: &[OsString]) -> Result<(), String> {
+    let [directory] = args else {
+        return Err("uso: oxido nuevo <directorio>".into());
+    };
+    let root = PathBuf::from(directory);
+    if root.exists() {
+        return Err(format!("el directorio ya existe: {}", root.display()));
+    }
+    fs::create_dir_all(root.join("src"))
+        .map_err(|error| format!("no se pudo crear el proyecto: {error}"))?;
+    fs::write(
+        root.join("oxido.toml"),
+        "[language]\nsyntax = \"indentation\"\nedition = \"2024\"\n",
+    )
+    .map_err(|error| format!("no se pudo crear oxido.toml: {error}"))?;
+    fs::write(
+        root.join("src/main.ox"),
+        "sintaxis indentacion\nfuncion principal():\n    imprimir!(\"Hola, Óxido.\")\n",
+    )
+    .map_err(|error| format!("no se pudo crear src/main.ox: {error}"))?;
+    println!("Proyecto Óxido creado en {}", root.display());
+    Ok(())
+}
+
+fn format_ox(args: &[OsString]) -> Result<(), String> {
+    let [input, rest @ ..] = args else {
+        return Err("uso: oxido formato <archivo.ox> [--comprobar]".into());
+    };
+    let check = match rest {
+        [] => false,
+        [flag] if flag == "--comprobar" => true,
+        _ => return Err("uso: oxido formato <archivo.ox> [--comprobar]".into()),
+    };
+    let (source, path) = load_ox(input)?;
+    let settings = project_settings(&path)?;
+    let generated = generate_ox(&source, settings.options)
+        .map_err(|diagnostics| format_diagnostics(&source, &path, &diagnostics))?;
+    let formatted = oxido_compiler::format_rust(&SourceFile::new(generated.rust.clone()))
+        .map_err(|error| format!("no se pudo formatear Rust generado: {error}"))?;
+    if check {
+        if formatted != generated.rust {
+            return Err(
+                "el archivo no está formateado; ejecuta `oxido formato <archivo.ox>`".into(),
+            );
+        }
+        println!("{} está formateado.", path.display());
+    } else {
+        // El formateador conserva el modo y la sintaxis Óxido mediante la
+        // importación reversible del Rust formateado.
+        let imported = oxido_compiler::import_rust(&SourceFile::new(formatted))?;
+        fs::write(&path, imported)
+            .map_err(|error| format!("no se pudo escribir {}: {error}", path.display()))?;
+        println!("Óxido formateado: {}", path.display());
+    }
+    Ok(())
+}
+
 fn export_ox(args: &[OsString]) -> Result<(), String> {
     let [input, flag, output] = args else {
         return Err("uso: oxido exportar <archivo.ox> --salida <archivo.rs>".into());
@@ -579,10 +640,78 @@ fn import_rust(args: &[OsString]) -> Result<(), String> {
     Ok(())
 }
 
+fn import_project(args: &[OsString]) -> Result<(), String> {
+    let [input, flag, output] = args else {
+        return Err(
+            "uso: oxido importar-proyecto <directorio-rust> --salida <directorio-oxido>".into(),
+        );
+    };
+    if flag != "--salida" {
+        return Err("se esperaba --salida <directorio-oxido>".into());
+    }
+    let input = fs::canonicalize(input)
+        .map_err(|error| format!("no se pudo resolver el árbol Rust: {error}"))?;
+    if !input.is_dir() {
+        return Err("la entrada debe ser un directorio Rust".into());
+    }
+    let output = PathBuf::from(output);
+    if output.exists() {
+        return Err("el directorio de salida ya existe; elige otra ruta".into());
+    }
+    let mut files = Vec::new();
+    collect_rust_files(&input, &mut files)?;
+    if files.is_empty() {
+        return Err("el árbol no contiene archivos .rs".into());
+    }
+    for file in files {
+        let relative = file
+            .strip_prefix(&input)
+            .map_err(|_| "ruta de módulo inválida")?;
+        let destination = output.join(relative).with_extension("ox");
+        let text = fs::read_to_string(&file)
+            .map_err(|error| format!("no se pudo leer {}: {error}", file.display()))?;
+        let imported = oxido_compiler::import_rust(&SourceFile::with_path(&file, text))?;
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("no se pudo crear {}: {error}", parent.display()))?;
+        }
+        fs::write(&destination, imported)
+            .map_err(|error| format!("no se pudo escribir {}: {error}", destination.display()))?;
+        println!("Óxido importado a {}", destination.display());
+    }
+    Ok(())
+}
+
+fn collect_rust_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in fs::read_dir(root)
+        .map_err(|error| format!("no se pudo leer {}: {error}", root.display()))?
+    {
+        let entry = entry.map_err(|error| format!("no se pudo leer una entrada: {error}"))?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("no se pudo inspeccionar {}: {error}", path.display()))?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            if path.file_name().is_some_and(|name| name == "target") {
+                continue;
+            }
+            collect_rust_files(&path, files)?;
+        } else if metadata.is_file() && path.extension() == Some(OsStr::new("rs")) {
+            files.push(path);
+        }
+    }
+    files.sort();
+    Ok(())
+}
+
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     let Some(input) = args.first() else {
         let command = if action == CargoAction::Check {
             "compilar"
+        } else if action == CargoAction::Test {
+            "probar"
         } else {
             "ejecutar"
         };
@@ -612,6 +741,10 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         (CargoAction::Run, false, true) => CargoAction::RunTrusted,
         (CargoAction::Run, true, false) => CargoAction::RunRelease,
         (CargoAction::Run, true, true) => CargoAction::RunReleaseTrusted,
+        (CargoAction::Test, false, false) => CargoAction::Test,
+        (CargoAction::Test, false, true) => CargoAction::TestTrusted,
+        (CargoAction::Test, true, false) => return Err("probar no admite --release todavía".into()),
+        (CargoAction::Test, true, true) => return Err("probar no admite --release todavía".into()),
         _ => return Err("acción Cargo no válida para este comando".into()),
     };
     let lockfile = settings.root.join("Cargo.lock");
@@ -678,6 +811,8 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             | CargoAction::RunTrusted
             | CargoAction::RunRelease
             | CargoAction::RunReleaseTrusted
+            | CargoAction::Test
+            | CargoAction::TestTrusted
     ) {
         for line in result.program_output {
             println!("{line}");
@@ -937,5 +1072,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|exportar|importar|compilar|ejecutar> ..."
+    "uso: oxido <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|compilar|probar|ejecutar> ..."
 }

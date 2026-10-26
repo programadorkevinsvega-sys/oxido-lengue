@@ -104,6 +104,20 @@ fn validates_async_await_and_runs_standard_thread_concurrency() {
 }
 
 #[test]
+fn preserves_valid_user_unsafe_api_without_blocking_by_default() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn main() { let valor = 42; let ptr = &valor as *const i32; unsafe { println!(\"{}\", *ptr); } }\n",
+    );
+    let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(result.success);
+    assert_eq!(result.program_output, ["42"]);
+}
+
+#[test]
 fn bilingual_block_modes_compile_to_the_same_behavior() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
@@ -853,10 +867,10 @@ fn maps_rustc_control_header_errors_back_to_the_ox_header() {
 }
 
 #[test]
-fn rejects_non_reversible_rust_items_during_import() {
+fn imports_rust_passthrough_items_during_tree_import() {
     let source = SourceFile::new("struct Dato { valor: i32 }\n");
-    let error = oxido_compiler::import_rust(&source).unwrap_err();
-    assert!(error.contains("solo admite funciones libres"), "{error}");
+    let imported = oxido_compiler::import_rust(&source).unwrap();
+    assert!(imported.contains("struct Dato"), "{imported}");
 }
 
 #[test]

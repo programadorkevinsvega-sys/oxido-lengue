@@ -63,6 +63,17 @@ Este registro describe la primera ejecución de la Fase 10 antes del commit de e
 
 Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../tests/README.md). La CI corresponde al commit indicado y sus mismos contenidos de implementación. Este documento registra la evidencia disponible, pero no cierra la fase: siguen pendientes diferenciales más amplios, decoder/cancelación LSP y la revisión final de cobertura por característica.
 
+## Iteración diferencial posterior
+
+| Dato | Valor |
+|---|---|
+| Base | Merge de la primera entrega de Fase 10: `9920b15dc33fe7067acf356bdeac1142df54f306` |
+| Diferenciales | Dos programas `.ox` indentados y equivalentes en Rust nativo; ambos compilan y ejecutan, stdout coincide |
+| Construcciones comparadas | Iteradores/colección/condicional y `struct`/`impl`/método/`match` |
+| Verificación local | `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo test --workspace --locked`: 131 pruebas aprobadas, 0 fallidas |
+| CI remota de esta iteración | Pendiente al registrar; actualizar con el commit y checks cuando termine |
+| Límites | Solo dos fixtures; no cubre equivalencia semántica general ni diagnostica pares de errores equivalentes |
+
 ## Criterio de cierre
 
 La fase seguirá abierta hasta que las características publicadas en la matriz tengan tests identificables, las limitaciones y campañas no ejecutadas figuren como pendientes, los diferenciales/roundtrips relevantes estén automatizados y el job de CI de fuzzing pase. No se exige demostrar exhaustivamente toda la gramática de Rust ni trasladar a este laboratorio la aceptación funcional de crates, macros, runtimes o `unsafe`; esa decisión corresponde a la Fase 8 según ADR-0007.

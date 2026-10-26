@@ -6,15 +6,15 @@
 
 | Subfase | Estado inicial verificado | Evidencia disponible / trabajo pendiente |
 |---|---|---|
-| 1. Matriz por componente | Parcial | Lexer y parser en `oxido-language`; configuración y pipeline en `oxido-compiler`; formato/macros/CLI en `oxido-cli`; la matriz explícita de características y tests sigue creciendo. |
+| 1. Matriz por componente | Implementación inicial | [`testing.md`](testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas) enlaza áreas anunciadas con funciones de prueba. Una prueba del recolector valida que los identificadores documentados existen; todavía requiere revisión humana del alcance de cada evidencia. |
 | 2. Regresiones | Implementada en el corpus existente | Los defectos corregidos tienen pruebas en el crate afectado; fuzz crashes futuros deben añadirse como seed y regresión determinista. |
 | 3. Diferencial contra Rust | Parcial | Dos regresiones compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones y `struct`/`impl`/método/`match`; una tercera compara el rechazo `E0308` y el mapeo al `.ox`. Hace falta ampliar casos. |
 | 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs` y roundtrip de árboles mixtos; no equivale a roundtrip universal. |
 | 5. Fuzzing | Implementación inicial | Targets de lexer, parser, configuración TOML, backend/mapas y framing/dispatcher JSON-RPC LSP; corpus semilla y smoke CI. Las campañas siguen acotadas. |
 | 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans, recuperación de parser y límites LSP de cabecera 8 KiB/frame 4 MiB; faltan recuperación sistemática, cancelación LSP y reportes de límites medidos. |
-| 7. Proyectos reutilizables | Parcial | `tests/README.md` define un contrato mínimo para nuevas referencias; los proyectos previos aún no están todos normalizados a ese contrato. |
-| 8. Informes reproducibles | Implementación inicial | `tools/validation-report` ejecuta las suites, registra commit/entorno/estados y escribe un Markdown; el PR actual incorpora sus pruebas a CI, pendiente el primer resultado remoto. Falta mantener muestras históricas de las campañas. No se inventan métricas de rendimiento. |
-| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing; los jobs remotos pasaron para el commit registrado abajo. Falta mantener evidencia en futuras iteraciones. |
+| 7. Proyectos reutilizables | Parcial | `tests/README.md` define el contrato y un índice de referencias con raíz, modo, comandos/documentación y si la evidencia es automática o manual. Los READMEs de cada proyecto aún difieren en detalle; servicios externos y benchmarks no se ejecutan en cada CI. |
+| 8. Informes reproducibles | Implementación inicial | `tools/validation-report` ejecuta las suites, registra commit/entorno/estados y escribe un Markdown; sus tests comprueban además que la matriz de trazabilidad no cite pruebas inexistentes. Falta mantener muestras históricas de campañas prolongadas. No se inventan métricas de rendimiento. |
+| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing. El resultado remoto del cambio actual está pendiente hasta completar su PR. |
 
 ## Harnesses de fuzzing
 
@@ -112,3 +112,13 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 ## Criterio de cierre
 
 La fase seguirá abierta hasta que las características publicadas en la matriz tengan tests identificables, las limitaciones y campañas no ejecutadas figuren como pendientes, los diferenciales/roundtrips relevantes estén automatizados y el job de CI de fuzzing pase. No se exige demostrar exhaustivamente toda la gramática de Rust ni trasladar a este laboratorio la aceptación funcional de crates, macros, runtimes o `unsafe`; esa decisión corresponde a la Fase 8 según ADR-0007.
+
+## Iteración de trazabilidad y referencias
+
+| Dato | Valor |
+|---|---|
+| Base | Merge de informes reproducibles: `2e90a9e08f00ecc75a9b4b3dca5c4d6c871aac52` |
+| Cambios | Matriz de capacidades a pruebas con identificadores; prueba del recolector que detecta referencias a funciones eliminadas/renombradas; índice de proyectos de referencia y distinción automática/manual |
+| Verificación local | Reporte `tools/validation-report`: fmt, Clippy y 139 pruebas del workspace aprobadas; cargo-deny aprobado; compilación y smoke de 1.000 iteraciones en los cinco targets fuzz aprobados; build del portal aprobado. La suite independiente del recolector aprobó 4 pruebas, incluida la nueva comprobación de trazabilidad. |
+| CI remota | Pendiente para esta iteración |
+| Límites | El índice no convierte ejecuciones de servicios ni benchmarks en pruebas de CI; cancelación LSP, recuperación incremental sistemática, diferenciales más amplios y campañas prolongadas continúan pendientes. Rendimiento no medido por el informe. |

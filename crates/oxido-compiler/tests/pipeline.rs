@@ -110,6 +110,40 @@ fn main() {
 }
 
 #[test]
+fn differential_result_propagation_matches_native_rust() {
+    assert_ox_and_rust_output_match(
+        r#"sintaxis indentacion
+funcion validar(divisor: i32) -> Resultado<i32, &'static str>:
+    si divisor == 0:
+        Err("division por cero")
+    sino:
+        Ok(12 / divisor)
+funcion calcular() -> Resultado<i32, &'static str>:
+    dejar valor = validar(3)?
+    Ok(valor + 1)
+funcion principal():
+    coincidir calcular():
+        Bien(valor) => imprimir!("resultado={}", valor)
+        Falla(error) => imprimir!("error={}", error)
+"#,
+        r#"fn validar(divisor: i32) -> Result<i32, &'static str> {
+    if divisor == 0 { Err("division por cero") } else { Ok(12 / divisor) }
+}
+fn calcular() -> Result<i32, &'static str> {
+    let valor = validar(3)?;
+    Ok(valor + 1)
+}
+fn main() {
+    match calcular() {
+        Ok(valor) => println!("resultado={}", valor),
+        Err(error) => println!("error={}", error),
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn differential_type_errors_match_rustc_and_map_back_to_the_ox_line() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

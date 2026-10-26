@@ -2,10 +2,12 @@ import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
 
 export default defineConfig({
+  site: 'https://oxido-lengue.pages.dev',
   integrations: [
     starlight({
       title: 'Óxido',
       description: 'Documentación del lenguaje Óxido para desarrolladores, empresas y estudiantes.',
+      disable404Route: true,
       customCss: ['./src/styles/custom.css'],
       defaultLocale: 'es',
       locales: {

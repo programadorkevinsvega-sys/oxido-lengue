@@ -14,7 +14,7 @@ Abrir un proyecto Rust puede ejecutar `build.rs` y macros procedurales si se inv
 2. El modo del proyecto se lee de `oxido.toml` como datos declarativos, limitado a 64 KiB y solo desde la raíz del workspace; los archivos con cabecera pueden determinar su modo cuando el proyecto no lo configura.
 3. La extensión usa `Workspace Trust` en modo `limited`. El análisis estático puede operar en Restricted Mode. Cualquier función futura que compile o active macros/build scripts debe comprobar `workspace.isTrusted` en cada punto de entrada y solo ejecutarse por acción explícita.
 4. La ruta configurable del ejecutable LSP es una configuración restringida en workspaces no confiables. Los procesos se lanzan con ejecutable y argumentos separados, nunca mediante shell.
-5. La integración con `rust-analyzer` usa un workspace temporal controlado, genera Rust con el backend existente, inicia el binario configurado (`OXIDO_RUST_ANALYZER` o `rust-analyzer`) solo con confianza explícita y detiene/limpia el proceso al terminar cada consulta. Las posiciones se proyectan al token generado; respuestas sin correspondencia no se inventan y usan el fallback local.
+5. La integración con `rust-analyzer` usa un worker persistente por proceso LSP, un workspace temporal controlado y Rust generado por el backend. Inicia el binario configurado (`OXIDO_RUST_ANALYZER` o `rust-analyzer`) solo con confianza explícita, reutiliza la sesión entre consultas, aplica timeout y limpia el proceso al cerrar el worker. Las posiciones se proyectan por ocurrencia de token; respuestas sin correspondencia no se inventan y usan el fallback local.
 
 ## Consecuencias
 

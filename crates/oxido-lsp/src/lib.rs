@@ -10,14 +10,14 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     io::{self, BufRead, BufReader, Read, Write},
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{
-        Arc,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, SyncSender, TrySendError},
+        mpsc::{self, Receiver, Sender, SyncSender, TrySendError},
     },
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
@@ -31,6 +31,24 @@ const MAX_QUEUED_DIAGNOSTIC_TASKS: usize = 1;
 const CANCELED_ERROR_CODE: i64 = -32800;
 const CONTENT_MODIFIED_ERROR_CODE: i64 = -32801;
 static NEXT_RA_WORKSPACE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static RA_STARTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static RA_WORKER: OnceLock<Mutex<Option<SyncSender<RaWork>>>> = OnceLock::new();
+
+struct RustAnalyzerSession {
+    child: Child,
+    input: ChildStdin,
+    output: Receiver<Value>,
+    root: PathBuf,
+    generated: String,
+    next_id: i64,
+}
+
+struct RaWork {
+    rust: String,
+    method: String,
+    params: Value,
+    reply: Sender<Option<Value>>,
+}
 
 #[derive(Default)]
 pub struct ServerState {
@@ -401,6 +419,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
     diagnostics_worker
         .join()
         .map_err(|_| io::Error::other("el worker de diagnósticos LSP terminó inesperadamente"))?;
+    shutdown_rust_analyzer_worker();
     if let Some(error) = input_error {
         return Err(error);
     }
@@ -1075,22 +1094,114 @@ fn position_at_generated(source: &str, generated: &str, position: &Value) -> Opt
         token_end += 1;
     }
     let token = source.get(token_start..token_end)?;
-    let generated_offset = generated.find(token)?;
+    let occurrence = source
+        .get(..offset)
+        .unwrap_or_default()
+        .match_indices(token)
+        .count();
+    let generated_offset = generated
+        .match_indices(token)
+        .nth(occurrence)
+        .map(|(offset, _)| offset)
+        .or_else(|| generated.find(token))?;
     Some(lsp_position(generated, generated_offset))
 }
 
 fn run_rust_analyzer(rust: &str, method: &str, id: &Value, params: Value) -> Option<Value> {
+    let worker_lock = RA_WORKER.get_or_init(|| Mutex::new(None));
+    let sender = {
+        let mut guard = worker_lock.lock().ok()?;
+        if guard.is_none() {
+            let (sender, receiver) = mpsc::sync_channel::<RaWork>(4);
+            thread::Builder::new()
+                .name("oxido-lsp-rust-analyzer".to_owned())
+                .spawn(move || rust_analyzer_worker(receiver))
+                .ok()?;
+            *guard = Some(sender);
+        }
+        guard.as_ref()?.clone()
+    };
+    let (reply_tx, reply_rx) = mpsc::channel();
+    sender
+        .try_send(RaWork {
+            rust: rust.to_owned(),
+            method: method.to_owned(),
+            params,
+            reply: reply_tx,
+        })
+        .ok()?;
+    let mut response = reply_rx.recv_timeout(Duration::from_secs(3)).ok()??;
+    if let Some(object) = response.as_object_mut() {
+        object.insert("id".to_owned(), id.clone());
+    }
+    Some(response)
+}
+
+fn rust_analyzer_worker(receiver: mpsc::Receiver<RaWork>) {
+    let mut session = None;
+    while let Ok(work) = receiver.recv() {
+        if work.method == "__shutdown" {
+            if work.reply.send(None).is_err() {
+                eprintln!("el cliente LSP cerró la confirmación de cierre de rust-analyzer");
+            }
+            break;
+        }
+        if session.is_none() {
+            session = start_rust_analyzer(&work.rust);
+        }
+        let result = session
+            .as_mut()
+            .and_then(|item| query_rust_analyzer(item, &work.rust, &work.method, work.params));
+        if work.reply.send(result).is_err() {
+            eprintln!("el cliente LSP cerró la respuesta de rust-analyzer");
+        }
+    }
+    if let Some(mut item) = session {
+        if let Err(error) = item.child.kill() {
+            eprintln!("no se pudo detener rust-analyzer: {error}");
+        }
+        if let Err(error) = item.child.wait() {
+            eprintln!("no se pudo esperar rust-analyzer: {error}");
+        }
+        if let Err(error) = std::fs::remove_dir_all(item.root) {
+            eprintln!("no se pudo limpiar workspace de rust-analyzer: {error}");
+        }
+    }
+}
+
+fn query_rust_analyzer(
+    session: &mut RustAnalyzerSession,
+    rust: &str,
+    method: &str,
+    params: Value,
+) -> Option<Value> {
+    if session.generated != rust {
+        let uri = format!("file://{}/src/main.rs", session.root.display());
+        session.next_id = session.next_id.saturating_add(1);
+        write_lsp_message(&mut session.input, &json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":session.next_id},"contentChanges":[{"text":rust}]}})).ok()?;
+        session.generated = rust.to_owned();
+    }
+    let mut params = params;
+    if let Some(document) = params.get_mut("textDocument") {
+        *document = json!({"uri":format!("file://{}/src/main.rs", session.root.display())});
+    }
+    session.next_id = session.next_id.saturating_add(1);
+    let request_id = session.next_id;
+    write_lsp_message(
+        &mut session.input,
+        &json!({"jsonrpc":"2.0","id":request_id,"method":method,"params":params}),
+    )
+    .ok()?;
+    wait_response(&session.output, request_id)
+}
+
+fn start_rust_analyzer(rust: &str) -> Option<RustAnalyzerSession> {
     let root = std::env::temp_dir().join(format!(
         "oxido-ra-{}",
         NEXT_RA_WORKSPACE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     let source_dir = root.join("src");
     std::fs::create_dir_all(&source_dir).ok()?;
-    let cleanup = || {
-        if let Err(error) = std::fs::remove_dir_all(&root) {
-            eprintln!("no se pudo limpiar workspace temporal de rust-analyzer: {error}");
-        }
-    };
     if std::fs::write(
         root.join("Cargo.toml"),
         "[package]\nname = \"oxido_lsp_generated\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
@@ -1098,11 +1209,14 @@ fn run_rust_analyzer(rust: &str, method: &str, id: &Value, params: Value) -> Opt
     .is_err()
         || std::fs::write(source_dir.join("main.rs"), rust).is_err()
     {
-        cleanup();
+        if let Err(error) = std::fs::remove_dir_all(&root) {
+            eprintln!("no se pudo limpiar workspace de rust-analyzer: {error}");
+        }
         return None;
     }
     let executable =
         std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into());
+    RA_STARTS.fetch_add(1, Ordering::Relaxed);
     let mut child = Command::new(executable)
         .arg("--stdio")
         .current_dir(&root)
@@ -1112,45 +1226,83 @@ fn run_rust_analyzer(rust: &str, method: &str, id: &Value, params: Value) -> Opt
         .spawn()
         .ok()?;
     let mut input = child.stdin.take()?;
-    let mut output = BufReader::new(child.stdout.take()?);
-    let initialize = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":format!("file://{}", root.display()),"capabilities":{}}});
-    write_lsp_message(&mut input, &initialize).ok()?;
-    read_response(&mut output, 1)?;
+    let stdout = child.stdout.take()?;
+    let (response_tx, response_rx) = mpsc::channel();
+    thread::Builder::new()
+        .name("oxido-lsp-rust-analyzer-reader".to_owned())
+        .spawn(move || rust_analyzer_reader(stdout, response_tx))
+        .ok()?;
+    write_lsp_message(&mut input, &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":format!("file://{}", root.display()),"capabilities":{}}})).ok()?;
+    wait_response(&response_rx, 1)?;
     write_lsp_message(
         &mut input,
         &json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     )
     .ok()?;
-    let generated_uri = format!("file://{}/src/main.rs", root.display());
-    write_lsp_message(&mut input, &json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":generated_uri,"languageId":"rust","version":1,"text":rust}}})).ok()?;
-    let mut params = params;
-    if let Some(document) = params.get_mut("textDocument") {
-        *document = json!({"uri":format!("file://{}/src/main.rs", root.display())});
-    }
-    let request = json!({"jsonrpc":"2.0","id":id,"method":method,"params":params});
-    write_lsp_message(&mut input, &request).ok()?;
-    let response = read_response(&mut output, id.as_i64().unwrap_or(2));
-    write_lsp_message(
-        &mut input,
-        &json!({"jsonrpc":"2.0","id":99,"method":"shutdown","params":{}}),
-    )
-    .ok();
-    if let Err(error) = child.kill() {
-        eprintln!("no se pudo detener rust-analyzer temporal: {error}");
-    }
-    if let Err(error) = child.wait() {
-        eprintln!("no se pudo esperar rust-analyzer temporal: {error}");
-    }
-    cleanup();
-    response
+    let uri = format!("file://{}/src/main.rs", root.display());
+    write_lsp_message(&mut input, &json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"rust","version":1,"text":rust}}})).ok()?;
+    Some(RustAnalyzerSession {
+        child,
+        input,
+        output: response_rx,
+        root,
+        generated: rust.to_owned(),
+        next_id: 1,
+    })
 }
 
-fn read_response(input: &mut impl BufRead, expected_id: i64) -> Option<Value> {
+fn shutdown_rust_analyzer_worker() {
+    let Some(worker_lock) = RA_WORKER.get() else {
+        return;
+    };
+    let Ok(mut guard) = worker_lock.lock() else {
+        return;
+    };
+    let Some(sender) = guard.take() else { return };
+    let (reply_tx, reply_rx) = mpsc::channel();
+    if let Err(error) = sender.send(RaWork {
+        rust: String::new(),
+        method: "__shutdown".to_owned(),
+        params: Value::Null,
+        reply: reply_tx,
+    }) {
+        eprintln!("no se pudo cerrar worker de rust-analyzer: {error}");
+        return;
+    }
+    if reply_rx.recv_timeout(Duration::from_secs(3)).is_err() {
+        eprintln!("worker de rust-analyzer no confirmó el cierre");
+    }
+}
+
+fn wait_response(input: &Receiver<Value>, expected_id: i64) -> Option<Value> {
     loop {
-        let body = read_frame(input).ok()??;
-        let response: Value = serde_json::from_slice(&body).ok()?;
+        let response = input.recv_timeout(Duration::from_secs(3)).ok()?;
         if response.get("id").and_then(Value::as_i64) == Some(expected_id) {
             return Some(response);
+        }
+    }
+}
+
+fn rust_analyzer_reader(stdout: ChildStdout, sender: Sender<Value>) {
+    let mut output = BufReader::new(stdout);
+    loop {
+        let frame = match read_frame(&mut output) {
+            Ok(Some(frame)) => frame,
+            Ok(None) => break,
+            Err(error) => {
+                eprintln!("falló la lectura LSP de rust-analyzer: {error}");
+                break;
+            }
+        };
+        let message = match serde_json::from_slice::<Value>(&frame) {
+            Ok(message) => message,
+            Err(error) => {
+                eprintln!("rust-analyzer envió JSON inválido: {error}");
+                break;
+            }
+        };
+        if sender.send(message).is_err() {
+            break;
         }
     }
 }
@@ -2044,6 +2196,39 @@ mod tests {
         );
         assert_eq!(response["id"], 1);
         assert!(response.get("result").is_some() || response.get("error").is_some());
+    }
+
+    #[test]
+    fn reuses_one_rust_analyzer_session_for_multiple_queries() {
+        if std::process::Command::new(
+            std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into()),
+        )
+        .arg("--version")
+        .output()
+        .is_err()
+        {
+            return;
+        }
+        let before = RA_STARTS.load(Ordering::Relaxed);
+        let mut state = ServerState {
+            trusted_workspace: true,
+            project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Braces),
+            ..ServerState::default()
+        };
+        let text = "fn principal() { let valor = 1; }\n";
+        state.documents.insert(
+            "file:///main.ox".into(),
+            TextDocument {
+                version: Some(1),
+                text: text.into(),
+            },
+        );
+        let params =
+            json!({"textDocument":{"uri":"file:///main.ox"},"position":{"line":0,"character":25}});
+        let _ = hover_response(json!(31), Some(&params), &state);
+        let _ = completion_response(json!(32), Some(&params), &state);
+        let starts = RA_STARTS.load(Ordering::Relaxed);
+        assert!(starts > before);
     }
 
     #[test]

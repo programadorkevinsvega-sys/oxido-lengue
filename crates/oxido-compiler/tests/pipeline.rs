@@ -109,6 +109,67 @@ fn main() {
     );
 }
 
+#[test]
+fn differential_type_errors_match_rustc_and_map_back_to_the_ox_line() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let ox = SourceFile::new("sintaxis indentacion\nfuncion main():\n    dejar valor: bool = 1\n");
+    let rust = "fn main() {\n    let valor: bool = 1;\n}\n";
+    let result = oxido_compiler::build_ox(&ox, LexOptions::default(), CargoAction::Check)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(!result.success);
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code.as_deref() == Some("E0308"))
+        .expect("Óxido conserva el código de error de tipos de rustc");
+    let mapped = diagnostic
+        .source
+        .expect("el diagnóstico debe mapearse al archivo .ox");
+    assert_eq!(mapped.line, 3);
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock is after Unix epoch")
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "oxido-rust-negative-differential-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create negative differential test directory");
+    let source_path = directory.join("main.rs");
+    std::fs::write(&source_path, rust).expect("write direct Rust negative fixture");
+    let compile = Command::new("rustc")
+        .arg("--edition=2024")
+        .arg("--error-format=json")
+        .arg("--emit=metadata")
+        .arg("--out-dir")
+        .arg(&directory)
+        .arg(&source_path)
+        .output()
+        .expect("run rustc for direct negative fixture");
+    assert!(!compile.status.success());
+    let stderr = String::from_utf8(compile.stderr).expect("UTF-8 rustc diagnostics");
+    let has_same_error = stderr.lines().any(|line| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .and_then(|value| value.get("code").cloned())
+            .and_then(|value| {
+                value
+                    .get("code")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .as_deref()
+            == Some("E0308")
+    });
+    assert!(has_same_error, "direct rustc diagnostics: {stderr}");
+    std::fs::remove_dir_all(&directory).expect("remove negative differential test directory");
+}
+
 fn assert_ox_and_rust_output_match(ox_text: &str, rust: &str) {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

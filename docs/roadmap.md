@@ -258,7 +258,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** consolidar pruebas, compatibilidad, fuzzing y evidencia continua.
 
-**Estado actual:** en curso. El workspace ya tiene matrices de lexer/parser/configuración/pipeline/CLI, pruebas de modos equivalentes, roundtrip y límites; la cobertura previa está inventariada en [fase-10-laboratorio-validacion.md](fase-10-laboratorio-validacion.md). Hay targets `cargo-fuzz` iniciales para lexer, parser, backend, configuración y framing/dispatcher JSON-RPC LSP; corpus semilla, dos pruebas diferenciales ejecutables contra Rust directo y smoke de fuzzing en CI con nightly fijado. Falta cancelación LSP, ampliar diferenciales Rust, automatizar informes por commit/entorno y verificar cada característica anunciada contra un test identificable.
+**Estado actual:** en curso. El workspace ya tiene matrices de lexer/parser/configuración/pipeline/CLI, pruebas de modos equivalentes, roundtrip y límites; la cobertura previa está inventariada en [fase-10-laboratorio-validacion.md](fase-10-laboratorio-validacion.md). Hay targets `cargo-fuzz` iniciales para lexer, parser, backend, configuración y framing/dispatcher JSON-RPC LSP; corpus semilla, tres diferenciales (dos positivos y uno de diagnóstico) ejecutables contra Rust directo, smoke de fuzzing en CI con nightly fijado y un recolector local de informes por commit/entorno. Falta cancelar trabajo LSP, ampliar diferenciales Rust, integrar el reporte continuo y verificar cada característica anunciada contra un test identificable.
 
 ### Subfases
 

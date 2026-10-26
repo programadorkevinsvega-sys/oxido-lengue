@@ -118,7 +118,17 @@ La revisión encuentra cobertura para las producciones estructurales enumeradas 
 
 Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend,lsp}`. El target LSP entrega bytes aleatorios al decoder de framing `Content-Length` y, si obtiene un payload completo, al dispatcher JSON-RPC. Las pruebas deterministas cubren frame completo, EOF, cabecera ausente/duplicada, línea demasiado larga, cuerpo truncado y límite de tamaño. Corpus descubierto, crashes, cobertura y binarios se mantienen fuera del repositorio hasta revisarse. El job `fuzz-smoke` ejecuta 1.000 casos con límite de entrada de 8 KiB por target usando cargo-fuzz 0.13.2 y nightly 2026-10-16. Es un smoke determinista acotado, no reemplaza fuzzing continuo ni demuestra ausencia de bugs. Siguen pendientes cancelación LSP y recuperación sistemática.
 
-Las regresiones `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` y `differential_indented_impl_and_match_have_the_same_result_as_rust` compilan y ejecutan dos muestras en Óxido y Rust nativo, y comparan stdout. Cubren expresiones/iteradores/colecciones y estructuras/impl/métodos/match. Son evidencia de esos fixtures concretos, no certifican equivalencia semántica general.
+Las regresiones `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` y `differential_indented_impl_and_match_have_the_same_result_as_rust` compilan y ejecutan pares en Óxido y Rust nativo, y comparan stdout. Cubren expresiones/iteradores/colecciones y estructuras/impl/métodos/match. `differential_type_errors_match_rustc_and_map_back_to_the_ox_line` comprueba que ambos rechacen el mismo error `E0308` y que el diagnóstico de Óxido apunte a la línea fuente. Son evidencia de esos fixtures concretos, no certifican equivalencia semántica general.
+
+## Informe reproducible
+
+Desde la raíz, ejecuta:
+
+```sh
+cargo run --manifest-path tools/validation-report/Cargo.toml --locked
+```
+
+El ejecutor registra commit, rama, estado limpio/modificado, sistema, toolchains, comandos, códigos de salida, duración y totales de tests que Cargo reporta. Incluye sus propios fmt/Clippy/tests y los del workspace, cargo-deny, build/smoke de fuzz y build del sitio. El informe se escribe en `target/validation-report.md`; una suite que falle deja al comando con código distinto de cero. Si una herramienta opcional no está instalada, su estado es **No evaluada**. No copia logs de procesos, por lo que evita filtrar rutas absolutas; consulta el log de CI para el diagnóstico detallado. Declara explícitamente que el rendimiento no se midió y que la CI remota no se consulta desde local. No presentes este reporte como sustituto de resultados remotos.
 
 ## Parser, backend y diagnóstico
 

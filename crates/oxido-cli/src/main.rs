@@ -790,6 +790,20 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     if !result.stderr.trim().is_empty() {
         eprint!("{}", result.stderr);
     }
+    let prints_program_output = matches!(
+        action,
+        CargoAction::Run
+            | CargoAction::RunTrusted
+            | CargoAction::RunRelease
+            | CargoAction::RunReleaseTrusted
+            | CargoAction::Test
+            | CargoAction::TestTrusted
+    );
+    if prints_program_output {
+        for line in &result.program_output {
+            println!("{line}");
+        }
+    }
     if !result.success {
         if result.timed_out {
             return Err("Cargo superó el límite de ejecución de 120 segundos".into());
@@ -801,19 +815,7 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 .map_or_else(|| "sin código de salida".into(), |code| code.to_string())
         ));
     }
-    if matches!(
-        action,
-        CargoAction::Run
-            | CargoAction::RunTrusted
-            | CargoAction::RunRelease
-            | CargoAction::RunReleaseTrusted
-            | CargoAction::Test
-            | CargoAction::TestTrusted
-    ) {
-        for line in result.program_output {
-            println!("{line}");
-        }
-    } else {
+    if !prints_program_output {
         println!("El programa .ox compila correctamente.");
     }
     Ok(())

@@ -6,7 +6,7 @@ Este informe registra la infraestructura entregada en Fase 2; las verificaciones
 
 ## Entregado
 
-- Workspace Cargo con resolver 3, edición 2024, MSRV 1.85, lockfile versionado y toolchain fijada en 1.99.1.
+- Workspace Cargo con resolver 3, edición 2024, MSRV 1.99.1, lockfile versionado y CI fijada en Rust 1.99.1.
 - Cuatro crates con responsabilidades reales: dominio de fuente, backend Rust, aplicación y CLI.
 - Dirección de dependencias sin ciclos; `syn` y `prettyplease` quedan en el backend.
 - Parser de `oxido.toml` como datos TOML declarativos: solo campos admitidos, sin comandos, modo opcional, edición 2024 y máximo de 64 KiB.

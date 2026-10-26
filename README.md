@@ -8,7 +8,7 @@ El proyecto ya tiene lexer, parser y generación Rust. Las Fases 5–8 están co
 
 ## Requisitos
 
-- Rust 1.85 o posterior; la edición objetivo del workspace es Rust 2024. La CI prueba el MSRV 1.85.0 y Rust 1.99.1.
+- Rust 1.99.1 o posterior; la edición objetivo del workspace es Rust 2024. CI usa Rust 1.99.1 para formato, lint, pruebas y auditoría de dependencias.
 - Cargo.
 
 ## Ejemplo ejecutable inicial

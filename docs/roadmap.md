@@ -218,7 +218,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 6. `async`/`await` y concurrencia. **Verificado para corpus concreto:** `.await` con `futures-executor`, `tokio::main`/`select!` y `std::thread`; el runtime lo elige la aplicación.
 7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus registrado:** `itoa`, `futures-executor`, Serde, Tokio, `serde_json`, `paste` y crates locales. No implica compatibilidad con crates arbitrarios.
 8. `unsafe`: preservar semántica Rust y ofrecer auditoría opcional. **Verificado para caso concreto:** una API de punteros válida compila y ejecuta sin rechazo por defecto; la auditoría puede rechazarla bajo opción explícita. Workspace Trust/sandbox de compilaciones editoriales corresponde a Fase 11.
-9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.85 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
+9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.99.1 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
 10. **Diagnósticos y preservación cruzada:** verificados para funciones, métodos, módulos y la macro externa probada. Cargo sobre el árbol exportado informa ubicaciones `.rs`; los mapas laterales no se consumen fuera de Óxido.
 
 **Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.
@@ -233,18 +233,18 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** entregar comandos estables y seguros para tareas habituales.
 
-**Estado actual:** en curso. La CLI tiene `nuevo`, `formato`, `probar` e `importar-proyecto`, además de los comandos anteriores. La implementación existe, pero el cierre requiere pruebas de integración de esos comandos y contratos precisos de idempotencia, errores y roundtrip.
+**Estado actual:** en curso. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, y que `formato` sea idempotente y conserve comentarios en modo llaves. Faltan contratos y regresiones para `importar-proyecto`, formato indentado, roundtrip de árboles y diagnósticos estructurados antes de cerrar la fase.
 
 ### Subfases
 
 1. Definir nombres, argumentos, ayuda y códigos de salida.
-2. Crear proyectos con plantillas mínimas verificables.
-3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. `probar` invoca `cargo test` sobre el proyecto temporal del archivo; sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
-4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresión de idempotencia y comentarios para modo llaves. El reimportador genera modo llaves y no preserva fuentes indentadas; implementar ese modo antes de ampliar el soporte.
+2. Crear proyectos con plantillas mínimas verificables. La plantilla actual de `nuevo` tiene una prueba CLI que la compila y ejecuta; se comprueba también el rechazo de un directorio ya existente sin modificarlo.
+3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. Las pruebas CLI validan `nuevo` de extremo a extremo y que `probar` ejecute un ítem `#[test]`, propague el resultado fallido y rechace `--release`. Sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
+4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresión CLI de idempotencia y conservación de comentarios para modo llaves. El reimportador genera modo llaves y no preserva fuentes indentadas; implementar ese modo antes de ampliar el soporte.
 5. **Diagnósticos CLI:** los mensajes humanos existen; un contrato de salida estructurada estable para CI sigue pendiente.
 6. **Importación/exportación:** exportación recursiva e importación inicial de árboles existen; falta una regresión de ida y vuelta para árboles, especialmente con `#[path]` y fuentes mixtas.
-7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables).
-8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos.
+7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables); ya hay una prueba CLI que verifica el informe y que no expone rutas absolutas.
+8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos; las rutas de módulos compilados/exportados tienen pruebas, pero falta cubrir las operaciones de importación y formato.
 
 **Entregables:** CLI documentada y pruebas de integración de comandos.
 

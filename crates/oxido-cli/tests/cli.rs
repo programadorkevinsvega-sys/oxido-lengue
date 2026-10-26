@@ -30,6 +30,109 @@ impl Drop for TestDirectory {
 }
 
 #[test]
+fn new_creates_a_runnable_project_and_rejects_an_existing_directory() {
+    let temp = TestDirectory::new();
+    let project = temp.0.join("proyecto");
+
+    let created = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["nuevo", "proyecto"])
+        .output()
+        .unwrap();
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    assert!(project.join("oxido.toml").is_file());
+    let source_path = project.join("src/main.ox");
+    let original_source = fs::read_to_string(&source_path).unwrap();
+    assert!(original_source.contains("funcion principal():"));
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["ejecutar", "proyecto/src/main.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("Hola, Óxido."));
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["nuevo", "proyecto"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("el directorio ya existe"));
+    assert_eq!(fs::read_to_string(source_path).unwrap(), original_source);
+}
+
+#[test]
+fn test_command_runs_a_real_rust_test_and_rejects_release_mode() {
+    let temp = TestDirectory::new();
+    let source_path = temp.0.join("suite.ox");
+    fs::write(
+        &source_path,
+        "sintaxis llaves\n#[test]\nfn cli_ejecuta_una_prueba_real() { assert_eq!(2 + 2, 4); }\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["probar", "suite.ox", "--release"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("probar no admite --release"));
+
+    let tested = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["probar", "suite.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        tested.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&tested.stdout),
+        String::from_utf8_lossy(&tested.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&tested.stdout).contains("1 passed"),
+        "{}",
+        String::from_utf8_lossy(&tested.stdout)
+    );
+
+    fs::write(
+        &source_path,
+        "sintaxis llaves\n#[test]\nfn cli_propaga_una_prueba_fallida() { assert_eq!(2 + 2, 5); }\nfn main() {}\n",
+    )
+    .unwrap();
+    let failed_test = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["probar", "suite.ox"])
+        .output()
+        .unwrap();
+    assert!(!failed_test.status.success());
+    let failure_output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&failed_test.stdout),
+        String::from_utf8_lossy(&failed_test.stderr)
+    );
+    assert!(
+        failure_output.contains("cli_propaga_una_prueba_fallida"),
+        "salida de la CLI:\n{failure_output}"
+    );
+    assert!(
+        failure_output.contains("FAILED"),
+        "salida de la CLI:\n{failure_output}"
+    );
+}
+
+#[test]
 fn formats_braced_source_idempotently_without_losing_comments() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");

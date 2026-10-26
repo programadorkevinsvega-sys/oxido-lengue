@@ -796,6 +796,13 @@ fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -
             );
         }
     }
+    for (module_uri, name, _, _) in workspace_functions(state) {
+        if module_uri != uri.unwrap_or_default() {
+            items.push(
+                json!({"label":name,"kind":3,"detail":"Función declarada en otro módulo .ox"}),
+            );
+        }
+    }
     json!({"jsonrpc":"2.0","id":id,"result":{"isIncomplete":false,"items":items}})
 }
 
@@ -814,17 +821,15 @@ fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Val
         TokenKind::Keyword { rust_keyword, .. } => Some(format!(
             "`{token_text}` es el alias Óxido de Rust `{rust_keyword}`."
         )),
-        TokenKind::Identifier { .. } => parsed_file(text, state.project_mode).and_then(|file| {
-            declared_functions(&file, text)
-                .into_iter()
-                .find(|(name, _, _)| name == token_text)
-                .map(|(_, _, range)| {
-                    format!(
-                        "Función `{token_text}` declarada en este documento.\n\nRango: `{}`–`{}`.",
-                        range["start"], range["end"]
-                    )
-                })
-        }),
+        TokenKind::Identifier { .. } => workspace_functions(state)
+            .into_iter()
+            .find(|(_, name, _, _)| name == token_text)
+            .map(|(module_uri, _, _, range)| {
+                format!(
+                    "Función `{token_text}` declarada en `{module_uri}`.\n\nRango: `{}`–`{}`.",
+                    range["start"], range["end"]
+                )
+            }),
         _ => None,
     };
     let Some(contents) = contents else {
@@ -867,7 +872,7 @@ fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerSt
 }
 
 fn definition_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
-    let Some((uri, text, offset)) = request_document_position(params, state) else {
+    let Some((_uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     if let Some(response) =
@@ -879,13 +884,10 @@ fn definition_response(id: Value, params: Option<&Value>, state: &ServerState) -
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     let name = &text[token.span.start()..token.span.end()];
-    let Some(file) = parsed_file(text, state.project_mode) else {
-        return json!({"jsonrpc":"2.0","id":id,"result":[]});
-    };
-    let location = declared_functions(&file, text)
+    let location = workspace_functions(state)
         .into_iter()
-        .find(|(declared, _, _)| declared == name)
-        .map(|(_, selection, _)| json!({"uri":uri,"range":selection}));
+        .find(|(_, declared, _, _)| declared == name)
+        .map(|(module_uri, _, selection, _)| json!({"uri":module_uri,"range":selection}));
     json!({"jsonrpc":"2.0","id":id,"result":location.into_iter().collect::<Vec<_>>()})
 }
 
@@ -908,7 +910,7 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
             project_mode: state.project_mode,
         },
     );
-    let locations = lexed
+    let mut locations = lexed
         .tokens
         .into_iter()
         .filter(|token| {
@@ -921,6 +923,31 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
             Some(json!({"uri":uri,"range":{"start":start,"end":end}}))
         })
         .collect::<Vec<_>>();
+    for (module_uri, module_text, _, _) in workspace_documents(state) {
+        if module_uri == uri {
+            continue;
+        }
+        let module_lexed = lex(
+            &SourceFile::new(&module_text),
+            LexOptions {
+                project_mode: state.project_mode,
+            },
+        );
+        locations.extend(
+            module_lexed
+                .tokens
+                .into_iter()
+                .filter(|token| {
+                    matches!(token.kind, TokenKind::Identifier { .. })
+                        && &module_text[token.span.start()..token.span.end()] == selected_text
+                })
+                .filter_map(|token| {
+                    let start = lsp_position(&module_text, token.span.start())?;
+                    let end = lsp_position(&module_text, token.span.end())?;
+                    Some(json!({"uri":module_uri,"range":{"start":start,"end":end}}))
+                }),
+        );
+    }
     json!({"jsonrpc":"2.0","id":id,"result":locations})
 }
 
@@ -1358,6 +1385,33 @@ fn declared_functions(file: &OxFile, text: &str) -> Vec<(String, Value, Value)> 
     let mut output = Vec::new();
     visit(&file.items, text, &mut output);
     output
+}
+
+fn workspace_documents(state: &ServerState) -> Vec<(String, String, Option<i64>, String)> {
+    state
+        .documents
+        .iter()
+        .map(|(uri, document)| {
+            (
+                uri.clone(),
+                document.text.clone(),
+                document.version,
+                uri.clone(),
+            )
+        })
+        .collect()
+}
+
+fn workspace_functions(state: &ServerState) -> Vec<(String, String, Value, Value)> {
+    let mut functions = Vec::new();
+    for (uri, text, _, _) in workspace_documents(state) {
+        if let Some(file) = parsed_file(&text, state.project_mode) {
+            for (name, selection, range) in declared_functions(&file, &text) {
+                functions.push((uri.clone(), name, selection, range));
+            }
+        }
+    }
+    functions
 }
 
 fn request_document_position<'a>(
@@ -2229,6 +2283,59 @@ mod tests {
         let _ = completion_response(json!(32), Some(&params), &state);
         let starts = RA_STARTS.load(Ordering::Relaxed);
         assert!(starts > before);
+    }
+
+    #[test]
+    fn resolves_definitions_and_references_across_open_ox_modules() {
+        let mut state = ServerState::default();
+        let module_text = "sintaxis indentacion\nfuncion cargar():\n    pass\n";
+        let root_text = "sintaxis indentacion\nfuncion principal():\n    cargar()\n";
+        state.documents.insert(
+            "file:///src/modulo.ox".to_owned(),
+            TextDocument {
+                version: Some(1),
+                text: module_text.to_owned(),
+            },
+        );
+        state.documents.insert(
+            "file:///src/main.ox".to_owned(),
+            TextDocument {
+                version: Some(1),
+                text: root_text.to_owned(),
+            },
+        );
+        let definition = definition_response(
+            json!(41),
+            Some(
+                &json!({"textDocument":{"uri":"file:///src/main.ox"},"position":{"line":2,"character":5}}),
+            ),
+            &state,
+        );
+        assert_eq!(definition["result"][0]["uri"], "file:///src/modulo.ox");
+        let references = references_response(
+            json!(42),
+            Some(
+                &json!({"textDocument":{"uri":"file:///src/main.ox"},"position":{"line":2,"character":5}}),
+            ),
+            &state,
+        );
+        assert!(references["result"].as_array().is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| item["uri"] == "file:///src/modulo.ox")
+        }));
+        let completion = completion_response(
+            json!(43),
+            Some(
+                &json!({"textDocument":{"uri":"file:///src/main.ox"},"position":{"line":2,"character":5}}),
+            ),
+            &state,
+        );
+        assert!(
+            completion["result"]["items"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item["label"] == "cargar"))
+        );
     }
 
     #[test]

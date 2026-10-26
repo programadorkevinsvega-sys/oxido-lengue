@@ -84,7 +84,8 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 | Cambios | Dispatcher LSP aislado en biblioteca para pruebas/fuzz; límite `Content-Length` de 4 MiB; pruebas de lifecycle, diagnóstico, semantic tokens básicos y límite; quinto target `cargo-fuzz` para JSON-RPC |
 | Verificación local | fmt, Clippy y `cargo test --workspace --locked`: 135 pruebas aprobadas, 0 fallidas; `cargo +nightly check --manifest-path fuzz/Cargo.toml --bins --locked`: aprobado |
 | Smoke LSP | `cargo +nightly fuzz run lsp -- -runs=1000 -max_len=8192`: 1.000 iteraciones, sin crash |
-| CI remota | Pendiente para el commit de esta iteración |
+| Commit implementado y probado | `46fa7d73bf4901b1b00ea4a20f57fe9327eedf5c` |
+| CI remota | Aprobada para el commit registrado: `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages, tanto en push como en pull request |
 | Límites | El target fuzz ejercita payloads JSON y dispatcher, no el framing stdio; no hay cancelación LSP ni campaña prolongada |
 
 ## Criterio de cierre

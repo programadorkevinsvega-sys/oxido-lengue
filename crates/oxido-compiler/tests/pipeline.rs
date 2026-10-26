@@ -224,6 +224,38 @@ fn main() {
 }
 "#,
         ),
+        (
+            "generic trait and closure",
+            r#"sintaxis indentacion
+publico rasgo Puntaje:
+    funcion puntaje(&mismo) -> i32;
+
+publico estructura Marcador:
+    valor: i32
+
+implementar Puntaje para Marcador:
+    funcion puntaje(&mismo) -> i32:
+        mismo.valor
+
+funcion transformar<T: Puntaje>(valor: T, ajuste: impl FnOnce(i32) -> i32) -> i32:
+    ajuste(valor.puntaje())
+
+funcion principal():
+    dejar ajuste = |numero| numero * 2
+    imprimir!("{}", transformar(Marcador { valor: 21 }, ajuste))
+"#,
+            r#"trait Puntaje { fn puntaje(&self) -> i32; }
+struct Marcador { valor: i32 }
+impl Puntaje for Marcador { fn puntaje(&self) -> i32 { self.valor } }
+fn transformar<T: Puntaje>(valor: T, ajuste: impl FnOnce(i32) -> i32) -> i32 {
+    ajuste(valor.puntaje())
+}
+fn main() {
+    let ajuste = |numero| numero * 2;
+    println!("{}", transformar(Marcador { valor: 21 }, ajuste));
+}
+"#,
+        ),
     ];
 
     for (case_name, ox, rust) in cases {

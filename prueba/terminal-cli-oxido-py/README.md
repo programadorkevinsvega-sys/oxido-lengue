@@ -30,4 +30,4 @@ rustc --test target/terminal-cli-oxido-py/src/main.rs -o target/terminal-cli-oxi
 target/terminal-cli-oxido-py/tests
 ```
 
-El job `reference-regressions` de CI automatiza la exportación recursiva a `target/`, compila el árbol con `rustc --test` y ejecuta los tres tests del parser. También corre `cargo test` de la línea base Rust. La prueba de interacción con una sesión de terminal real sigue siendo manual.
+El job `reference-regressions` de CI automatiza la exportación recursiva a `target/`, ejecuta los tres tests del parser y compila los binarios de Óxido exportado y Rust nativo. Les envía el mismo guion de comandos desde un directorio temporal con archivos y subdirectorios de prueba, y compara stdout/stderr exactos; no usa una terminal real ni servicios externos.

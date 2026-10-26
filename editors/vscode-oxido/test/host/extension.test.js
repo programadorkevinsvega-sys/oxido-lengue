@@ -389,6 +389,22 @@ async function run() {
       textDocument: { uri: semanticFile.toString() },
       position
     });
+    const poll = async (send, accept, label, timeoutMs = 30_000) => {
+      const started = Date.now();
+      let last;
+      while (Date.now() - started < timeoutMs) {
+        try {
+          last = await withTimeout(send(), label);
+          if (accept(last)) return last;
+        } catch (error) {
+          last = { error: error instanceof Error ? error.message : String(error) };
+        }
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      throw new assert.AssertionError({
+        message: `${label}: sin respuesta semántica aceptable; última: ${JSON.stringify(last)}`
+      });
+    };
     const hover = await withTimeout(request('textDocument/hover', { line: 2, character: 12 }), 'hover');
     assert.ok(hover === null || typeof hover === 'object', 'rust-analyzer hover request completed');
     const stats = await withTimeout(extensionApi.sendLanguageServerRequest('oxido/stats', {}), 'estadísticas');
@@ -409,6 +425,28 @@ async function run() {
     const definition = await withTimeout(request('textDocument/definition', { line: 5, character: 5 }), 'definición');
     assert.ok(Array.isArray(definition), 'definition request completed');
     console.log('RA host: definition returned');
+    const localHover = await poll(
+      () => request('textDocument/hover', { line: 1, character: 12 }),
+      value => typeof value?.contents?.value === 'string' && value.contents.value.includes('i32'),
+      'hover semántico de variable local'
+    );
+    console.log(`RA host: variable local tipada (${JSON.stringify(localHover.contents.value)})`);
+    const localDefinition = await poll(
+      () => request('textDocument/definition', { line: 1, character: 12 }),
+      value => Array.isArray(value) && value.some(location => {
+        const uri = location?.uri ?? location?.targetUri ?? '';
+        return uri.endsWith('/semantic.ox');
+      }),
+      'definición semántica de variable local'
+    );
+    assert.ok(
+      localDefinition.some(location => {
+        const uri = location?.uri ?? location?.targetUri ?? '';
+        return uri.endsWith('/semantic.ox');
+      }),
+      'la variable local se resuelve por rust-analyzer y vuelve a semantic.ox'
+    );
+    console.log('RA host: definición de variable local mapeada a semantic.ox');
     let evidence;
     for (let attempt = 0; attempt < 8; attempt += 1) {
       await withTimeout(request('textDocument/hover', { line: 2, character: 12 }), 'hover de rust-analyzer');
@@ -437,6 +475,15 @@ async function run() {
       locations.some(location => location?.targetUri?.endsWith('/util.ox') || location?.uri?.endsWith('/util.ox')),
       'la navegación entre módulos vuelve al archivo .ox de origen'
     );
+    const moduleHover = await poll(
+      () => extensionApi.sendLanguageServerRequest('textDocument/hover', {
+        textDocument: { uri: moduleFile.toString() },
+        position: { line: 4, character: 12 }
+      }),
+      value => typeof value?.contents?.value === 'string' && /fn\s+saludo/.test(value.contents.value),
+      'hover semántico entre módulos'
+    );
+    console.log(`RA host: hover entre módulos con firma Rust (${JSON.stringify(moduleHover.contents.value)})`);
   }
 
   await vscode.commands.executeCommand('workbench.action.quit');

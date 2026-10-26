@@ -1123,6 +1123,7 @@ fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -
         .map_or("", |document| document.text.as_str());
     if let Some(response) =
         rust_analyzer_response("textDocument/completion", &id, params, state, text)
+        && rust_analyzer_succeeded(&response)
     {
         return response;
     }
@@ -1203,7 +1204,9 @@ fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Val
     let Some((uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":null});
     };
-    if let Some(response) = rust_analyzer_response("textDocument/hover", &id, params, state, text) {
+    if let Some(response) = rust_analyzer_response("textDocument/hover", &id, params, state, text)
+        && rust_analyzer_succeeded(&response)
+    {
         return response;
     }
     let Some(token) = lex_token_at(text, offset, state.project_mode) else {
@@ -1286,6 +1289,7 @@ fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerSt
             state,
             &document.text,
         )
+        && rust_analyzer_succeeded(&response)
     {
         return response;
     }
@@ -1434,12 +1438,19 @@ fn has_navigation_result(response: &Value) -> bool {
     })
 }
 
+/// `rust-analyzer` es un servicio auxiliar: un error transitorio (por ejemplo,
+/// mientras reindexa) no debe reemplazar el resultado local acotado.
+fn rust_analyzer_succeeded(response: &Value) -> bool {
+    response.get("result").is_some() && response.get("error").is_none()
+}
+
 fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
     let Some((uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     if let Some(response) =
         rust_analyzer_response("textDocument/references", &id, params, state, text)
+        && rust_analyzer_succeeded(&response)
     {
         return response;
     }
@@ -1589,6 +1600,7 @@ fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -
     if state.trusted_workspace
         && let Some(response) =
             rust_analyzer_response("textDocument/inlayHint", &id, params, state, &document.text)
+        && rust_analyzer_succeeded(&response)
     {
         return response;
     }
@@ -3647,6 +3659,18 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(uris.iter().any(|uri| uri.ends_with("/alpha.ox")));
         assert!(!uris.iter().any(|uri| uri.ends_with("/beta.ox")));
+    }
+
+    #[test]
+    fn rust_analyzer_errors_do_not_replace_local_results() {
+        assert!(rust_analyzer_succeeded(&json!({"result": null})));
+        assert!(rust_analyzer_succeeded(&json!({"result": []})));
+        assert!(!rust_analyzer_succeeded(&json!({
+            "error": {"code": -32801, "message": "content modified"}
+        })));
+        assert!(!rust_analyzer_succeeded(
+            &json!({"jsonrpc": "2.0", "id": 1})
+        ));
     }
 
     #[test]

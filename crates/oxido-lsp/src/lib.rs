@@ -1388,7 +1388,7 @@ fn declared_functions(file: &OxFile, text: &str) -> Vec<(String, Value, Value)> 
 }
 
 fn workspace_documents(state: &ServerState) -> Vec<(String, String, Option<i64>, String)> {
-    state
+    let mut documents = state
         .documents
         .iter()
         .map(|(uri, document)| {
@@ -1399,19 +1399,141 @@ fn workspace_documents(state: &ServerState) -> Vec<(String, String, Option<i64>,
                 uri.clone(),
             )
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let Some(root) = state.project_root.as_deref() else {
+        return documents;
+    };
+    let mut pending = vec![root.to_path_buf()];
+    let mut scanned = 0_usize;
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            scanned = scanned.saturating_add(1);
+            if scanned > 512 {
+                return documents;
+            }
+            let path = entry.path();
+            let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() {
+                continue;
+            }
+            if metadata.is_dir() {
+                if path.file_name().is_some_and(|name| {
+                    matches!(name.to_str(), Some("target" | ".git" | "node_modules"))
+                }) {
+                    continue;
+                }
+                pending.push(path);
+                continue;
+            }
+            if !metadata.is_file()
+                || path.extension().and_then(|extension| extension.to_str()) != Some("ox")
+                || metadata.len() > MAX_SINGLE_DOCUMENT_BYTES as u64
+            {
+                continue;
+            }
+            let Ok(canonical) = path.canonicalize() else {
+                continue;
+            };
+            if !canonical.starts_with(root) {
+                continue;
+            }
+            let uri = file_uri(&canonical);
+            if state.documents.contains_key(&uri)
+                || documents.iter().any(|(known, _, _, _)| known == &uri)
+            {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&canonical) else {
+                continue;
+            };
+            documents.push((uri.clone(), text, None, uri));
+            if documents.len() >= MAX_OPEN_DOCUMENTS {
+                return documents;
+            }
+        }
+    }
+    documents
+}
+
+fn file_uri(path: &std::path::Path) -> String {
+    format!("file://{}", path.to_string_lossy().replace(' ', "%20"))
 }
 
 fn workspace_functions(state: &ServerState) -> Vec<(String, String, Value, Value)> {
     let mut functions = Vec::new();
     for (uri, text, _, _) in workspace_documents(state) {
-        if let Some(file) = parsed_file(&text, state.project_mode) {
-            for (name, selection, range) in declared_functions(&file, &text) {
+        let parsed = parsed_file(&text, state.project_mode);
+        let declarations = parsed
+            .as_ref()
+            .map_or_else(Vec::new, |file| declared_functions(file, &text));
+        if declarations.is_empty() {
+            for (name, selection, range) in textual_function_declarations(&text) {
+                functions.push((uri.clone(), name, selection, range));
+            }
+        } else {
+            for (name, selection, range) in declarations {
                 functions.push((uri.clone(), name, selection, range));
             }
         }
     }
     functions
+}
+
+fn textual_function_declarations(text: &str) -> Vec<(String, Value, Value)> {
+    let mut declarations = Vec::new();
+    let mut offset = 0_usize;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        let declaration = trimmed.strip_prefix("pub ").unwrap_or(trimmed);
+        let Some(rest) = declaration
+            .strip_prefix("funcion ")
+            .or_else(|| declaration.strip_prefix("fn "))
+        else {
+            offset = offset.saturating_add(line.len());
+            continue;
+        };
+        let Some(name) = rest
+            .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+            .next()
+            .filter(|name| !name.is_empty())
+        else {
+            offset = offset.saturating_add(line.len());
+            continue;
+        };
+        let start = offset + line.len() - trimmed.len()
+            + (trimmed.len() - declaration.len())
+            + if declaration.starts_with("funcion ") {
+                8
+            } else {
+                3
+            };
+        let end = start + name.len();
+        let range_end = offset + line.trim_end_matches(['\n', '\r']).len();
+        let Some(selection_start) = lsp_position(text, start) else {
+            continue;
+        };
+        let Some(selection_end) = lsp_position(text, end) else {
+            continue;
+        };
+        let Some(range_start) = lsp_position(text, offset) else {
+            continue;
+        };
+        let Some(range_end) = lsp_position(text, range_end) else {
+            continue;
+        };
+        declarations.push((
+            name.to_owned(),
+            json!({"start":selection_start,"end":selection_end}),
+            json!({"start":range_start,"end":range_end}),
+        ));
+        offset = offset.saturating_add(line.len());
+    }
+    declarations
 }
 
 fn request_document_position<'a>(
@@ -2335,6 +2457,24 @@ mod tests {
             completion["result"]["items"]
                 .as_array()
                 .is_some_and(|items| items.iter().any(|item| item["label"] == "cargar"))
+        );
+    }
+
+    #[test]
+    fn indexes_closed_ox_modules_from_the_workspace_root() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../prueba/modulos_jerarquicos/fuente")
+            .canonicalize()
+            .expect("module fixture root exists");
+        let state = ServerState {
+            project_root: Some(root),
+            ..ServerState::default()
+        };
+        let functions = workspace_functions(&state);
+        assert!(
+            functions
+                .iter()
+                .any(|(uri, name, _, _)| uri.ends_with("/dominio/modelos.ox") && name == "nuevo")
         );
     }
 

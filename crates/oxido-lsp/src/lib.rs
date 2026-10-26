@@ -3650,6 +3650,126 @@ mod tests {
     }
 
     #[test]
+    fn resolves_module_declaration_and_reverse_references_across_ox_files() {
+        let (mut state, uri, text) = navigation_fixture_state();
+        let module = definition_response(
+            json!(61),
+            Some(&params_for_nth(&uri, &text, "modelos", 0)),
+            &state,
+        );
+        assert!(
+            module["result"][0]["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/dominio.ox")),
+            "module declaration: {module}"
+        );
+
+        let root = PathBuf::from(uri.strip_prefix("file://").expect("file uri"))
+            .parent()
+            .expect("fixture directory")
+            .to_path_buf();
+        let alpha_path = root.join("alpha.ox");
+        let alpha_uri = file_uri(&alpha_path);
+        let alpha_text = std::fs::read_to_string(&alpha_path).expect("alpha fixture is readable");
+        state.documents.insert(
+            alpha_uri.clone(),
+            TextDocument {
+                version: Some(1),
+                text: alpha_text.clone(),
+            },
+        );
+
+        let references = references_response(
+            json!(62),
+            Some(&params_for_nth(&alpha_uri, &alpha_text, "repetida", 0)),
+            &state,
+        );
+        let uris = references["result"]
+            .as_array()
+            .expect("references array")
+            .iter()
+            .filter_map(|location| location["uri"].as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            uris.iter().any(|uri| *uri == alpha_uri),
+            "declaration: {references}"
+        );
+        assert!(
+            uris.iter().any(|uri| uri.ends_with("/main.ox")),
+            "qualified call from main: {references}"
+        );
+        assert!(
+            !uris.iter().any(|uri| uri.ends_with("/beta.ox")),
+            "alpha references do not cross into beta: {references}"
+        );
+    }
+
+    #[test]
+    fn ambiguous_unqualified_name_reports_every_cross_module_candidate() {
+        let (mut state, uri, _text) = navigation_fixture_state();
+        let root = PathBuf::from(uri.strip_prefix("file://").expect("file uri"))
+            .parent()
+            .expect("fixture directory")
+            .to_path_buf();
+        let ambigua_path = root.join("ambigua.ox");
+        let ambigua_uri = file_uri(&ambigua_path);
+        let ambigua_text =
+            std::fs::read_to_string(&ambigua_path).expect("ambiguous fixture is readable");
+        state.documents.insert(
+            ambigua_uri.clone(),
+            TextDocument {
+                version: Some(1),
+                text: ambigua_text.clone(),
+            },
+        );
+        let params = params_for_nth(&ambigua_uri, &ambigua_text, "repetida", 0);
+
+        let definition = definition_response(json!(63), Some(&params), &state);
+        let locations = definition["result"].as_array().expect("definition array");
+        assert_eq!(
+            locations.len(),
+            2,
+            "both modules are candidates: {definition}"
+        );
+        assert!(locations.iter().any(|location| {
+            location["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/alpha.ox"))
+        }));
+        assert!(locations.iter().any(|location| {
+            location["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/beta.ox"))
+        }));
+
+        let hover = hover_response(json!(64), Some(&params), &state);
+        let value = hover["result"]["contents"]["value"]
+            .as_str()
+            .expect("ambiguous hover text");
+        assert!(
+            value.contains("2 declaraciones candidatas"),
+            "hover: {hover}"
+        );
+        assert!(
+            value.contains("alpha.ox") && value.contains("beta.ox"),
+            "hover: {hover}"
+        );
+
+        let references = references_response(json!(65), Some(&params), &state);
+        let uris = references["result"]
+            .as_array()
+            .expect("references array")
+            .iter()
+            .filter_map(|location| location["uri"].as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            uris.iter().any(|uri| uri.ends_with("/alpha.ox"))
+                && uris.iter().any(|uri| uri.ends_with("/beta.ox")),
+            "references keep both candidates: {references}"
+        );
+    }
+
+    #[test]
     fn completion_and_document_symbols_include_types_methods_and_modules() {
         let (mut state, uri, _text) = navigation_fixture_state();
         let models_path = std::path::PathBuf::from(uri.strip_prefix("file://").expect("file uri"))

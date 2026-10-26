@@ -84,6 +84,58 @@ async function runNavigationCase(fixturePath, withTimeout, extensionApi) {
     typeof hover?.contents?.value === 'string' && hover.contents.value.includes('método'),
     `hover: ${JSON.stringify(hover)}`
   );
+
+  const moduleDefinition = await definitionUris({ line: 8, character: 30 }, 'definición modelos');
+  assert.ok(
+    moduleDefinition.some(uri => uri.endsWith('/dominio.ox')),
+    `modelos: ${JSON.stringify(moduleDefinition)}`
+  );
+
+  const alphaFile = await openFixture(fixturePath, 'alpha.ox');
+  const alphaReferences = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/references', {
+      textDocument: { uri: alphaFile.toString() },
+      position: { line: 1, character: 18 },
+      context: { includeDeclaration: true }
+    }),
+    'referencias desde alpha'
+  );
+  const alphaReferenceUris = (Array.isArray(alphaReferences) ? alphaReferences : [])
+    .map(location => location?.uri ?? '');
+  assert.ok(
+    alphaReferenceUris.some(uri => uri.endsWith('/main.ox')),
+    `alpha incluye la llamada cualificada: ${JSON.stringify(alphaReferenceUris)}`
+  );
+  assert.ok(
+    !alphaReferenceUris.some(uri => uri.endsWith('/beta.ox')),
+    'las referencias de alpha no cruzan a beta'
+  );
+
+  const ambiguaFile = await openFixture(fixturePath, 'ambigua.ox');
+  const ambiguousDefinition = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/definition', {
+      textDocument: { uri: ambiguaFile.toString() },
+      position: { line: 2, character: 6 }
+    }),
+    'definición ambigua'
+  );
+  const ambiguousUris = (Array.isArray(ambiguousDefinition) ? ambiguousDefinition : [])
+    .map(location => location?.uri ?? '');
+  assert.ok(ambiguousUris.some(uri => uri.endsWith('/alpha.ox')), 'ambigua incluye alpha');
+  assert.ok(ambiguousUris.some(uri => uri.endsWith('/beta.ox')), 'ambigua incluye beta');
+  const ambiguousHover = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/hover', {
+      textDocument: { uri: ambiguaFile.toString() },
+      position: { line: 2, character: 6 }
+    }),
+    'hover ambiguo'
+  );
+  assert.ok(
+    typeof ambiguousHover?.contents?.value === 'string'
+      && ambiguousHover.contents.value.includes('2 declaraciones candidatas'),
+    `hover ambiguo: ${JSON.stringify(ambiguousHover)}`
+  );
+
   const references = await withTimeout(
     extensionApi.sendLanguageServerRequest('textDocument/references', {
       textDocument: { uri: activeFile.toString() },
@@ -111,7 +163,7 @@ async function runNavigationCase(fixturePath, withTimeout, extensionApi) {
     'sintaxis indentacion\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n',
     'el LSP aplica el mismo formato canónico que la CLI'
   );
-  console.log('Navigation host: cualificadores, tipos anidados y métodos resueltos sin confianza');
+  console.log('Navigation host: módulos, referencias inversas y ambigüedad segura sin confianza');
 }
 
 function waitForMarker(marker, timeoutMs = 5000) {

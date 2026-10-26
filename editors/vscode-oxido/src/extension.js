@@ -108,4 +108,11 @@ async function deactivate() {
   }
 }
 
-module.exports = { activate, deactivate };
+async function sendLanguageServerRequest(method, params) {
+  if (!client) {
+    throw new Error('el servidor de lenguaje de Óxido no está iniciado');
+  }
+  return client.sendRequest(method, params);
+}
+
+module.exports = { activate, deactivate, sendLanguageServerRequest };

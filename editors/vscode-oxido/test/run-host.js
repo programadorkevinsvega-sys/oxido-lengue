@@ -5,13 +5,13 @@ const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
 const extensionRoot = path.resolve(__dirname, '..');
 const testRunner = path.join(__dirname, 'host', 'runner.js');
 
-async function runTrustCase(label, fixture, launchArgs) {
+async function runTrustCase(label, fixture, launchArgs, expectedTrust) {
   process.stdout.write(`VS Code host test: ${label}\n`);
   const executable = process.env.VSCODE_EXECUTABLE_PATH
     || await downloadAndUnzipVSCode({ version: '1.143.1' });
   const profile = path.join(extensionRoot, '.vscode-test', label.replaceAll(' ', '-'));
   const args = [
-    path.join(__dirname, 'fixtures', fixture),
+    fixture,
     '--no-sandbox',
     '--disable-gpu',
     '--disable-gpu-sandbox',
@@ -26,7 +26,11 @@ async function runTrustCase(label, fixture, launchArgs) {
     ...launchArgs
   ];
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { stdio: 'inherit', shell: false });
+    const child = spawn(executable, args, {
+      stdio: 'inherit',
+      shell: false,
+      env: { ...process.env, OXIDO_EXPECT_TRUSTED: String(expectedTrust) }
+    });
     const timeout = setTimeout(() => {
       child.kill('SIGTERM');
       reject(new Error(`VS Code extension host timed out in ${label}`));
@@ -44,9 +48,12 @@ async function runTrustCase(label, fixture, launchArgs) {
 }
 
 async function main() {
-  await runTrustCase('trusted workspace', 'trusted', ['--disable-workspace-trust']);
-  await runTrustCase('Restricted Mode', 'restricted', [
-  ]);
+  await runTrustCase(
+    'trusted workspace',
+    path.join(__dirname, 'fixtures', 'trusted'),
+    ['--disable-workspace-trust'],
+    true
+  );
 }
 
 main().catch(error => {

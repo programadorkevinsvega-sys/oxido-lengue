@@ -1,23 +1,99 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
 
 const extensionRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(extensionRoot, '..', '..');
 const testRunner = path.join(__dirname, 'host', 'runner.js');
+const harnessPath = path.join(__dirname, 'host', 'harness');
+const packageJson = JSON.parse(fs.readFileSync(path.join(extensionRoot, 'package.json'), 'utf8'));
 const HOST_PROFILES = [
   'trusted-workspace',
   'cargo-workspace',
   'navigation-workspace',
   'cancellation-workspace',
+  'installed-workspace',
   'restricted-workspace'
 ];
+let executablePromise;
+
+function resolveExecutable() {
+  executablePromise ??= Promise.resolve(
+    process.env.VSCODE_EXECUTABLE_PATH
+      || downloadAndUnzipVSCode({ version: '1.143.1' })
+  );
+  return executablePromise;
+}
 
 function cleanHostProfiles() {
   for (const name of HOST_PROFILES) {
     fs.rmSync(path.join(extensionRoot, '.vscode-test', name), { recursive: true, force: true });
   }
+}
+
+function resolveVsCodeCli(executable) {
+  const directory = path.dirname(executable);
+  const candidates = process.platform === 'win32'
+    ? [path.join(directory, 'bin', 'code.cmd')]
+    : process.platform === 'darwin'
+      ? [
+          path.join(directory, '..', 'Resources', 'app', 'bin', 'code'),
+          path.join(directory, 'bin', 'code')
+        ]
+      : [path.join(directory, 'bin', 'code')];
+  const cli = candidates.find(candidate => fs.existsSync(candidate));
+  if (!cli) {
+    throw new Error(`no se encontró la CLI de VS Code junto al ejecutable ${executable}`);
+  }
+  return cli;
+}
+
+function packageVsix() {
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const result = spawnSync(npm, ['run', 'package:vsix'], {
+    cwd: extensionRoot,
+    stdio: 'inherit',
+    shell: false
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`el empaquetado del VSIX terminó con estado ${result.status}`);
+  }
+  const vsix = path.join(extensionRoot, 'dist', `${packageJson.name}-${packageJson.version}.vsix`);
+  if (!fs.existsSync(vsix)) {
+    throw new Error(`el VSIX esperado no existe en ${vsix}`);
+  }
+  return vsix;
+}
+
+function installVsix(executable, profile, vsix) {
+  const cli = resolveVsCodeCli(executable);
+  const extensions = path.join(profile, 'extensions');
+  const result = spawnSync(cli, [
+    '--no-sandbox',
+    '--disable-gpu',
+    `--user-data-dir=${path.join(profile, 'user-data')}`,
+    `--extensions-dir=${extensions}`,
+    '--install-extension',
+    vsix,
+    '--force'
+  ], {
+    stdio: 'inherit',
+    shell: false
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`la instalación del VSIX terminó con estado ${result.status}`);
+  }
+  const installed = path.join(
+    extensions,
+    `${packageJson.publisher}.${packageJson.name}-${packageJson.version}`
+  );
+  if (!fs.existsSync(path.join(installed, 'package.json'))) {
+    throw new Error(`VS Code no instaló el VSIX en ${installed}`);
+  }
+  return installed;
 }
 
 function prepareCargoHome(profile) {
@@ -58,10 +134,15 @@ function prepareSlowFakeCargo(profile) {
   return { directory, started, finished };
 }
 
-async function runHostCase({ label, fixture, extraArgs, environment }) {
+async function runHostCase({
+  label,
+  fixture,
+  extraArgs,
+  environment,
+  developmentPath = extensionRoot
+}) {
   process.stdout.write(`VS Code host test: ${label}\n`);
-  const executable = process.env.VSCODE_EXECUTABLE_PATH
-    || await downloadAndUnzipVSCode({ version: '1.143.1' });
+  const executable = await resolveExecutable();
   const profile = path.join(extensionRoot, '.vscode-test', label.replaceAll(' ', '-'));
   const args = [
     fixture,
@@ -75,7 +156,7 @@ async function runHostCase({ label, fixture, extraArgs, environment }) {
     `--user-data-dir=${path.join(profile, 'user-data')}`,
     `--extensions-dir=${path.join(profile, 'extensions')}`,
     `--extensionTestsPath=${testRunner}`,
-    `--extensionDevelopmentPath=${extensionRoot}`,
+    `--extensionDevelopmentPath=${developmentPath}`,
     ...extraArgs
   ];
   await new Promise((resolve, reject) => {
@@ -102,7 +183,7 @@ async function runHostCase({ label, fixture, extraArgs, environment }) {
 
 async function main() {
   cleanHostProfiles();
-  const only = process.env.OXIDO_HOST_ONLY;
+  const only = process.env.OXIDO_HOST_ONLY ?? process.argv[2];
   const cargoProfile = path.join(extensionRoot, '.vscode-test', 'cargo-workspace');
   const cargoHome = prepareCargoHome(cargoProfile);
   if (!only || only === 'trusted') {
@@ -160,6 +241,24 @@ async function main() {
     } else {
       process.stdout.write('VS Code host test: el caso de cancelación se omite en Windows\n');
     }
+  }
+  if (!only || only === 'installed') {
+    const vsix = packageVsix();
+    const executable = await resolveExecutable();
+    const installedProfile = path.join(extensionRoot, '.vscode-test', 'installed-workspace');
+    const installedPath = installVsix(executable, installedProfile, vsix);
+    await runHostCase({
+      label: 'installed workspace',
+      fixture: path.join(__dirname, 'fixtures', 'trusted'),
+      extraArgs: ['--disable-workspace-trust'],
+      developmentPath: harnessPath,
+      environment: {
+        OXIDO_EXPECT_TRUSTED: 'true',
+        OXIDO_HOST_CASE: 'installed',
+        OXIDO_EXPECT_INSTALLED_PATH: installedPath,
+        OXIDO_EXPECT_VERSION: packageJson.version
+      }
+    });
   }
   if (!only || only === 'restricted') {
     const restrictedProfile = path.join(extensionRoot, '.vscode-test', 'restricted-workspace');

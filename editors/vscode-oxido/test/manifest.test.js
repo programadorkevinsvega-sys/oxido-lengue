@@ -20,3 +20,17 @@ test('extension source has no shell or rust-analyzer launch path', () => {
   assert.doesNotMatch(extension, /shell\s*:\s*true/);
   assert.doesNotMatch(extension, /rust-analyzer/);
 });
+
+test('packaging pins vsce and excludes test-only material from the VSIX', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(manifest.devDependencies['@vscode/vsce'], '3.9.2');
+  assert.match(manifest.scripts['package:vsix'], /vsce package/);
+  assert.equal(manifest.scripts['test:vsix'], 'node test/run-host.js installed');
+  const ignored = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+  assert.ok(ignored.includes('test/**'));
+  assert.ok(ignored.includes('.vscode-test/**'));
+  assert.ok(ignored.includes('dist/**'));
+});

@@ -1,0 +1,9 @@
+{
+  "name": "oxido-vsix-host-harness",
+  "publisher": "oxido-tests",
+  "version": "0.0.0",
+  "description": "Minimal extension used to run VS Code tests against an installed Óxido VSIX.",
+  "engines": {
+    "vscode": "^1.95.0"
+  }
+}

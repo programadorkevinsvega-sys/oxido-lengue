@@ -4,6 +4,11 @@
   "description": "Language support for .ox files using the Óxido compiler frontend.",
   "version": "0.1.0",
   "publisher": "oxido-language",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/programadorkevinsvega-sys/oxido-lengue.git",
+    "directory": "editors/vscode-oxido"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -65,12 +70,20 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "test:host": "node test/run-host.js"
+    "test:host": "node test/run-host.js",
+    "test:vsix": "node test/run-host.js installed",
+    "prepackage:vsix": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\"",
+    "package:vsix": "vsce package --skip-license --out dist/oxido-language-support-0.1.0.vsix"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@vscode/test-electron": "^3.1.0"
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "3.9.2"
+  },
+  "overrides": {
+    "@azure/identity": "4.13.0",
+    "uuid": "11.1.1"
   }
 }

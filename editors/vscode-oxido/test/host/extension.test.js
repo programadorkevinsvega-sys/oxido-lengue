@@ -215,6 +215,47 @@ async function runRestrictedCase(fixturePath, withTimeout) {
   console.log('Restricted host: ni la extensión ni el servidor invocaron Cargo');
 }
 
+async function runInstalledCase(fixturePath, withTimeout, extension) {
+  const expectedPath = process.env.OXIDO_EXPECT_INSTALLED_PATH;
+  assert.ok(expectedPath, 'la prueba define la ruta de la extensión instalada');
+  assert.equal(
+    fs.realpathSync(extension.extensionPath),
+    fs.realpathSync(expectedPath),
+    'la extensión activa procede del directorio de extensiones instaladas'
+  );
+  assert.equal(extension.packageJSON.version, process.env.OXIDO_EXPECT_VERSION);
+  for (const excluded of ['test', '.vscode-test', 'package-lock.json', 'dist']) {
+    assert.ok(
+      !fs.existsSync(path.join(extension.extensionPath, excluded)),
+      `el VSIX no incluye ${excluded}`
+    );
+  }
+  assert.ok(
+    !fs.existsSync(path.join(extension.extensionPath, 'oxido-lsp')),
+    'el VSIX no empaqueta un binario oxido-lsp dependiente de plataforma'
+  );
+
+  const file = vscode.Uri.file(path.join(fixturePath, 'main.ox'));
+  const diagnosticEvent = new Promise(resolve => {
+    const subscription = vscode.languages.onDidChangeDiagnostics(event => {
+      if (event.uris.some(uri => uri.toString() === file.toString())) {
+        subscription.dispose();
+        resolve();
+      }
+    });
+  });
+  const document = await vscode.workspace.openTextDocument(file);
+  assert.equal(document.languageId, 'oxido');
+  await vscode.window.showTextDocument(document);
+  await withTimeout(diagnosticEvent, 'diagnóstico del VSIX instalado');
+  const diagnostics = vscode.languages.getDiagnostics(file);
+  assert.ok(
+    diagnostics.some(diagnostic => diagnostic.code === 'OX1002'),
+    `el LSP instalado publica OX1002: ${JSON.stringify(diagnostics)}`
+  );
+  console.log('Installed host: VSIX instalado abrió .ox y recibió OX1002 desde oxido-lsp');
+}
+
 async function run() {
   const withTimeout = (promise, label, ms = 8000) => Promise.race([
     promise,
@@ -223,7 +264,7 @@ async function run() {
   const extension = vscode.extensions.getExtension('oxido-language.oxido-language-support');
   assert.ok(extension, 'manifest extension is installed in the host');
   await extension.activate();
-  const extensionApi = require('../../src/extension.js');
+  const extensionApi = hostCase === 'installed' ? undefined : require('../../src/extension.js');
   assert.equal(extension.isActive, true);
   const commands = await vscode.commands.getCommands();
   assert.ok(commands.includes('oxido.restartLanguageServer'));
@@ -234,9 +275,16 @@ async function run() {
   const expectedTrusted = process.env.OXIDO_EXPECT_TRUSTED === 'true';
   assert.equal(vscode.workspace.isTrusted, expectedTrusted);
 
+  if (hostCase === 'installed') {
+    await runInstalledCase(fixturePath, withTimeout, extension);
+    // Quit after the assertions so the installed extension and its language
+    // client finish deactivating before the host process exits.
+    await vscode.commands.executeCommand('workbench.action.quit');
+    return;
+  }
   if (hostCase === 'cargo') {
     await runCargoCase(fixturePath, withTimeout);
-    await vscode.commands.executeCommand('workbench.action.closeWindow');
+    await vscode.commands.executeCommand('workbench.action.quit');
     return;
   }
   if (hostCase === 'restricted') {
@@ -249,12 +297,12 @@ async function run() {
   }
   if (hostCase === 'navigation') {
     await runNavigationCase(fixturePath, withTimeout, extensionApi);
-    await vscode.commands.executeCommand('workbench.action.closeWindow');
+    await vscode.commands.executeCommand('workbench.action.quit');
     return;
   }
   if (hostCase === 'cancellation') {
     await runCancellationCase(fixturePath, withTimeout, extensionApi);
-    await vscode.commands.executeCommand('workbench.action.closeWindow');
+    await vscode.commands.executeCommand('workbench.action.quit');
     return;
   }
 
@@ -339,7 +387,7 @@ async function run() {
     );
   }
 
-  await vscode.commands.executeCommand('workbench.action.closeWindow');
+  await vscode.commands.executeCommand('workbench.action.quit');
 }
 
 module.exports = { run };

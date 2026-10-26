@@ -51,7 +51,9 @@ fn cpu_ticks(pid: u32) -> u64 {
     let Some(close_paren) = stat.rfind(')') else {
         return 0;
     };
-    let fields = stat[close_paren + 2..].split_whitespace().collect::<Vec<_>>();
+    let fields = stat[close_paren + 2..]
+        .split_whitespace()
+        .collect::<Vec<_>>();
     if fields.len() < 13 {
         return 0;
     }
@@ -115,8 +117,7 @@ fn percentile_ms(latencies: &[u128], percentile: usize) -> f64 {
 }
 
 fn main() {
-    let address = std::env::var("CRUD_TEST_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:38212".to_string());
+    let address = std::env::var("CRUD_TEST_ADDR").unwrap_or_else(|_| "127.0.0.1:38212".to_string());
     let pid = server_pid(&address);
     let client_pid = std::process::id();
     let nonce = SystemTime::now()

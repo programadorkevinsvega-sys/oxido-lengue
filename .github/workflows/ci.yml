@@ -3,6 +3,15 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      ejecutar_benchmark:
+        description: Ejecutar comparación secuencial release Óxido/Rust y conservar su log
+        required: true
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 4 * * 1'
 
 permissions:
   contents: read
@@ -22,6 +31,26 @@ jobs:
       - run: cargo clippy --manifest-path tools/validation-report/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo test --manifest-path tools/validation-report/Cargo.toml --locked
+  validation-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+          components: rustfmt, clippy
+      - run: rustup toolchain install nightly-2026-10-16 --profile minimal --component rustfmt
+      - run: cargo install cargo-deny --locked
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - run: npm ci --prefix website
+      - run: cargo run --manifest-path tools/validation-report/Cargo.toml --bin oxido-validation-report --locked
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        with:
+          name: validation-report-${{ github.sha }}
+          path: target/validation-report.md
+          if-no-files-found: error
+          retention-days: 30
   dependencies:
     runs-on: ubuntu-latest
     steps:
@@ -47,3 +76,60 @@ jobs:
       - run: cargo fuzz run config -- -runs=1000 -max_len=8192
       - run: cargo fuzz run backend -- -runs=1000 -max_len=8192
       - run: cargo fuzz run lsp -- -runs=1000 -max_len=8192
+  reference-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+          components: rustfmt
+      - run: mkdir -p prueba/crud_sqlite/.ci-export/src/bin target/crud-sqlite-export-project/src/bin
+      - run: cargo run --locked -p oxido-cli -- exportar prueba/crud_sqlite/crud_api_persistencia.ox --salida prueba/crud_sqlite/.ci-export/src/main.rs
+      - run: cargo run --locked -p oxido-cli -- exportar prueba/crud_sqlite/verificar_persistencia.ox --salida prueba/crud_sqlite/.ci-export/src/bin/verificar_persistencia.rs
+      - run: cmp prueba/crud_sqlite/.ci-export/src/main.rs prueba/crud_sqlite_export_rust/src/main.rs
+      - run: cmp prueba/crud_sqlite/.ci-export/src/bin/verificar_persistencia.rs prueba/crud_sqlite_export_rust/src/bin/verificar_persistencia.rs
+      - run: cp prueba/crud_sqlite_export_rust/Cargo.toml target/crud-sqlite-export-project/Cargo.toml
+      - run: cp prueba/crud_sqlite_export_rust/Cargo.lock target/crud-sqlite-export-project/Cargo.lock
+      - run: cp prueba/crud_sqlite/.ci-export/src/main.rs target/crud-sqlite-export-project/src/main.rs
+      - run: cp prueba/crud_sqlite/.ci-export/src/bin/verificar_persistencia.rs target/crud-sqlite-export-project/src/bin/verificar_persistencia.rs
+      - run: cargo run --locked -p oxido-cli -- descargar-dependencias prueba/crud_sqlite/crud_api_persistencia.ox --confirmar
+      - run: cargo run --locked -p oxido-cli -- descargar-dependencias prueba/crud_api_concurrencia.ox --confirmar
+      - run: CARGO_TARGET_DIR=/tmp/oxido-reference-target cargo build --locked -p oxido-cli
+      - run: cargo fetch --locked --manifest-path prueba/crud_sqlite_rust/Cargo.toml
+      - run: cargo fetch --locked --manifest-path prueba/crud_sqlite_export_rust/Cargo.toml
+      - run: cargo fmt --manifest-path prueba/crud_sqlite_rust/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path prueba/crud_sqlite_export_rust/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path prueba/modulos_jerarquicos/rust/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path prueba/modulos_jerarquicos/rust-recursivo/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path prueba/terminal-cli-rust/Cargo.toml -- --check
+      - run: cargo test --locked --offline --manifest-path prueba/terminal-cli-rust/Cargo.toml
+      - run: mkdir -p target/terminal-cli-reference/src
+      - run: cargo run --locked -p oxido-cli -- exportar prueba/terminal-cli-oxido-py/src/main.ox --salida target/terminal-cli-reference/src/main.rs
+      - run: rustc --edition=2024 --test target/terminal-cli-reference/src/main.rs -o target/terminal-cli-reference/tests
+      - run: target/terminal-cli-reference/tests
+      - run: CARGO_TARGET_DIR=target/reference-modules cargo run --locked --offline --manifest-path prueba/modulos_jerarquicos/rust/Cargo.toml --release
+      - run: CARGO_TARGET_DIR=target/reference-modules cargo run --locked --offline --manifest-path prueba/modulos_jerarquicos/rust-recursivo/Cargo.toml --release
+      - run: CARGO_TARGET_DIR=/tmp/oxido-reference-target cargo run --manifest-path tools/validation-report/Cargo.toml --bin reference-runner --locked
+      - run: CARGO_TARGET_DIR=/tmp/oxido-reference-target python3 prueba/crud_sqlite_rust/benchmark_secuencial.py --solo-funcional --rondas 1
+      - run: CARGO_TARGET_DIR=target/crud-sqlite-export cargo build --release --locked --offline --manifest-path target/crud-sqlite-export-project/Cargo.toml --bins
+      - run: CARGO_TARGET_DIR=target/crud-sqlite-export python3 prueba/crud_sqlite_export_rust/verificar_exportacion.py
+  benchmark:
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.ejecutar_benchmark) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - run: cargo run --locked -p oxido-cli -- descargar-dependencias prueba/crud_sqlite/crud_api_persistencia.ox --confirmar
+      - run: cargo fetch --locked --manifest-path prueba/crud_sqlite_rust/Cargo.toml
+      - run: mkdir -p target/benchmark-results
+      - run: python3 prueba/crud_sqlite_rust/benchmark_secuencial.py --rondas 5 2>&1 | tee target/benchmark-results/benchmark.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        with:
+          name: oxido-rust-benchmark-${{ github.sha }}
+          path: target/benchmark-results/benchmark.log
+          if-no-files-found: error
+          retention-days: 30

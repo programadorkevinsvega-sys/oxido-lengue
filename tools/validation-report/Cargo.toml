@@ -3,6 +3,7 @@ name = "oxido-validation-report"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.1"
+default-run = "oxido-validation-report"
 publish = false
 
 [dependencies]

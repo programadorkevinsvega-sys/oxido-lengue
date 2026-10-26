@@ -14,7 +14,7 @@ cargo run --locked -p oxido-cli -- ejecutar prueba/crud_api_concurrencia.ox --co
 cargo run --locked -p oxido-cli -- ejecutar prueba/verificar_api_concurrencia.ox --confiar-dependencias
 ```
 
-El cliente verifica JSON inválido, precios no finitos y negativos, nombres vacíos, CRUD, y dos rondas de 100, 500 y 1.000 creaciones simultáneas. Confirma que las respuestas tienen IDs únicos y consecutivos, y que el número de registros coincide.
+El cliente verifica JSON inválido, precios no finitos y negativos, nombres vacíos y CRUD; además realiza dos rondas de lotes de 100, 500 y 1.000 altas. Cada ola admite hasta 100 solicitudes simultáneas para mantener estable la regresión funcional; verifica IDs únicos/consecutivos y recuento total. Esto no mide rendimiento ni acredita 1.000 conexiones concurrentes.
 
 Para comprobar el desbordamiento de `u32`, reinicia la API con `CRUD_ID_INICIAL=4294967295`. Deja esa API ejecutándose en una terminal y, en otra, ejecuta el cliente en modo `overflow`:
 
@@ -41,6 +41,8 @@ cargo run --locked -p oxido-cli -- ejecutar prueba/interoperabilidad_std/main.ox
 Comprueba `BTreeMap`, `HashSet` y `VecDeque`; archivos temporales y `Cursor`; rutas con `PathBuf`; threads, `Arc`, `Mutex` y canales; y medición de tiempo. Falla el proceso si una aserción no se cumple. Se conserva junto a `crud_api_concurrencia.ox` y `verificar_api_concurrencia.ox` para mantener regresiones distintas: aplicación HTTP concurrente y herramienta de pruebas local basada en `std`.
 
 El proyecto independiente [`crud_sqlite/`](crud_sqlite/README.md) amplía la regresión HTTP con SQLx y verifica persistencia real al reiniciar el servidor. [`crud_sqlite_rust/`](crud_sqlite_rust/README.md) ofrece una línea base 100 % Rust y compara ambos servidores con el mismo binario cliente, archivo SQLite, dependencias y máquina.
+
+El job `reference-regressions` de CI ejecuta automáticamente interoperabilidad con `std`, CRUD concurrente (incluido el desbordamiento de ID), una comprobación HTTP secuencial de los servidores Óxido/Rust y la prueba de persistencia del proyecto exportado. El supervisor Rust está en `tools/validation-report/src/bin/reference-runner.rs`; usa el puerto 38211 y procesos temporales del runner. Estas regresiones funcionales no calculan rendimiento. El benchmark comparativo release se ejecuta semanalmente y puede iniciarse también desde `workflow_dispatch`; esta actualización no ejecutó ni midió el benchmark.
 
 [`crud_sqlite_export_rust/`](crud_sqlite_export_rust/README.md) conserva las salidas `.rs` de la API y del verificador SQLite generadas por `oxido exportar`. Compila ambos binarios y ejecuta el cliente Rust exportado a través de reinicios reales para validar el ciclo completo `.ox` → `.rs` → compilación y ejecución.
 

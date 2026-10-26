@@ -1244,7 +1244,8 @@ fn export_ox(args: &[OsString]) -> Result<(), String> {
         created_files.push(path.clone());
     }
     for path in created_files {
-        println!("Rust exportado a {}", path.display());
+        let display_path = path.strip_prefix(&output_root).unwrap_or(&path);
+        println!("Rust exportado: {}", display_path.display());
     }
     Ok(())
 }

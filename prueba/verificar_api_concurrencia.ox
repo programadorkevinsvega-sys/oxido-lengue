@@ -4,6 +4,8 @@ usar std::net::TcpStream
 usar std::sync::{Arc, Condvar, Mutex}
 usar std::thread::{self, JoinHandle}
 
+const MAX_CONCURRENCIA_POR_OLA: u32 = 100;
+
 funcion solicitar(direccion: &str, metodo: &str, ruta: &str, cuerpo: &str) -> (u16, Cadena):
     dejar mutable flujo = TcpStream::connect(direccion).expect("no se pudo conectar con la API")
     escribir!(flujo, "{} {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", metodo, ruta, direccion, cuerpo.len(), cuerpo).expect("no se pudo escribir la solicitud")
@@ -25,7 +27,7 @@ funcion crear_uno(direccion: Cadena, numero: u32) -> u32:
     assert_eq!(codigo, 201, "la API rechazó la creación concurrente: {}", contenido)
     id_de(&contenido)
 
-funcion crear_lote(direccion: &str, cantidad: u32, primer_id: u32) -> bool:
+funcion crear_ola(direccion: &str, cantidad: u32, primer_id: u32) -> bool:
     dejar puerta = Arc::new((Mutex::new(falso), Condvar::new()))
     dejar mutable tareas: Vector<JoinHandle<u32>> = Vector::nuevo()
     para numero en 0..cantidad:
@@ -66,6 +68,15 @@ funcion crear_lote(direccion: &str, cantidad: u32, primer_id: u32) -> bool:
     para (indice, id) en ids.iter().enumerate():
         si *id != primer_id + indice como u32:
             retornar falso
+    verdadero
+
+funcion crear_lote(direccion: &str, cantidad: u32, primer_id: u32) -> bool:
+    dejar mutable inicio = 0u32
+    mientras inicio < cantidad:
+        dejar concurrencia = std::cmp::min(MAX_CONCURRENCIA_POR_OLA, cantidad - inicio)
+        si !crear_ola(direccion, concurrencia, primer_id + inicio):
+            retornar falso
+        inicio += concurrencia
     verdadero
 
 funcion comprobar_error(direccion: &str, cuerpo: &str, esperado: u16) -> bool:

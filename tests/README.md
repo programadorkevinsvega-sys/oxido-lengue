@@ -21,12 +21,12 @@ Cada proyecto de `examples/` o fixture de integración debe documentar: archivo 
 | Proyecto | Fuente raíz / modo | Configuración y dependencias | Ejecución y estado |
 |---|---|---|---|
 | Ejemplos básicos | `examples/hola_mundo.ox`, indentación | Sin dependencias del programa ni manifiesto/lockfile Cargo propio; el CLI se ejecuta desde el workspace. | `cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox`; CI: prueba `exports_compiles_and_runs_the_hello_world_fixture`, salida exacta `Hola, mundo.`. `fase_7_estructuras`, `fase_7_interoperabilidad`, `fase_7_prelude_espanol` y `fase_8_estructura_indentada` tienen pruebas de pipeline; alcance en [`examples/README.md`](../examples/README.md). |
-| Interoperabilidad con `std` | `prueba/interoperabilidad_std/main.ox`, indentación | `prueba/interoperabilidad_std/oxido.toml`; sin crates externos ni Cargo.lock propio. | El comando `cargo run --locked -p oxido-cli -- ejecutar prueba/interoperabilidad_std/main.ox` ejecuta las aserciones. Procedimiento documentado en [`prueba/README.md`](../prueba/README.md); proyecto manual, no test automático de CI. |
-| Módulos jerárquicos | `prueba/modulos_jerarquicos/fuente/main.ox`, **llaves** | `prueba/modulos_jerarquicos/oxido.toml`; sin dependencias externas. `rust/Cargo.lock` y `rust-recursivo/Cargo.lock` fijan las exportaciones Rust. | La prueba CLI `compiles_runs_and_recursively_exports_a_hierarchical_ox_project` es automática; salida esperada `Ana aprobó: true`. Instrucciones y límite de importación en [`prueba/modulos_jerarquicos/README.md`](../prueba/modulos_jerarquicos/README.md). |
-| CLI interactiva | `prueba/terminal-cli-oxido-py/src/main.ox`, indentación | `prueba/terminal-cli-oxido-py/oxido.toml`; sin dependencias externas ni Cargo.lock propio. | Exportación y compilación con `rustc` y tests manuales descritos en [`prueba/terminal-cli-oxido-py/README.md`](../prueba/terminal-cli-oxido-py/README.md); no está automatizado en CI. |
-| CRUD concurrente | `prueba/crud_api_concurrencia.ox` y `prueba/verificar_api_concurrencia.ox`, indentación | `prueba/oxido.toml` y `prueba/Cargo.lock`; Axum, Serde y Tokio. | Servidor y cliente corren en procesos separados; el cliente genera solicitudes simultáneas. La guía registra los casos CRUD/concurrencia en [`prueba/README.md`](../prueba/README.md). Ejecución manual; no es un benchmark de rendimiento. |
-| CRUD persistente | `prueba/crud_sqlite/crud_api_persistencia.ox` y `verificar_persistencia.ox`, indentación | `prueba/crud_sqlite/oxido.toml` y `Cargo.lock`; Axum, Serde, Tokio y SQLx 0.8.6 con SQLite. | Requiere iniciar/detener el servidor entre fases y conservar la misma ruta de BD. Pasos, resultados observables y medición exploratoria en [`prueba/crud_sqlite/README.md`](../prueba/crud_sqlite/README.md). Ejecución manual. |
-| Línea base y exportación Rust | `prueba/crud_sqlite_rust/` y `prueba/crud_sqlite_export_rust/`, Rust nativo y exportado | Cada proyecto tiene `Cargo.toml` y `Cargo.lock`; Axum, Serde, Tokio y SQLx 0.8.6 con features alineadas. | El supervisor corre ambos servidores secuencialmente y usa el mismo cliente. Procedimientos en sus README; benchmarks manuales, no se ejecutan en CI ni prueban rendimiento de producción. |
+| Interoperabilidad con `std` | `prueba/interoperabilidad_std/main.ox`, indentación | `prueba/interoperabilidad_std/oxido.toml`; sin crates externos ni Cargo.lock propio. | `reference-runner` ejecuta el proyecto en CI y el comando `cargo run --locked -p oxido-cli -- ejecutar prueba/interoperabilidad_std/main.ox` lo ejecuta localmente. |
+| Módulos jerárquicos | `prueba/modulos_jerarquicos/fuente/main.ox`, **llaves** | `prueba/modulos_jerarquicos/oxido.toml`; sin dependencias externas. `rust/Cargo.lock` y `rust-recursivo/Cargo.lock` fijan las exportaciones Rust. | La prueba CLI `compiles_runs_and_recursively_exports_a_hierarchical_ox_project` exporta/compila/ejecuta ambos árboles en CI; el job de referencias también ejecuta los dos manifiestos versionados con salida `Ana aprobó: true`. Límite de importación en [`prueba/modulos_jerarquicos/README.md`](../prueba/modulos_jerarquicos/README.md). |
+| CLI de terminal | `prueba/terminal-cli-oxido-py/src/main.ox`, indentación; línea base `prueba/terminal-cli-rust/` | `oxido.toml` y Cargo.lock sin dependencias externas. | `reference-regressions` exporta el árbol `.ox`, ejecuta los tres tests del parser con `rustc --test` y corre los tests del proyecto Rust. La interacción de terminal completa se mantiene como prueba manual. Instrucciones en [`prueba/terminal-cli-oxido-py/README.md`](../prueba/terminal-cli-oxido-py/README.md). |
+| CRUD concurrente | `prueba/crud_api_concurrencia.ox` y `prueba/verificar_api_concurrencia.ox`, indentación | `prueba/oxido.toml` y `prueba/Cargo.lock`; Axum, Serde y Tokio. | `reference-runner` inicia el servidor en grupo de procesos aislado y ejecuta en CI las validaciones CRUD, lotes totales de 100/500/1.000 altas con un máximo de 100 solicitudes simultáneas por ola, y el caso separado de desbordamiento. No calcula métricas de rendimiento. |
+| CRUD persistente exportado | `prueba/crud_sqlite_export_rust/`, generado desde los `.ox` de `prueba/crud_sqlite/` | `Cargo.toml`/`Cargo.lock`; Axum, Serde, Tokio y SQLx 0.8.6 con SQLite. | El job `reference-regressions` exporta, compila con Cargo y corre el verificador contra reinicios reales, altas concurrentes, conflicto UNIQUE, actualización y eliminación. La prueba escribe en SQLite temporal del runner. |
+| API SQLite directa y línea base | `prueba/crud_sqlite/` (`.ox`) y `prueba/crud_sqlite_rust/` (Rust nativo) | `oxido.toml`/`Cargo.lock` y `Cargo.toml`/`Cargo.lock`; Axum, Serde, Tokio y SQLx 0.8.6 con features alineadas. | `reference-regressions` inicia los dos servidores secuencialmente y valida HTTP sin enviar la carga del benchmark. El benchmark automatizado semanal y el `workflow_dispatch` ejecutan la comparación medida; ver README de la línea base. |
 
 Las pruebas automatizadas exactas por capacidad están en la [matriz de trazabilidad](../docs/testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas). Los procedimientos manuales no se cuentan como aprobados por CI.
 
@@ -44,11 +44,14 @@ cargo deny check
 Para ejecutar el conjunto registrado y generar un Markdown con commit, entorno y resultados por suite:
 
 ```sh
-cargo run --manifest-path tools/validation-report/Cargo.toml --locked
+cargo run --manifest-path tools/validation-report/Cargo.toml --bin oxido-validation-report --locked
 ```
 
 El reporte queda en `target/validation-report.md`. Las herramientas opcionales no instaladas quedan como **No evaluada**; cualquier verificación que sí se ejecuta y falla aparece como **Fallida** y hace fallar el comando.
+En GitHub Actions, el job `validation-report` ejecuta el mismo recolector con sus herramientas instaladas y publica `validation-report-<commit>` como artefacto por 30 días, incluso cuando alguna suite falla y alcanza a escribir el reporte.
 Los informes locales que deban conservarse como evidencia histórica se revisan y archivan en `docs/reports/`; el reporte de la campaña extendida de Fase 10 es [`2026-10-26-10000-por-target.md`](../docs/reports/fase-10/2026-10-26-10000-por-target.md).
+
+El job `reference-regressions` ejecuta las referencias con servicios en procesos secuenciales. El benchmark comparativo release se ejecuta cada lunes en GitHub Actions y se puede iniciar también desde GitHub Actions → CI → Run workflow → `ejecutar_benchmark`. El log completo se publica como `oxido-rust-benchmark-<commit>`. Esa ejecución mide únicamente la carga definida por el harness y no prueba rendimiento de producción; este cambio no ejecutó ni midió el benchmark.
 
 El fuzzing usa `cargo-fuzz` 0.13.2 y Rust nightly 2026-10-16, fijados en el job `fuzz-smoke` de CI:
 
@@ -63,7 +66,7 @@ cargo +nightly-2026-10-16 fuzz run lsp -- -runs=1000 -max_len=8192
 Para ejecutar campañas más largas en los cinco targets y registrarlas en el informe local (10.000 iteraciones por target):
 
 ```sh
-OXIDO_VALIDATION_FUZZ_RUNS=10000 cargo run --manifest-path tools/validation-report/Cargo.toml --locked
+OXIDO_VALIDATION_FUZZ_RUNS=10000 cargo run --manifest-path tools/validation-report/Cargo.toml --bin oxido-validation-report --locked
 ```
 
 El override admite de 1.000 a 10.000.000 iteraciones; si no se define, conserva el valor CI de 1.000. El comando realiza también el resto de verificaciones del recolector. Las campañas no tienen objetivo de cobertura implícito; informa el número configurado, el commit y el entorno.

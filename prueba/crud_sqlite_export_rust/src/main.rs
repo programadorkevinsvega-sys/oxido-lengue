@@ -1,11 +1,13 @@
 use axum::{
-    Router, Json, extract::{State, Path},
-    http::StatusCode, routing::get,
+    Json, Router,
+    extract::{Path, State},
+    http::StatusCode,
+    routing::get,
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
     Row, SqlitePool,
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -119,9 +121,7 @@ async fn actualizar(
     if !datos_validos(&datos) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    let resultado = sqlx::query(
-            "UPDATE productos SET nombre = ?, precio = ? WHERE id = ?",
-        )
+    let resultado = sqlx::query("UPDATE productos SET nombre = ?, precio = ? WHERE id = ?")
         .bind(&datos.nombre)
         .bind(datos.precio)
         .bind(id)
@@ -131,13 +131,11 @@ async fn actualizar(
     if resultado.rows_affected() == 0 {
         return Err(StatusCode::NOT_FOUND);
     }
-    Ok(
-        Json(Producto {
-            id,
-            nombre: datos.nombre,
-            precio: datos.precio,
-        }),
-    )
+    Ok(Json(Producto {
+        id,
+        nombre: datos.nombre,
+        precio: datos.precio,
+    }))
 }
 async fn eliminar(
     State(pool): State<Estado>,
@@ -167,7 +165,10 @@ async fn main() {
         .connect_with(opciones)
         .await
         .expect("no se pudo abrir la base SQLite");
-    let inicio = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let inicio = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     IDENTIDAD_SERVIDOR
         .set(IdentidadServidor {
             pid: std::process::id(),
@@ -193,10 +194,12 @@ async fn main() {
     let app = Router::new()
         .route("/__test/instance", get(consultar_instancia))
         .route("/productos", get(listar).post(crear))
-        .route("/productos/{id}", get(obtener).put(actualizar).delete(eliminar))
+        .route(
+            "/productos/{id}",
+            get(obtener).put(actualizar).delete(eliminar),
+        )
         .with_state(pool);
-    let direccion = std::env::var("CRUD_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:38212".to_string());
+    let direccion = std::env::var("CRUD_ADDR").unwrap_or_else(|_| "127.0.0.1:38212".to_string());
     let escucha = tokio::net::TcpListener::bind(direccion).await.unwrap();
     axum::serve(escucha, app).await.unwrap()
 }

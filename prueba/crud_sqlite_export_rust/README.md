@@ -26,6 +26,8 @@ La prueba de ida, reinicio, mutaciones y vuelta se ejecuta con:
 CARGO_TARGET_DIR=/tmp/crud-sqlite-export-target python3 prueba/crud_sqlite_export_rust/verificar_exportacion.py
 ```
 
+El job `reference-regressions` de CI regenera ambos `.rs`, compila el proyecto exportado con `--release --locked --offline` y ejecuta este supervisor. Usa archivos SQLite y checkpoints temporales del runner.
+
 Este script de orquestación conserva la separación de procesos y reinicios del servidor. Usa Python estándar solo como lanzador de la regresión; los binarios verificados son Rust exportado y se compilan con Cargo en `--release`.
 
 Comprueba que el servidor exportado conserva SQLite al reiniciarse y que el cliente exportado puede realizar las altas concurrentes y validar las mutaciones. El 25-10-2026 se compilaron ambos binarios con `--release --locked --offline` y pasó el flujo completo: inserción inicial, reinicio con persistencia, 40 altas concurrentes con IDs únicos, conflicto UNIQUE sin cambio de filas, actualización/eliminación y verificación tras otro reinicio.

@@ -106,7 +106,10 @@ def start_and_measure(
         if not expected_profile:
             raise RuntimeError(f"el servidor no usa artefacto release: {executable}")
         warm_up()
-        print(f"Calentamiento: 10 consultas GET /productos; binario: {executable}", flush=True)
+        print(
+            f"Calentamiento: 10 consultas GET /productos; binario: {executable.name}",
+            flush=True,
+        )
         if measure:
             subprocess.run([str(benchmark)], cwd=ROOT, env=environment, check=True)
     finally:
@@ -126,13 +129,36 @@ def start_and_measure(
 
 
 def run_command(command: list[str], environment: dict[str, str]) -> None:
-    print("$ " + " ".join(command), flush=True)
-    subprocess.run(command, cwd=ROOT, env=environment, check=True)
+    display_command = [
+        str(Path(argument).relative_to(ROOT))
+        if Path(argument).is_absolute() and Path(argument).is_relative_to(ROOT)
+        else argument
+        for argument in command
+    ]
+    print("$ " + " ".join(display_command), flush=True)
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if result.returncode != 0:
+        output = result.stdout.decode("utf-8", errors="replace").replace(str(ROOT), ".")
+        raise RuntimeError(
+            f"el comando terminó con código {result.returncode}: {output.strip()}"
+        )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rondas", type=int, default=5, help="pares de medición (predeterminado: 5)")
+    parser.add_argument(
+        "--solo-funcional",
+        action="store_true",
+        help="inicia ambos servidores secuencialmente y valida HTTP sin ejecutar cargas medidas",
+    )
     args = parser.parse_args()
     if args.rondas < 1:
         parser.error("--rondas debe ser al menos 1")
@@ -194,7 +220,15 @@ def main() -> int:
         )
         print(f"\n######## RONDA {round_number + 1}/{args.rondas} ########", flush=True)
         for label, command in order:
-            start_and_measure(label, command, environment, benchmark)
+            start_and_measure(
+                label,
+                command,
+                environment,
+                benchmark,
+                measure=not args.solo_funcional,
+            )
+    if args.solo_funcional:
+        print("Regresión HTTP funcional completada; no se midió rendimiento.", flush=True)
     return 0
 
 

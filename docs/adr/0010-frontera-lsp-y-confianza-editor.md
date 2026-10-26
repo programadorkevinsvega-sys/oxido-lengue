@@ -19,5 +19,6 @@ Abrir un proyecto Rust puede ejecutar `build.rs` y macros procedurales si se inv
 ## Consecuencias
 
 - La extensión puede ofrecer análisis básico sin ejecutar código del proyecto.
-- La inferencia de tipos, el bridge de `rust-analyzer` y las acciones dependientes de un Cargo.toml con dependencias quedan pendientes hasta implementar sus controles de confianza y mapeo.
-- La aceptación de Workspace Trust requiere pruebas reales en VS Code Restricted Mode y en un workspace confiable; el manifiesto por sí solo no prueba el comportamiento completo.
+- La acción explícita `Óxido: Comprobar con Cargo` usa el `oxido.toml` y el `Cargo.lock` validados, ejecuta `cargo check --locked --offline` con confianza y devuelve los diagnósticos al `.ox` de origen. La prueba host cubre una dependencia vendorizada concreta y Restricted Mode; no demuestra descarga ni compatibilidad general de dependencias.
+- La inferencia de tipos y el bridge de `rust-analyzer` siguen limitados a las ubicaciones que el árbol Rust generado y el mapeo por token pueden justificar; las respuestas sin correspondencia usan el fallback local y no se inventan.
+- La aceptación de Workspace Trust requiere pruebas reales en VS Code Restricted Mode y en un workspace confiable; el manifiesto por sí solo no prueba el comportamiento completo. El caso restringido se ejecuta con un perfil nuevo de VS Code y un `cargo` falso en `PATH` que comprueba la ausencia de procesos.

@@ -1,3 +1,30 @@
-# Extensión de VS Code — estado
+# Extensión de VS Code para Óxido
 
-No existe todavía una extensión funcional y la integración de VS Code de la Fase 11 no se ha iniciado. El crate `oxido-lsp` es un prototipo stdio: prueba sincronización de documentos completa/incremental, diagnósticos léxicos, semantic tokens heurísticos, framing acotado y cancelación cooperativa de semantic tokens. No se integra con `rust-analyzer`, no inicia Cargo ni mapea sus diagnósticos, y no implementa Workspace Trust. Una futura extensión deberá respetar Workspace Trust antes de invocar compilación o análisis que ejecute código.
+La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe diagnósticos del lexer/parser y semantic tokens léxicos. El estado por subfase y sus límites están en [Fase 11](../../docs/fase-11-vscode-lsp.md).
+
+## Desarrollo local
+
+1. Compila el servidor:
+
+   ```sh
+   cargo build --release -p oxido-lsp
+   ```
+
+   Añade `target/release` a `PATH` o configura la ruta absoluta `target/release/oxido-lsp` en el ajuste de usuario `oxido.serverPath`.
+
+2. Instala las dependencias de la extensión y ejecuta sus pruebas:
+
+   ```sh
+   npm ci
+   npm test
+   ```
+
+   Para las pruebas de host (descarga VS Code 1.143.1 si no se proporciona `VSCODE_EXECUTABLE_PATH`), compila primero el servidor y ejecuta `npm run test:host`. La suite corre en un workspace confiable y en Restricted Mode.
+
+3. Desde este directorio, inicia el Extension Development Host con `code --extensionDevelopmentPath=. --new-window ../../prueba/modulos_jerarquicos`.
+
+También se puede establecer `oxido.serverPath` en los ajustes de usuario. En Restricted Mode, VS Code no expone esa configuración desde el workspace. El servidor analiza texto y configuración declarativa; Cargo solo se invoca por acción explícita y con confianza.
+
+## Límites actuales
+
+El servidor ofrece hover, completado, símbolos, definición, referencias e inlay hints desde el AST. Definición, referencias y completado local recorren todos los `.ox` abiertos y conservan la URI del módulo. En workspace confiable las consultas semánticas se reenvían al `rust-analyzer` real sobre Rust generado en un workspace temporal persistente; en Restricted Mode se usa el fallback local y no se inicia ningún proceso. El formato LSP funciona para ambos modos, aunque la conformance completa del modo indentado con la CLI sigue pendiente. Los diagnósticos de cambios se calculan de forma asíncrona y versionada. El paquete no se ha publicado como VSIX. Antes de habilitar cualquier análisis que ejecute `build.rs` o macros procedurales habrá que comprobar Workspace Trust en el propio host, según [ADR 0010](../../docs/adr/0010-frontera-lsp-y-confianza-editor.md).

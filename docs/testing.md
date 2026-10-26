@@ -58,16 +58,18 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 - Comentarios `//` y `/* ... */` no se traducen y conservan su texto al exportar/importar fuera de grupos opacos.
 - Se comprueban comentarios antes de items, inline, dentro/final de bloques, entre brazos, multilínea y al final del archivo.
 - Las líneas añadidas por comentarios se reflejan en el mapa de posiciones `.ox`↔`.rs`.
-- La regresión CLI `formats_braced_source_idempotently_without_losing_comments` comprueba comentarios previos, doc, inline, bloque, al final, texto de cadenas, `--comprobar` y dos ejecuciones idénticas en modo llaves. El prototipo reimporta en modo llaves; no preserva fuentes indentadas.
+- La regresión CLI `formats_braced_source_idempotently_without_losing_comments` comprueba comentarios previos, doc, inline, bloque, al final, texto de cadenas, `--comprobar` y dos ejecuciones idénticas en modo llaves.
 - `new_creates_a_runnable_project_and_rejects_an_existing_directory` comprueba la plantilla de `oxido nuevo`, la ejecuta mediante `oxido ejecutar` y verifica que un segundo intento no altere el proyecto existente.
 - `test_command_runs_a_real_rust_test_and_rejects_release_mode` comprueba que `oxido probar` ejecute un `#[test]` real, muestre el nombre y resultado cuando falla, propague el código de error y rechace `--release`.
 - `import_project_preserves_a_runnable_tree_and_export_roundtrips_it` importa archivos Rust con un módulo convencional, comprueba sus comentarios, ejecuta el árbol `.ox`, lo exporta y compila/ejecuta el árbol Rust fuera del origen.
-- `formats_indented_source_idempotently_without_moving_comments_or_literals` comprueba que `formato` mantenga `sintaxis indentacion`, sea idempotente, preserve comentarios/literales/grupos opacos, elimine espacios finales solo fuera de esos spans y haga cumplir `--comprobar`.
+- `formats_indented_source_idempotently_without_moving_comments_or_literals` comprueba que `formato` mantenga `sintaxis indentacion`, sea idempotente y preserve comentarios, literales y tokens de macros opacos.
+- `formats_indented_source_with_rust_like_spacing_and_canonical_nested_indentation` comprueba sangría canónica de bloques y continuaciones, espaciado Rust-like, genéricos, macros preservadas, `--comprobar` y ejecución del programa formateado.
+- `formats_long_rust_expressions_into_wrapped_argument_groups` comprueba el ajuste de listas largas de argumentos/elementos a 100 columnas y la idempotencia del resultado.
 - `import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree` importa módulos `.rs`/`.ox` mezclados con `#[path]` relativo, ejecuta el proyecto importado y compila/ejecuta su exportación Rust.
 - `import_project_rejects_a_path_attribute_that_escapes_without_creating_output` y `import_project_rejects_a_symlink_output_destination` prueban los rechazos de ruta antes de escribir.
 - `cargo_commands_emit_structured_json_for_success_and_source_diagnostics` comprueba el esquema JSON v1 de `compilar`/`ejecutar`/`probar` (la prueba ejecuta `ejecutar` y `compilar`), stdout exclusivamente JSON, salida saneada y ruta/línea/columna del `.ox` para un error de tipos.
 
-`--json` se admite en `compilar`, `ejecutar` y `probar`. Un error temprano se representa con `OX0001`; un fallo de Cargo sin diagnóstico mapeable usa `OX5001`. Los comandos ajenos a Cargo no prometen salida estructurada de éxito. El formato indentado actual es un saneador conservador de espacios finales y salto de línea; no aplica reglas de reindentación.
+`--json` se admite en `compilar`, `ejecutar` y `probar`. Un error temprano se representa con `OX0001`; un fallo de Cargo sin diagnóstico mapeable usa `OX5001`. Los comandos ajenos a Cargo no prometen salida estructurada de éxito. El formato indentado normaliza sangría, espaciado y grupos multilínea en el corpus probado; preserva grupos opacos de macros, comentarios y literales. La conformidad amplia frente al estilo de `rustfmt` sigue abierta y no se afirma que la salida sea idéntica.
 
 ## Parser, backend y diagnóstico
 

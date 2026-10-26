@@ -20,7 +20,7 @@
 
 En el momento de esta entrega, la sintaxis de items y bloques seguía limitada al alcance inicial de Fases 3 y 4, sin dependencias de usuario ni importación de árboles. Esos límites se ampliaron después y su estado vigente está en [compatibility.md](compatibility.md), [Fase 8](fase-8-integracion-rust.md) y el [roadmap](roadmap.md). La CLI actual sigue sin sandbox para código de dependencias; `--confiar-dependencias` solo registra la autorización explícita del operador.
 
-Este inventario registra los comandos y el alcance originales de Fase 5. La CLI actual añade `nuevo`, `formato` (prototipo), `probar` e `importar-proyecto`; su estado vigente está en [compatibility.md](compatibility.md) y el trabajo pendiente de cierre en [Fase 9](roadmap.md).
+Este inventario registra los comandos y el alcance originales de Fase 5. La CLI actual añade `nuevo`, `formato`, `probar` e `importar-proyecto`; las capacidades y límites vigentes del formato constan en [compatibility.md](compatibility.md), y los criterios pendientes de CLI están en [Fase 9](roadmap.md).
 
 La verificación original incluyó `cargo fmt --all -- --check`, `cargo test --workspace --locked` y `cargo clippy --workspace --all-targets --locked -- -D warnings`. La CI remota del repositorio público ejecuta los checks de su workflow; esta mención no representa el resultado de una ejecución actual.
 

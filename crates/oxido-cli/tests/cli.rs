@@ -563,6 +563,97 @@ fn formats_indented_source_idempotently_without_moving_comments_or_literals() {
 }
 
 #[test]
+fn formats_indented_source_with_rust_like_spacing_and_canonical_nested_indentation() {
+    let temp = TestDirectory::new();
+    let work = temp.0.join("project");
+    fs::create_dir(&work).unwrap();
+    let source_path = work.join("anidado.ox");
+    fs::write(
+        &source_path,
+        "sintaxis indentacion\nfuncion identidad<T:Clone>( valor:T )->T:   \n  retornar valor\n\nfuncion suma(a:i32,b:i32)->i32:\n  retornar a+b\n\nfuncion principal( ):   \n  dejar resultado=suma(\n      1,\n  2\n ) // llamada   \n  si resultado>0:\n      afirmar_igual!(identidad(resultado),3)\n  sino:\n    afirmar_igual!(resultado,0)\n",
+    )
+    .unwrap();
+
+    let formatted = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "anidado.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&formatted.stdout),
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(&source_path).unwrap(),
+        "sintaxis indentacion\nfuncion identidad<T: Clone>(valor: T) -> T:\n    retornar valor\n\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n\nfuncion principal():\n    dejar resultado = suma(\n        1,\n        2\n    )  // llamada   \n    si resultado > 0:\n        afirmar_igual!(identidad(resultado),3)\n    sino:\n        afirmar_igual!(resultado,0)\n"
+    );
+
+    let check = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "anidado.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["ejecutar", "anidado.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&executed.stdout),
+        String::from_utf8_lossy(&executed.stderr)
+    );
+}
+
+#[test]
+fn formats_long_rust_expressions_into_wrapped_argument_groups() {
+    let temp = TestDirectory::new();
+    let source = temp.0.join("largo.ox");
+    fs::write(
+        &source,
+        "sintaxis indentacion\nfuncion principal():\n    dejar resultado=combinar(11111111111111111111,22222222222222222222,33333333333333333333,44444444444444444444)\n",
+    )
+    .unwrap();
+
+    let formatted = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["formato", "largo.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    let result = fs::read_to_string(&source).unwrap();
+    assert!(
+        result.contains("combinar(\n        11111111111111111111,\n"),
+        "{result}"
+    );
+    assert!(result.contains("        44444444444444444444\n    )"));
+
+    let check = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["formato", "largo.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+}
+
+#[test]
 fn exports_compiles_and_runs_the_hello_world_fixture() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");

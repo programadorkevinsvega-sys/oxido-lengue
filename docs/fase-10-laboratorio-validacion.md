@@ -1,6 +1,6 @@
 # Fase 10 — Laboratorio de validación
 
-**Estado:** criterios implementados; checks remotos de la actualización pendientes. Esta fase consolida evidencia reproducible; no amplía por sí sola la compatibilidad del lenguaje.
+**Estado:** completada para los criterios definidos y probados. Esta fase consolida evidencia reproducible; no amplía por sí sola la compatibilidad del lenguaje.
 
 ## Inventario inicial
 
@@ -14,7 +14,7 @@
 | 6. Límites y recuperación | Implementada para los límites publicados | Hay pruebas de tamaño/anidamiento, Unicode, spans y framing. El LSP cubre ediciones incrementales UTF-16, versiones obsoletas, rangos inválidos, recuperación y cancelación cooperativa de semantic tokens mediante `$/cancelRequest`. Los diagnósticos de edición son síncronos y esa limitación está documentada. |
 | 7. Proyectos reutilizables | Implementada en el índice de referencias | `reference-regressions` automatiza interoperabilidad con `std`, CRUD concurrente/overflow, módulos, pruebas y sesión interactiva de la CLI, API SQLite Óxido/Rust secuencial y persistencia del árbol exportado. Verifica formato de las líneas base Rust. El benchmark release comparativo se ejecutó en GitHub Actions; resultados y límites están en [`informe del benchmark`](reports/fase-10/2026-10-26-benchmark-release-github.md). |
 | 8. Informes reproducibles | Integrado en CI | `tools/validation-report` registra commit/entorno/estados/duración y escribe Markdown; `validation-report` conserva `target/validation-report.md` como artefacto de Actions por 30 días, incluso si falla una verificación tras producirse el archivo. La campaña de 10.000 por target está archivada en [`reports/fase-10/2026-10-26-10000-por-target.md`](reports/fase-10/2026-10-26-10000-por-target.md). El benchmark tiene un informe separado con versiones, carga, medianas, rangos y limitaciones; no se confunde con rendimiento del compilador o de producción. |
-| 9. CI | Implementada; checks remotos de esta actualización en curso | CI ejecuta fmt, Clippy, tests, cargo-deny, smoke fuzz, generación del informe/artefacto y regresiones de referencia. El benchmark release puede programarse semanalmente o ejecutarse con `workflow_dispatch`; la ejecución de cierre quedó registrada en el informe comparativo. La fase se marcará completada después de que el PR con estas actualizaciones pase CI y se integre. |
+| 9. CI | Implementada y aprobada | En PR #29, commit `dd1f07c`, pasaron los workflows de push y PR: Rust, dependencias, fuzz smoke, regresiones de referencia, informe reproducible y Cloudflare Pages. El benchmark release de cierre también pasó en el workflow manual [40318401833](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/40318401833). |
 
 La tabla anterior refleja el estado vigente. Los registros titulados «Registro» o «Iteración» más abajo preservan evidencia histórica de commits previos; sus estados pendientes describen esos commits y no sustituyen esta tabla ni el cierre más reciente.
 
@@ -157,11 +157,11 @@ Para cerrar esta fase, las características publicadas deben tener pruebas ident
 | Matriz, regresiones, differential y roundtrip | Matriz revisada en [`testing.md`](testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas); siete pares diferenciales positivos más un caso negativo `E0308`; pruebas CLI de exportación/importación y módulos mixtos. | Aprobado localmente; diferencias delimitadas en los documentos. |
 | Límites, Unicode y recuperación LSP | Casos deterministas y cinco targets de fuzz; LSP incremental por UTF-16, versiones, rangos inválidos, recuperación y cancelación de semantic tokens. | Aprobado localmente; diagnósticos de edición síncronos documentados. |
 | Corpus fuzz extendido | [`Informe de 10.000 ejecuciones por target`](reports/fase-10/2026-10-26-10000-por-target.md), campaña de lexer/parser/config/backend/LSP sin crash ni spans inválidos reportados. CI semanal repite 10.000 por target; push/PR mantiene 1.000. | Aprobado localmente; campaña sin objetivo de cobertura implícito. |
-| Referencias funcionales | `reference-runner` compara sesión interactiva de terminal Óxido/Rust y ejecuta `std`, CRUD concurrente/overflow. Job de referencia regenera export, compara contra fuente versionada, ejecuta SQLite/persistencia y árboles Rust secuencialmente. | Aprobado localmente; CI remota del PR de cierre pendiente. |
-| Informe y privacidad | El recolector reporta commit, entorno, suites, duración y estados; artefacto CI conserva el Markdown 30 días. Informe declara **rendimiento no medido** y no copia logs crudos. | Aprobado localmente; artefacto remoto del PR de cierre pendiente. |
+| Referencias funcionales | `reference-runner` compara sesión interactiva de terminal Óxido/Rust y ejecuta `std`, CRUD concurrente/overflow. Job de referencia regenera export, compara contra fuente versionada, ejecuta SQLite/persistencia y árboles Rust secuencialmente. | Aprobado localmente y en push/PR #29 (`dd1f07c`). |
+| Informe y privacidad | El recolector reporta commit, entorno, suites, duración y estados; artefacto CI conserva el Markdown 30 días. No copia logs crudos. El benchmark separado tiene informe con límites explícitos. | Aprobado localmente y en push/PR #29; artefacto remoto generado. |
 | Benchmark | Job semanal y `workflow_dispatch`; ejecución release de cinco rondas realizada en GitHub Actions. El informe registra entorno, versiones, carga, QPS, latencias, errores, recursos aproximados y variación observada. | Ejecutado; alcance exploratorio, no acredita rendimiento de producción ni del compilador. |
 
-Los criterios técnicos están implementados y tienen evidencia registrada. La fase se marcará completada cuando los checks remotos de esta actualización pasen y el PR se integre. Los registros históricos anteriores reflejan sus respectivos commits.
+Los criterios de esta fase están completados en el alcance documentado. Los registros históricos anteriores reflejan sus respectivos commits; sus estados pendientes no sustituyen la tabla vigente.
 
 ## Iteración de recuperación LSP
 

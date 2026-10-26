@@ -14,7 +14,7 @@ No debe adoptarse para cargas de producción hasta que esos criterios estén imp
 - `oxido.toml` se parsea como TOML de datos, con campos cerrados; no ejecuta comandos.
 - El workspace Rust del propio repositorio tiene lockfile; la CLI usa `--locked` en su workspace temporal.
 
-Óxido admite dependencias de crates.io; las dependencias locales `path` exigen `--permitir-rutas-locales`. La descarga muestra antes el plan y requiere `--confirmar`; solo usa `cargo fetch`, nunca compila. `compilar`/`ejecutar` exigen `--locked --offline` y `--confiar-dependencias`. Cargo puede ejecutar `build.rs` o macros procedurales durante compilación; el flag registra confianza del operador, no aísla código ni bloquea su acceso a red. Workspace Trust, sandbox y seguridad de lanzamiento siguen pendientes. La Fase 10 incluye fuzzing inicial para lexer, parser, backend y configuración y un diferencial de comportamiento; esto no es una auditoría completa del compilador.
+Óxido admite dependencias de crates.io; las dependencias locales `path` exigen `--permitir-rutas-locales`. La descarga muestra antes el plan y requiere `--confirmar`; solo usa `cargo fetch`, nunca compila. `compilar`/`ejecutar` exigen `--locked --offline` y `--confiar-dependencias`. Cargo puede ejecutar `build.rs` o macros procedurales durante compilación; el flag registra confianza del operador, no aísla código ni bloquea su acceso a red. Workspace Trust, sandbox y seguridad de lanzamiento siguen pendientes. La Fase 10 incluye fuzzing inicial para lexer, parser, backend, configuración y dispatcher LSP y dos diferenciales de comportamiento; esto no es una auditoría completa del compilador.
 
 ## Casos de evaluación
 

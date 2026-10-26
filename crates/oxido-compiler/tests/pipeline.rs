@@ -67,15 +67,9 @@ fn compiles_and_runs_a_minimal_ox_program_through_cargo() {
 
 #[test]
 fn differential_indented_ox_and_equivalent_rust_have_the_same_observable_result() {
-    use oxido_compiler::application::cargo::CargoAction;
-    use oxido_language::domain::syntax::LexOptions;
-    use std::process::Command;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let ox = SourceFile::new(
+    assert_ox_and_rust_output_match(
         "sintaxis indentacion\nfuncion clasificar(valor: i32) -> &'static str:\n    si valor >= 10:\n        \"alto\"\n    sino:\n        \"bajo\"\nfuncion main():\n    dejar valores = vector![3, 12, 5]\n    dejar resultado = valores.iter().map(|valor| clasificar(*valor)).collect::<Vector<_>>()\n    println!(\"{}\", resultado.join(\",\"));\n",
-    );
-    let rust = r#"fn clasificar(valor: i32) -> &'static str {
+        r#"fn clasificar(valor: i32) -> &'static str {
     if valor >= 10 { "alto" } else { "bajo" }
 }
 fn main() {
@@ -83,8 +77,45 @@ fn main() {
     let resultado = valores.iter().map(|valor| clasificar(*valor)).collect::<Vec<_>>();
     println!("{}", resultado.join(","));
 }
-"#;
+"#,
+    );
+}
 
+#[test]
+fn differential_indented_impl_and_match_have_the_same_result_as_rust() {
+    assert_ox_and_rust_output_match(
+        r#"sintaxis indentacion
+estructura Punto:
+    x: i32
+    y: i32
+implementar Punto:
+    funcion cuadrado(&mismo) -> i32:
+        mismo.x * mismo.x + mismo.y * mismo.y
+funcion principal():
+    dejar punto = Punto { x: 3, y: 4 }
+    coincidir punto.cuadrado():
+        25 => imprimir!("25")
+        _ => imprimir!("otro")
+"#,
+        r#"struct Punto { x: i32, y: i32 }
+impl Punto {
+    fn cuadrado(&self) -> i32 { self.x * self.x + self.y * self.y }
+}
+fn main() {
+    let punto = Punto { x: 3, y: 4 };
+    match punto.cuadrado() { 25 => println!("25"), _ => println!("otro") }
+}
+"#,
+    );
+}
+
+fn assert_ox_and_rust_output_match(ox_text: &str, rust: &str) {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let ox = SourceFile::new(ox_text);
     let ox_result = oxido_compiler::build_ox(&ox, LexOptions::default(), CargoAction::Run)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(

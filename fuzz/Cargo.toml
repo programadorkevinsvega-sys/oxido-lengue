@@ -16,6 +16,9 @@ path = "../crates/oxido-language"
 [dependencies.oxido-compiler]
 path = "../crates/oxido-compiler"
 
+[dependencies.oxido-lsp]
+path = "../crates/oxido-lsp"
+
 # Use independent workspace for fuzzers
 [workspace]
 members = ["."]
@@ -44,6 +47,13 @@ bench = false
 [[bin]]
 name = "backend"
 path = "fuzz_targets/backend.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lsp"
+path = "fuzz_targets/lsp.rs"
 test = false
 doc = false
 bench = false

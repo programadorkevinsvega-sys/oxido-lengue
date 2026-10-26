@@ -40,7 +40,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
         with:
           toolchain: 1.99.1
-          components: rust-analyzer
           components: rustfmt, clippy
       - run: rustup toolchain install nightly-2026-10-16 --profile minimal --component rustfmt
       - run: cargo install cargo-deny --locked

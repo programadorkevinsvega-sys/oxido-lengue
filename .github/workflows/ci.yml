@@ -83,6 +83,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
         with:
           toolchain: 1.99.1
+          components: rustfmt
       - run: mkdir -p prueba/crud_sqlite/.ci-export/src/bin target/crud-sqlite-export-project/src/bin
       - run: cargo run --locked -p oxido-cli -- exportar prueba/crud_sqlite/crud_api_persistencia.ox --salida prueba/crud_sqlite/.ci-export/src/main.rs
       - run: cargo run --locked -p oxido-cli -- exportar prueba/crud_sqlite/verificar_persistencia.ox --salida prueba/crud_sqlite/.ci-export/src/bin/verificar_persistencia.rs

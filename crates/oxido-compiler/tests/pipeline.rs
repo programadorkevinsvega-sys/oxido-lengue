@@ -129,6 +129,7 @@ funcion principal():
         r#"fn validar(divisor: i32) -> Result<i32, &'static str> {
     if divisor == 0 { Err("division por cero") } else { Ok(12 / divisor) }
 }
+
 fn calcular() -> Result<i32, &'static str> {
     let valor = validar(3)?;
     Ok(valor + 1)
@@ -143,6 +144,92 @@ fn main() {
     );
 }
 
+#[test]
+fn differential_patterns_borrows_and_async_match_native_rust() {
+    let cases = [
+        (
+            "enum patterns",
+            r#"sintaxis indentacion
+enumeracion Estado:
+    Listo(i32)
+    Fallo(&'static str)
+
+funcion describir(estado: Estado) -> String:
+    coincidir estado:
+        Estado::Listo(codigo) => format!("listo:{codigo}")
+        Estado::Fallo(mensaje) => format!("error:{mensaje}")
+
+funcion principal():
+    imprimir!("{}|{}", describir(Estado::Listo(7)), describir(Estado::Fallo("x")))
+"#,
+            r#"enum Estado { Listo(i32), Fallo(&'static str) }
+fn describir(estado: Estado) -> String {
+    match estado {
+        Estado::Listo(codigo) => format!("listo:{codigo}"),
+        Estado::Fallo(mensaje) => format!("error:{mensaje}"),
+    }
+}
+fn main() {
+    println!("{}|{}", describir(Estado::Listo(7)), describir(Estado::Fallo("x")));
+}
+"#,
+        ),
+        (
+            "mutable borrow and iterator loop",
+            r#"sintaxis indentacion
+funcion sumar(valores: &[i32]) -> i32:
+    dejar mutable total = 0
+    para valor en valores.iter():
+        total += *valor
+    total
+
+funcion principal():
+    dejar valores = [4, 5, 6]
+    imprimir!("{}", sumar(&valores))
+"#,
+            r#"fn sumar(valores: &[i32]) -> i32 {
+    let mut total = 0;
+    for valor in valores.iter() {
+        total += *valor;
+    }
+    total
+}
+fn main() {
+    let valores = [4, 5, 6];
+    println!("{}", sumar(&valores));
+}
+"#,
+        ),
+        (
+            "async future polling",
+            r#"sintaxis indentacion
+asincrono funcion calcular() -> i32:
+    retornar 20 + 22
+
+funcion principal():
+    dejar mutable tarea = Box::pin(calcular())
+    dejar mutable contexto = std::task::Context::from_waker(std::task::Waker::noop())
+    coincidir std::future::Future::poll(tarea.as_mut(), &mutable contexto):
+        std::task::Poll::Ready(valor) => imprimir!("{}", valor)
+        std::task::Poll::Pending => panico!("la tarea debía estar lista")
+"#,
+            r#"async fn calcular() -> i32 { 20 + 22 }
+fn main() {
+    let mut tarea = Box::pin(calcular());
+    let mut contexto = std::task::Context::from_waker(std::task::Waker::noop());
+    match std::future::Future::poll(tarea.as_mut(), &mut contexto) {
+        std::task::Poll::Ready(valor) => println!("{}", valor),
+        std::task::Poll::Pending => panic!("la tarea debía estar lista"),
+    }
+}
+"#,
+        ),
+    ];
+
+    for (case_name, ox, rust) in cases {
+        assert_ox_and_rust_output_match_named(case_name, ox, rust);
+    }
+}
 #[test]
 fn differential_type_errors_match_rustc_and_map_back_to_the_ox_line() {
     use oxido_compiler::application::cargo::CargoAction;
@@ -205,6 +292,10 @@ fn differential_type_errors_match_rustc_and_map_back_to_the_ox_line() {
 }
 
 fn assert_ox_and_rust_output_match(ox_text: &str, rust: &str) {
+    assert_ox_and_rust_output_match_named("differential fixture", ox_text, rust);
+}
+
+fn assert_ox_and_rust_output_match_named(name: &str, ox_text: &str, rust: &str) {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
     use std::process::Command;
@@ -215,7 +306,7 @@ fn assert_ox_and_rust_output_match(ox_text: &str, rust: &str) {
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(
         ox_result.success,
-        "{} {:?}",
+        "{name}: {} {:?}",
         ox_result.stderr, ox_result.diagnostics
     );
 
@@ -241,7 +332,7 @@ fn assert_ox_and_rust_output_match(ox_text: &str, rust: &str) {
         .expect("run rustc for direct Rust fixture");
     assert!(
         compile.status.success(),
-        "rustc failed: {}",
+        "{name}: rustc failed: {}",
         String::from_utf8_lossy(&compile.stderr)
     );
     let direct_result = Command::new(&binary_path)
@@ -249,7 +340,7 @@ fn assert_ox_and_rust_output_match(ox_text: &str, rust: &str) {
         .expect("run direct Rust fixture");
     assert!(
         direct_result.status.success(),
-        "direct Rust program failed: {}",
+        "{name}: direct Rust program failed: {}",
         String::from_utf8_lossy(&direct_result.stderr)
     );
     let direct_stdout = String::from_utf8(direct_result.stdout).expect("UTF-8 Rust stdout");

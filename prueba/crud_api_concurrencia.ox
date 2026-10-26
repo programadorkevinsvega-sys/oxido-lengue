@@ -85,6 +85,9 @@ asincrono funcion eliminar(
     sino:
         StatusCode::NO_CONTENT
 
+asincrono funcion identidad_de_prueba() -> Json<u32>:
+    Json(std::process::id())
+
 #[tokio::main]
 asincrono funcion main():
     dejar direccion = std::env::var("CRUD_ADDR")
@@ -98,6 +101,7 @@ asincrono funcion main():
         siguiente_id: id_inicial,
     }))
     dejar app = Router::new()
+        .route("/__test/instance", get(identidad_de_prueba))
         .route("/productos", get(listar).post(crear))
         .route("/productos/{id}", get(obtener).put(actualizar).delete(eliminar))
         .with_state(estado)

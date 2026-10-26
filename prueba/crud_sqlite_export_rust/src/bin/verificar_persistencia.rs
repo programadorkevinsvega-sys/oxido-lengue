@@ -6,8 +6,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 fn solicitar(direccion: &str, metodo: &str, ruta: &str, cuerpo: &str) -> (u16, String) {
-    let mut flujo = TcpStream::connect(direccion)
-        .expect("no se pudo conectar con la API SQLite");
+    let mut flujo = TcpStream::connect(direccion).expect("no se pudo conectar con la API SQLite");
     write!(
         flujo,
         "{} {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -15,7 +14,9 @@ fn solicitar(direccion: &str, metodo: &str, ruta: &str, cuerpo: &str) -> (u16, S
     )
         .expect("no se pudo escribir la solicitud");
     let mut respuesta = String::new();
-    flujo.read_to_string(&mut respuesta).expect("no se pudo leer la respuesta");
+    flujo
+        .read_to_string(&mut respuesta)
+        .expect("no se pudo leer la respuesta");
     let (cabeceras, contenido) = respuesta
         .split_once("\r\n\r\n")
         .expect("respuesta HTTP incompleta");
@@ -31,7 +32,10 @@ fn solicitar(direccion: &str, metodo: &str, ruta: &str, cuerpo: &str) -> (u16, S
     (codigo, contenido.to_string())
 }
 fn id_de(contenido: &str) -> i64 {
-    let inicio = contenido.find("\"id\":").expect("la respuesta no contiene id") + 5;
+    let inicio = contenido
+        .find("\"id\":")
+        .expect("la respuesta no contiene id")
+        + 5;
     let digitos = contenido[inicio..]
         .chars()
         .take_while(|char| char.is_ascii_digit())
@@ -44,7 +48,10 @@ fn ruta_estado() -> String {
 }
 fn instancia_actual(direccion: &str) -> String {
     let (codigo, contenido) = solicitar(direccion, "GET", "/__test/instance", "");
-    assert_eq!(codigo, 200, "no se pudo consultar la identidad del servidor");
+    assert_eq!(
+        codigo, 200,
+        "no se pudo consultar la identidad del servidor"
+    );
     let inicio = contenido.find("\"instancia\":\"").expect("falta instancia") + 13;
     let resto = &contenido[inicio..];
     resto[..resto.find('"').unwrap()].to_string()
@@ -68,13 +75,16 @@ fn verificar_instancia(direccion: &str, reiniciada: bool) {
             "el servidor cambió durante una fase que debía usar la misma instancia"
         )
     }
-    fs::write(ruta_estado(), actual)
-        .expect("no se pudo actualizar el checkpoint de instancia")
+    fs::write(ruta_estado(), actual).expect("no se pudo actualizar el checkpoint de instancia")
 }
 fn crear_uno(direccion: String, numero: u32) -> i64 {
     let cuerpo = format!("{{\"nombre\":\"Concurrente {}\",\"precio\":1.25}}", numero);
     let (codigo, contenido) = solicitar(&direccion, "POST", "/productos", &cuerpo);
-    assert_eq!(codigo, 201, "falló una inserción concurrente: {}", contenido);
+    assert_eq!(
+        codigo, 201,
+        "falló una inserción concurrente: {}",
+        contenido
+    );
     id_de(&contenido)
 }
 fn crear_lote(direccion: &str, cantidad: u32) -> Vec<i64> {
@@ -83,18 +93,13 @@ fn crear_lote(direccion: &str, cantidad: u32) -> Vec<i64> {
     for numero in 0..cantidad {
         let puerta_hilo = puerta.clone();
         let direccion_hilo = direccion.to_string();
-        tareas
-            .push(
-                thread::spawn(move || {
-                    let (candado, condicion) = &*puerta_hilo;
-                    let listo = candado.lock().unwrap();
-                    let guardia = condicion
-                        .wait_while(listo, |iniciada| !*iniciada)
-                        .unwrap();
-                    drop(guardia);
-                    crear_uno(direccion_hilo, numero)
-                }),
-            )
+        tareas.push(thread::spawn(move || {
+            let (candado, condicion) = &*puerta_hilo;
+            let listo = candado.lock().unwrap();
+            let guardia = condicion.wait_while(listo, |iniciada| !*iniciada).unwrap();
+            drop(guardia);
+            crear_uno(direccion_hilo, numero)
+        }))
     }
     let (candado, condicion) = &*puerta;
     let mut iniciada = candado.lock().unwrap();
@@ -108,8 +113,7 @@ fn crear_lote(direccion: &str, cantidad: u32) -> Vec<i64> {
     ids
 }
 fn cpu_ticks(pid: u32) -> u64 {
-    let datos = std::fs::read_to_string(format!("/proc/{}/stat", pid))
-        .unwrap_or_default();
+    let datos = std::fs::read_to_string(format!("/proc/{}/stat", pid)).unwrap_or_default();
     let cierre = match datos.rfind(')') {
         Some(posicion) => posicion + 2,
         None => return 0,
@@ -121,8 +125,7 @@ fn cpu_ticks(pid: u32) -> u64 {
     campos[11].parse::<u64>().unwrap_or(0) + campos[12].parse::<u64>().unwrap_or(0)
 }
 fn rss_kib(pid: u32) -> u64 {
-    let datos = std::fs::read_to_string(format!("/proc/{}/status", pid))
-        .unwrap_or_default();
+    let datos = std::fs::read_to_string(format!("/proc/{}/status", pid)).unwrap_or_default();
     for linea in datos.lines() {
         if linea.starts_with("VmRSS:") {
             return linea
@@ -135,37 +138,23 @@ fn rss_kib(pid: u32) -> u64 {
     }
     0
 }
-fn medir_lote(
-    direccion: &str,
-    prefijo: &str,
-    cantidad: u32,
-) -> (usize, Vec<u128>, Duration) {
+fn medir_lote(direccion: &str, prefijo: &str, cantidad: u32) -> (usize, Vec<u128>, Duration) {
     let puerta = Arc::new((Mutex::new(false), Condvar::new()));
     let mut tareas: Vec<JoinHandle<(u16, u128)>> = Vec::new();
     for indice in 0..cantidad {
         let puerta_hilo = puerta.clone();
         let direccion_hilo = direccion.to_string();
         let nombre = format!("{}-{}", prefijo, indice);
-        tareas
-            .push(
-                thread::spawn(move || {
-                    let (candado, condicion) = &*puerta_hilo;
-                    let listo = candado.lock().unwrap();
-                    let guardia = condicion
-                        .wait_while(listo, |iniciada| !*iniciada)
-                        .unwrap();
-                    drop(guardia);
-                    let cuerpo = format!("{{\"nombre\":\"{}\",\"precio\":2.5}}", nombre);
-                    let inicio = Instant::now();
-                    let (codigo, _) = solicitar(
-                        &direccion_hilo,
-                        "POST",
-                        "/productos",
-                        &cuerpo,
-                    );
-                    (codigo, inicio.elapsed().as_nanos())
-                }),
-            )
+        tareas.push(thread::spawn(move || {
+            let (candado, condicion) = &*puerta_hilo;
+            let listo = candado.lock().unwrap();
+            let guardia = condicion.wait_while(listo, |iniciada| !*iniciada).unwrap();
+            drop(guardia);
+            let cuerpo = format!("{{\"nombre\":\"{}\",\"precio\":2.5}}", nombre);
+            let inicio = Instant::now();
+            let (codigo, _) = solicitar(&direccion_hilo, "POST", "/productos", &cuerpo);
+            (codigo, inicio.elapsed().as_nanos())
+        }))
     }
     let cronometro = Instant::now();
     let (candado, condicion) = &*puerta;
@@ -192,24 +181,24 @@ fn percentil_ms(latencias: &Vec<u128>, percentil: usize) -> f64 {
 }
 fn ejecutar_benchmark(direccion: &str) {
     let pid = std::process::id();
-    let (codigo_identidad, identidad) = solicitar(
-        direccion,
-        "GET",
-        "/__test/instance",
-        "",
-    );
+    let (codigo_identidad, identidad) = solicitar(direccion, "GET", "/__test/instance", "");
     assert_eq!(codigo_identidad, 200);
     let inicio_pid = identidad
         .find("\"pid\":")
-        .expect("no se recibió el PID del servidor") + 6;
+        .expect("no se recibió el PID del servidor")
+        + 6;
     let pid_texto = identidad[inicio_pid..]
         .chars()
         .take_while(|char| char.is_ascii_digit())
         .collect::<String>();
     let pid_servidor = pid_texto.parse::<u32>().unwrap();
     let prefijo = format!(
-        "Bench-{}-{}", pid, SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
-        .as_nanos()
+        "Bench-{}-{}",
+        pid,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     );
     let cpu_inicial = cpu_ticks(pid_servidor);
     let pico_rss = Arc::new(AtomicU64::new(rss_kib(pid_servidor)));
@@ -227,18 +216,19 @@ fn ejecutar_benchmark(direccion: &str) {
     for ronda in 0..2 {
         for cantidad in [50u32, 100, 200] {
             let nombre_lote = format!("{}-{}-{}", prefijo, ronda, cantidad);
-            let (correctas, latencias, tiempo) = medir_lote(
-                direccion,
-                &nombre_lote,
-                cantidad,
-            );
+            let (correctas, latencias, tiempo) = medir_lote(direccion, &nombre_lote, cantidad);
             solicitudes += cantidad as usize;
             let errores = cantidad as usize - correctas;
             let qps = correctas as f64 / tiempo.as_secs_f64();
             println!(
                 "benchmark carga={} exito={} error={} qps={:.2} p50_ms={:.2} p95_ms={:.2} p99_ms={:.2}",
-                cantidad, correctas, errores, qps, percentil_ms(& latencias, 50),
-                percentil_ms(& latencias, 95), percentil_ms(& latencias, 99)
+                cantidad,
+                correctas,
+                errores,
+                qps,
+                percentil_ms(&latencias, 50),
+                percentil_ms(&latencias, 95),
+                percentil_ms(&latencias, 99)
             )
         }
     }
@@ -273,15 +263,19 @@ fn verificar_inicial(direccion: &str) {
         "{\"nombre\":\"Producto persistente\",\"precio\":12.5}",
     );
     assert_eq!(codigo_crear, 201);
-    assert_eq!(id_de(& contenido), 1, "el primer ID SQLite debe ser 1");
+    assert_eq!(id_de(&contenido), 1, "el primer ID SQLite debe ser 1");
     println!("Producto inicial insertado y confirmado en SQLite")
 }
 fn verificar_reinicio(direccion: &str) {
     verificar_instancia(direccion, true);
     let (codigo, producto) = solicitar(direccion, "GET", "/productos/1", "");
-    assert_eq!(codigo, 200, "el producto no sobrevivió al reinicio del servidor");
+    assert_eq!(
+        codigo, 200,
+        "el producto no sobrevivió al reinicio del servidor"
+    );
     assert!(
-        producto.contains("Producto persistente"), "se perdió el contenido persistido"
+        producto.contains("Producto persistente"),
+        "se perdió el contenido persistido"
     );
     println!("Persistencia confirmada tras reiniciar el servidor")
 }
@@ -292,7 +286,9 @@ fn ejecutar_carga_y_mutaciones(direccion: &str) {
     assert_eq!(ids.len(), 40);
     for (indice, id) in ids.iter().enumerate() {
         assert_eq!(
-            * id, indice as i64 + 2, "ID duplicado o inesperado en la carga concurrente"
+            *id,
+            indice as i64 + 2,
+            "ID duplicado o inesperado en la carga concurrente"
         )
     }
     let (codigo_antes, filas_antes) = solicitar(direccion, "GET", "/productos", "");
@@ -311,7 +307,8 @@ fn ejecutar_carga_y_mutaciones(direccion: &str) {
     let (codigo_despues, filas_despues) = solicitar(direccion, "GET", "/productos", "");
     assert_eq!(codigo_despues, 200);
     assert_eq!(
-        filas_despues.matches("\"id\":").count(), cantidad_antes,
+        filas_despues.matches("\"id\":").count(),
+        cantidad_antes,
         "la inserción rechazada no debe dejar ninguna fila"
     );
     let (codigo_actualizar, actualizado) = solicitar(
@@ -327,7 +324,8 @@ fn ejecutar_carga_y_mutaciones(direccion: &str) {
     let (codigo_lista, lista) = solicitar(direccion, "GET", "/productos", "");
     assert_eq!(codigo_lista, 200);
     assert_eq!(
-        lista.matches("\"id\":").count(), 40,
+        lista.matches("\"id\":").count(),
+        40,
         "el error UNIQUE no debe dejar una fila parcial y el DELETE debe quitar una fila"
     );
     println!(
@@ -336,19 +334,17 @@ fn ejecutar_carga_y_mutaciones(direccion: &str) {
 }
 fn verificar_mutaciones_persistidas(direccion: &str) {
     verificar_instancia(direccion, true);
-    let (codigo_actualizado, actualizado) = solicitar(
-        direccion,
-        "GET",
-        "/productos/1",
-        "",
-    );
+    let (codigo_actualizado, actualizado) = solicitar(direccion, "GET", "/productos/1", "");
     assert_eq!(codigo_actualizado, 200);
     assert!(
         actualizado.contains("Producto actualizado"),
         "la actualización no sobrevivió al reinicio"
     );
     let (codigo_eliminado, _) = solicitar(direccion, "GET", "/productos/2", "");
-    assert_eq!(codigo_eliminado, 404, "la eliminación no sobrevivió al reinicio");
+    assert_eq!(
+        codigo_eliminado, 404,
+        "la eliminación no sobrevivió al reinicio"
+    );
     let (codigo_lista, lista) = solicitar(direccion, "GET", "/productos", "");
     assert_eq!(codigo_lista, 200);
     assert_eq!(lista.matches("\"id\":").count(), 40);
@@ -357,8 +353,8 @@ fn verificar_mutaciones_persistidas(direccion: &str) {
     )
 }
 fn main() {
-    let direccion = std::env::var("CRUD_TEST_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:38212".to_string());
+    let direccion =
+        std::env::var("CRUD_TEST_ADDR").unwrap_or_else(|_| "127.0.0.1:38212".to_string());
     let modo = std::env::var("CRUD_TEST_MODE")
         .expect("define CRUD_TEST_MODE: preparar, reinicio, mutaciones o final");
     match modo.as_str() {

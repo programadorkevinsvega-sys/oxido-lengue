@@ -1,4 +1,5 @@
 /target/
+/prueba/crud_sqlite/.ci-export/
 **/target/
 node_modules/
 **/dist/

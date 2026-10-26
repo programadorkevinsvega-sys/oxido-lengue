@@ -41,7 +41,12 @@ struct ServerIdentity {
 static SERVER_IDENTITY: OnceLock<ServerIdentity> = OnceLock::new();
 
 async fn identity() -> Json<ServerIdentity> {
-    Json(SERVER_IDENTITY.get().expect("server identity not initialized").clone())
+    Json(
+        SERVER_IDENTITY
+            .get()
+            .expect("server identity not initialized")
+            .clone(),
+    )
 }
 
 fn valid(product: &NewProduct) -> bool {
@@ -214,12 +219,9 @@ async fn main() {
             get(get_product).put(update).delete(delete),
         )
         .with_state(pool);
-    let address = std::env::var("CRUD_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:38212".to_string());
+    let address = std::env::var("CRUD_ADDR").unwrap_or_else(|_| "127.0.0.1:38212".to_string());
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .expect("could not bind API listener");
-    axum::serve(listener, app)
-        .await
-        .expect("API server failed");
+    axum::serve(listener, app).await.expect("API server failed");
 }

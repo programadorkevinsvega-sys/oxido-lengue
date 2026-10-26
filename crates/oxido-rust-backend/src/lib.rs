@@ -17,7 +17,15 @@ use oxido_language::{
 use proc_macro2::{Delimiter, LineColumn, Span as RustSpan, TokenStream, TokenTree};
 use quote::{ToTokens, quote};
 use serde::Serialize;
-use std::{cell::RefCell, collections::HashSet, str::FromStr};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    io::{Read, Write},
+    process::{Command, Stdio},
+    str::FromStr,
+    thread,
+    time::{Duration, Instant},
+};
 use syn::parse::{Error as SynError, Parser};
 use syn::spanned::Spanned;
 
@@ -126,7 +134,7 @@ pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynEr
         .collect::<Result<Vec<_>, _>>()?;
     let tokens = quote! { #(#attributes)* #(#items)* };
     let parsed = syn::parse2::<syn::File>(tokens)?;
-    let code = prettyplease::unparse(&parsed);
+    let code = format_with_rustfmt(&prettyplease::unparse(&parsed))?;
     let reparsed = syn::parse_file(&code)?;
     let generated_tokens = TokenStream::from_str(&code)
         .map_err(|error| SynError::new(RustSpan::call_site(), error.to_string()))?;
@@ -330,6 +338,11 @@ fn restore_source_comments(
 
         let insertion = if inline {
             format!(" {text}")
+        } else if text.starts_with("/*")
+            && output_offset > 0
+            && code[..output_offset].trim_end().ends_with(';')
+        {
+            format!("\n{output_indent}{text}\n")
         } else {
             format!("{output_indent}{text}\n")
         };
@@ -354,10 +367,11 @@ fn restore_source_comments(
             insertions[index].text.push('\n');
         }
     }
-    let mut result = code.clone();
+    let mut result_with_comments = code.clone();
     for insertion in insertions.iter().rev() {
-        result.insert_str(insertion.output_offset, &insertion.text);
+        result_with_comments.insert_str(insertion.output_offset, &insertion.text);
     }
+    let result = trim_blank_line_whitespace(&result_with_comments);
     for mapping in &mut mappings {
         let start = offset_at_line_column(
             &code,
@@ -381,14 +395,56 @@ fn restore_source_comments(
                 .filter(|insertion| insertion.output_offset < end)
                 .map(|insertion| insertion.text.len())
                 .sum::<usize>();
-        let (start_line, start_column) = line_column_at(&result, shifted_start);
-        let (end_line, end_column) = line_column_at(&result, shifted_end);
+        let (start_line, start_column) = line_column_at(
+            &result,
+            remove_blank_line_whitespace_before(&result_with_comments, shifted_start),
+        );
+        let (end_line, end_column) = line_column_at(
+            &result,
+            remove_blank_line_whitespace_before(&result_with_comments, shifted_end),
+        );
         mapping.generated_start_line = start_line;
         mapping.generated_start_column = start_column;
         mapping.generated_end_line = end_line;
         mapping.generated_end_column = end_column;
     }
     Ok((result, mappings))
+}
+
+fn trim_blank_line_whitespace(text: &str) -> String {
+    text.split_inclusive('\n')
+        .map(|line| {
+            if line.trim().is_empty() {
+                if line.ends_with('\n') { "\n" } else { "" }
+            } else {
+                line
+            }
+        })
+        .collect()
+}
+
+fn remove_blank_line_whitespace_before(text: &str, offset: usize) -> usize {
+    let mut original_offset = 0;
+    let mut adjusted_offset = 0;
+    for line in text.split_inclusive('\n') {
+        let line_end = original_offset + line.len();
+        if offset <= line_end {
+            let within_line = offset.saturating_sub(original_offset);
+            return adjusted_offset
+                + if line.trim().is_empty() {
+                    within_line.min(usize::from(line.ends_with('\n')))
+                } else {
+                    within_line
+                };
+        }
+        original_offset = line_end;
+        adjusted_offset += if line.trim().is_empty() {
+            usize::from(line.ends_with('\n'))
+        } else {
+            line.len()
+        };
+    }
+    adjusted_offset
 }
 
 fn is_documentation_comment(text: &str) -> bool {
@@ -505,6 +561,87 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     }
     output.push_str(&source.text()[cursor..]);
     Ok(output)
+}
+
+/// Reescribe únicamente los valores de atributos `#[path = "..."]`, conservando el resto del archivo.
+pub fn rewrite_module_path_attributes(
+    source: &SourceFile,
+    mut rewrite: impl FnMut(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    fn visit_items(
+        items: &[syn::Item],
+        replacements: &mut Vec<(usize, usize, String)>,
+        rewrite: &mut impl FnMut(&str) -> Result<String, String>,
+        source: &SourceFile,
+    ) -> Result<(), String> {
+        for item in items {
+            let syn::Item::Mod(module) = item else {
+                continue;
+            };
+            for attribute in &module.attrs {
+                if !attribute.path().is_ident("path") {
+                    continue;
+                }
+                let syn::Meta::NameValue(value) = &attribute.meta else {
+                    return Err("el atributo `path` debe tener un valor de texto".into());
+                };
+                let syn::Expr::Lit(expression) = &value.value else {
+                    return Err("el atributo `path` debe tener un valor literal de texto".into());
+                };
+                let syn::Lit::Str(path) = &expression.lit else {
+                    return Err("el atributo `path` debe tener un valor literal de texto".into());
+                };
+                let rewritten = rewrite(&path.value())?;
+                if rewritten == path.value() {
+                    continue;
+                }
+                let start = source_offset(source.text(), path.span().start())
+                    .ok_or_else(|| "no se pudo ubicar el valor del atributo `path`".to_owned())?;
+                let end = source_offset(source.text(), path.span().end())
+                    .ok_or_else(|| "no se pudo ubicar el final del atributo `path`".to_owned())?;
+                let replacement = syn::LitStr::new(&rewritten, path.span());
+                replacements.push((start, end, quote!(#replacement).to_string()));
+            }
+            if let Some((_, nested)) = &module.content {
+                visit_items(nested, replacements, rewrite, source)?;
+            }
+        }
+        Ok(())
+    }
+
+    let file = syn::parse_file(source.text()).map_err(|error| error.to_string())?;
+    let mut replacements = Vec::new();
+    visit_items(&file.items, &mut replacements, &mut rewrite, source)?;
+    replacements.sort_unstable_by_key(|(start, _, _)| *start);
+    let mut output = String::with_capacity(source.text().len());
+    let mut cursor = 0;
+    for (start, end, replacement) in replacements {
+        if start < cursor || end < start {
+            return Err("los atributos `path` tienen rangos superpuestos".into());
+        }
+        output.push_str(&source.text()[cursor..start]);
+        output.push_str(&replacement);
+        cursor = end;
+    }
+    output.push_str(&source.text()[cursor..]);
+    Ok(output)
+}
+
+fn source_offset(text: &str, location: LineColumn) -> Option<usize> {
+    let mut line_start = 0;
+    for _ in 1..location.line {
+        let relative = text[line_start..].find('\n')?;
+        line_start += relative + 1;
+    }
+    let line_end = text[line_start..]
+        .find('\n')
+        .map_or(text.len(), |relative| line_start + relative);
+    let line = &text[line_start..line_end];
+    let column_offset = line.char_indices().nth(location.column).map_or_else(
+        || (location.column == line.chars().count()).then_some(line.len()),
+        |(offset, _)| Some(offset),
+    )?;
+    Some(line_start + column_offset)
 }
 
 fn emit_item(item: &Item, mappings: &mut Vec<PendingMapping>) -> Result<TokenStream, SynError> {
@@ -1345,6 +1482,121 @@ fn find_token_sequence(
             .iter()
             .map(|(token, _)| token)
             .eq(needle.iter())
+    })
+}
+
+fn format_with_rustfmt(source: &str) -> Result<String, SynError> {
+    const TIME_LIMIT: Duration = Duration::from_secs(10);
+    let mut child = Command::new("rustfmt")
+        .args(["--emit", "stdout", "--edition", "2024"])
+        .env("RUSTUP_TOOLCHAIN", env!("CARGO_PKG_RUST_VERSION"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| {
+            SynError::new(
+                RustSpan::call_site(),
+                format!("no se pudo iniciar rustfmt 2024: {error}"),
+            )
+        })?;
+    let (Some(stdin), Some(mut stdout), Some(mut stderr)) =
+        (child.stdin.take(), child.stdout.take(), child.stderr.take())
+    else {
+        let kill_error = child.kill().err();
+        let wait_error = child.wait().err();
+        return Err(SynError::new(
+            RustSpan::call_site(),
+            format!("rustfmt no creó sus pipes; kill={kill_error:?}, wait={wait_error:?}"),
+        ));
+    };
+    let input = source.to_owned();
+    let input_writer = thread::spawn(move || {
+        let mut stdin = stdin;
+        stdin.write_all(input.as_bytes())
+    });
+    let stdout_reader = thread::spawn(move || {
+        let mut output = Vec::new();
+        stdout.read_to_end(&mut output).map(|_| output)
+    });
+    let stderr_reader = thread::spawn(move || {
+        let mut output = Vec::new();
+        stderr.read_to_end(&mut output).map(|_| output)
+    });
+    let started = Instant::now();
+    let mut timed_out = false;
+    let status = loop {
+        if started.elapsed() >= TIME_LIMIT {
+            timed_out = true;
+            child.kill().map_err(|error| {
+                SynError::new(
+                    RustSpan::call_site(),
+                    format!("no se pudo detener rustfmt tras {TIME_LIMIT:?}: {error}"),
+                )
+            })?;
+            break child.wait().map_err(|error| {
+                SynError::new(
+                    RustSpan::call_site(),
+                    format!("no se pudo esperar a rustfmt detenido: {error}"),
+                )
+            })?;
+        }
+        if let Some(status) = child.try_wait().map_err(|error| {
+            SynError::new(
+                RustSpan::call_site(),
+                format!("no se pudo consultar rustfmt: {error}"),
+            )
+        })? {
+            break status;
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+    let input_result = input_writer.join().map_err(|_| {
+        SynError::new(
+            RustSpan::call_site(),
+            "falló el hilo que envía Rust a rustfmt",
+        )
+    })?;
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| SynError::new(RustSpan::call_site(), "falló el lector stdout de rustfmt"))?
+        .map_err(|error| {
+            SynError::new(
+                RustSpan::call_site(),
+                format!("no se pudo leer stdout de rustfmt: {error}"),
+            )
+        })?;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| SynError::new(RustSpan::call_site(), "falló el lector stderr de rustfmt"))?
+        .map_err(|error| {
+            SynError::new(
+                RustSpan::call_site(),
+                format!("no se pudo leer stderr de rustfmt: {error}"),
+            )
+        })?;
+    if timed_out {
+        return Err(SynError::new(
+            RustSpan::call_site(),
+            format!("rustfmt superó el límite de {TIME_LIMIT:?}"),
+        ));
+    }
+    if !status.success() || input_result.is_err() {
+        let input_detail = input_result.err();
+        let detail = String::from_utf8_lossy(&stderr);
+        return Err(SynError::new(
+            RustSpan::call_site(),
+            format!(
+                "rustfmt rechazó el Rust generado: {}; entrada={input_detail:?}",
+                detail.trim()
+            ),
+        ));
+    }
+    String::from_utf8(stdout).map_err(|error| {
+        SynError::new(
+            RustSpan::call_site(),
+            format!("rustfmt devolvió una salida UTF-8 inválida: {error}"),
+        )
     })
 }
 

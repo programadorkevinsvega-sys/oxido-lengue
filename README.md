@@ -4,11 +4,11 @@
 
 ## Estado
 
-El proyecto ya tiene lexer, parser y generación Rust. Las Fases 5–8 están completadas en sus alcances verificados: la Fase 8 incluye estructura indentada e interoperabilidad con dependencias Cargo locales y de crates.io, con lockfile explícito y compilación offline. La compatibilidad sigue limitada a lo documentado y no es una herramienta lista para producción; la ejecución de código de dependencias aún requiere confianza externa y no está sandboxeada. La CLI lee `oxido.toml` como datos declarativos con campos cerrados. Consulta el [portal documental](docs/index.md), el [roadmap](docs/roadmap.md) y la [especificación](docs/language-spec.md). Para trabajar en el sitio Markdown, sigue [website/README.md](website/README.md).
+El proyecto ya tiene lexer, parser y generación Rust. Las Fases 5–9 están completadas en sus alcances verificados: la Fase 8 incluye estructura indentada e interoperabilidad con dependencias Cargo locales y de crates.io, con lockfile explícito y compilación offline; la Fase 9 incluye CLI, cobertura estructural de formato y Rust exportado alineado carácter por carácter con `rustfmt` 1.99.1 en los casos documentados. La compatibilidad sigue limitada a lo documentado y no es una herramienta lista para producción; la ejecución de código de dependencias aún requiere confianza externa y no está sandboxeada. La CLI lee `oxido.toml` como datos declarativos con campos cerrados. Consulta el [portal documental](docs/index.md), el [roadmap](docs/roadmap.md) y la [especificación](docs/language-spec.md). Para trabajar en el sitio Markdown, sigue [website/README.md](website/README.md).
 
 ## Requisitos
 
-- Rust 1.85 o posterior; la edición objetivo del workspace es Rust 2024. La CI prueba el MSRV 1.85.0 y Rust 1.99.1.
+- Rust 1.99.1 o posterior; la edición objetivo del workspace es Rust 2024. CI usa Rust 1.99.1 para formato, lint, pruebas y auditoría de dependencias.
 - Cargo.
 
 ## Ejemplo ejecutable inicial

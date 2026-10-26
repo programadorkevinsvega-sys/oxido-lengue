@@ -58,7 +58,51 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 - Comentarios `//` y `/* ... */` no se traducen y conservan su texto al exportar/importar fuera de grupos opacos.
 - Se comprueban comentarios antes de items, inline, dentro/final de bloques, entre brazos, multilínea y al final del archivo.
 - Las líneas añadidas por comentarios se reflejan en el mapa de posiciones `.ox`↔`.rs`.
-- La regresión CLI `formats_braced_source_idempotently_without_losing_comments` comprueba comentarios previos, doc, inline, bloque, al final, texto de cadenas, `--comprobar` y dos ejecuciones idénticas en modo llaves. El prototipo reimporta en modo llaves; no preserva fuentes indentadas.
+- La regresión CLI `formats_braced_source_idempotently_without_losing_comments` comprueba comentarios previos, doc, inline, bloque, al final, texto de cadenas, `--comprobar` y dos ejecuciones idénticas en modo llaves.
+- `new_creates_a_runnable_project_and_rejects_an_existing_directory` comprueba la plantilla de `oxido nuevo`, la ejecuta mediante `oxido ejecutar` y verifica que un segundo intento no altere el proyecto existente.
+- `test_command_runs_a_real_rust_test_and_rejects_release_mode` comprueba que `oxido probar` ejecute un `#[test]` real, muestre el nombre y resultado cuando falla, propague el código de error y rechace `--release`.
+- `import_project_preserves_a_runnable_tree_and_export_roundtrips_it` importa archivos Rust con un módulo convencional, comprueba sus comentarios, ejecuta el árbol `.ox`, lo exporta y compila/ejecuta el árbol Rust fuera del origen.
+- `formats_indented_source_idempotently_without_moving_comments_or_literals` comprueba que `formato` mantenga `sintaxis indentacion`, sea idempotente y preserve comentarios, literales y tokens de macros opacos.
+- `formats_indented_source_with_rust_like_spacing_and_canonical_nested_indentation` comprueba sangría canónica de bloques y continuaciones, espaciado Rust-like, genéricos, macros preservadas, `--comprobar` y ejecución del programa formateado.
+- `formats_long_rust_expressions_into_wrapped_argument_groups` comprueba el ajuste de listas largas de argumentos/elementos a 100 columnas y la idempotencia del resultado.
+- `formatter_conformance_matrix_matches_rustfmt_after_rust_export` compara cinco fixtures agrupados por construcciones y confirma que el `.rs` exportado, antes y después de `oxido formato`, ya es exactamente la salida que produce `rustfmt` 1.99.1:
+
+| Fixture | Cobertura concreta |
+|---|---|
+| `items-y-tipos` | `use` anidado, `derive`, visibilidad, struct genérico, campos, enum, función genérica y `where` |
+| `contenedores-y-control` | struct genérico, firma y tipo asociado de trait, `impl` genérico, constante asociada, métodos asociados (incluido receiver mutable), módulo, closure, iteradores, `match` por brazos indentados y expresión tail |
+| `macros-comentarios-y-async` | `macro_rules!`, atributo, comentario, raw string multilínea, invocaciones de macros opacas, `async`/`.await`, binding mutable, array, `for`, `while` y `break` |
+| `expresiones-y-patrones` | alias de tipo, constante, tupla, referencias, local mutable con tipo, cadenas de métodos, `enumerate`/`fold`, closure con parámetros destructurados, bloque Rust dentro de expresión, `if let`, `return`, `match` y patrones wildcard/binding |
+| `control-y-bloques` | `loop`, `if`/`else`, `break` con valor, `continue`, tail expression y ramas con valor |
+
+Cada fixture comprueba el texto `.ox` esperado, vuelve a pasar `oxido formato --comprobar` y exporta antes/después. La prueba conserva el `.rs` emitido, lo procesa con `rustfmt` del toolchain 1.99.1 (`--edition 2024`) y exige igualdad carácter por carácter antes y después. Después `rustc` compila ambos exports como biblioteca; el fixture de macros también compila como ejecutable y comprueba la salida exacta `6\n`. La prueba de formato con llaves comprueba además `rustfmt --check` con comentarios ordinarios y doc. Así se verifica la salida final de Rust para los fixtures enumerados, no una equivalencia semántica universal. Como `.ox` tiene palabras clave y delimitación distintas, su texto no puede ser carácter por carácter igual al `.rs`. La prueba necesita `rustfmt` y `rustc` 1.99.1, instalados en CI.
+
+### Revisión de cobertura estructural admitida
+
+El siguiente cruce cubre cada producción estructural de `docs/grammar.md` con fixtures CLI o de pipeline ejecutables. Los fragmentos `RustExpr`, `RustType`, `RustPattern`, `RustUseTree` y árboles opacos pertenecen a la gramática de Rust: hay representantes diversos y se validan con Syn/rustc, pero no se afirma enumerar todas las expresiones ni todos los tokens posibles de Rust.
+
+| Producción/caso admitido | Evidencia de cobertura |
+|---|---|
+| `SourceFile`, header de modo, atributo interno y documentación | Cinco fixtures de la matriz (`sintaxis indentacion`, `#![allow]`, `//!`, `///`); regresión de modo llaves y comentarios |
+| `FunctionItem`, async, visibilidad, atributos y cabecera Rust | Matriz: funciones genéricas, públicas, `#[inline]`, async/await; regresiones CLI y pipeline para funciones Rust |
+| `StructItem`, campos nombrados, genéricos y restricciones | `items-y-tipos` y `contenedores-y-control`; fixtures pipeline para structs Rust |
+| `EnumItem` y variantes | `items-y-tipos`; fixtures de parseo/exportación Rust en `crates/oxido-compiler/tests/pipeline.rs` |
+| `ImplItem`, impl genérico, trait impl, métodos y receptores | `contenedores-y-control`, incluido método predeterminado, asociados, `&mismo` y `&mutable mismo`; regresión de métodos del pipeline |
+| `TraitItem`, declaración/definición de método, tipos y constantes asociados | `contenedores-y-control`; traits Rust en pruebas de pipeline |
+| `ModuleItem`, módulo anidado y `UseItem`/árbol de uso | Matriz: `interno` y `usar std::collections::{...}`; regresión de importación de árbol mixto con `#[path]` |
+| Items Rust passthrough (`type`, `const`, macro declarativa, atributos) | `expresiones-y-patrones`, `macros-comentarios-y-async`; tabla amplia de items Rust del pipeline |
+| Cuerpos con llaves e indentación; cuerpo vacío | `formats_braced_source_idempotently_without_losing_comments`, matriz indentada, fixtures de parser/pipeline |
+| `let` tipado/no tipado, mutable, expresiones tail y terminador `;` | `expresiones-y-patrones`, `control-y-bloques` y regresiones del valor tail/semicolon |
+| `return`, `break` con valor/etiqueta, `continue` y ramas condicionales | `control-y-bloques`; regresiones de controles Rust en pipeline |
+| `loop`, `while`, `for`, `if let`, `match` y brazos con bloque/tail | `control-y-bloques`, `contenedores-y-control`, `expresiones-y-patrones` y `macros-comentarios-y-async` |
+| Macros/DSL opacos, grupos anidados, comentarios y literales | `macros-comentarios-y-async`, regresiones de macros externas, `formats_braced_source_idempotently_without_losing_comments` |
+
+La revisión encuentra cobertura para las producciones estructurales enumeradas de la gramática inicial. El alcance restante no es una producción estructural olvidada: es la inmensidad de variantes de expresiones/tipos/patrones y DSL de Rust que Syn preserva o valida. Los documentos de compatibilidad deben seguir presentando cada macro o fragmento externo probado como un caso concreto, no como soporte universal.
+- `import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree` importa módulos `.rs`/`.ox` mezclados con `#[path]` relativo, ejecuta el proyecto importado y compila/ejecuta su exportación Rust.
+- `import_project_rejects_a_path_attribute_that_escapes_without_creating_output` y `import_project_rejects_a_symlink_output_destination` prueban los rechazos de ruta antes de escribir.
+- `cargo_commands_emit_structured_json_for_success_and_source_diagnostics` comprueba el esquema JSON v1 de `compilar`/`ejecutar`/`probar` (la prueba ejecuta `ejecutar` y `compilar`), stdout exclusivamente JSON, salida saneada y ruta/línea/columna del `.ox` para un error de tipos.
+
+`--json` se admite en `compilar`, `ejecutar` y `probar`. Un error temprano se representa con `OX0001`; un fallo de Cargo sin diagnóstico mapeable usa `OX5001`. Los comandos ajenos a Cargo no prometen salida estructurada de éxito. El formato indentado normaliza sangría, espaciado y grupos multilínea; preserva grupos opacos de macros, comentarios y literales. Para las construcciones de la matriz, el Rust exportado coincide byte por byte con `rustfmt` 1.99.1. La presentación `.ox` sigue las convenciones de layout documentadas y probadas de Óxido; no pretende ser texto Rust idéntico, pues su sintaxis y palabras clave difieren.
 
 ## Parser, backend y diagnóstico
 

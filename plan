@@ -895,7 +895,8 @@ Estado: completada según [docs/fase-3-lexer.md](docs/fase-3-lexer.md). El lexer
 
 Criterios adicionales: mapa de posiciones `.ox` ↔ `.rs`, diagnósticos JSON de Cargo, y prueba de ida y vuelta `.ox → .rs → .ox` para el subconjunto reversible. Documentar construcciones que no puedan reconstruirse.
 
-- Generación de Rust mediante árboles de tokens (`proc_macro2`/`quote`) y formateo estructural (`prettyplease`), no concatenación de texto.
+- Generación de Rust mediante árboles de tokens (`proc_macro2`/`quote`), formato intermedio con `prettyplease` y salida final con `rustfmt` fijado por el proyecto; nunca concatenar texto de entrada.
+- `oxido formato` da formato a la sintaxis `.ox` con las convenciones propias de Óxido. El Rust generado se valida con Syn y debe coincidir carácter por carácter con `rustfmt` para la versión, edición y configuración fijadas; la evidencia se limita a las construcciones cubiertas por la matriz vigente.
 - Mapa de posiciones `.ox` ↔ `.rs`.
 - Diagnósticos JSON de Cargo mediante `--message-format=json`.
 - Compilación real.

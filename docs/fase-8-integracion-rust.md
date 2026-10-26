@@ -109,7 +109,7 @@ El informe es estático y conservador: no resuelve todas las dependencias regist
 
 **Estado:** completada para la edición declarada y el corpus probado.
 
-La matriz de [compatibilidad](compatibility.md) declara Rust 2024, MSRV 1.85 y las dependencias E2E verificadas. No implica compatibilidad con todas las versiones de Rust o crates; `Cargo.lock` y las pruebas por característica son la evidencia reproducible.
+La matriz de [compatibilidad](compatibility.md) declara Rust 2024, MSRV 1.99.1 y las dependencias E2E verificadas. No implica compatibilidad con todas las versiones de Rust o crates; `Cargo.lock` y las pruebas por característica son la evidencia reproducible.
 
 ## Límites de esta entrega
 

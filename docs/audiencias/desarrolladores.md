@@ -18,7 +18,7 @@ Para generar y ejecutar con las optimizaciones del perfil release de Cargo, aña
 
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` convierte un único archivo dentro del subconjunto reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol y mantiene los items Rust no convertidos como passthrough; `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 
-La CLI incluye `nuevo <directorio>`, `formato <archivo.ox> [--comprobar]` y `probar <archivo.ox>`. `formato` conserva comentarios y es idempotente en modo llaves según una prueba CLI; reimporta como modo llaves y convierte fuentes indentadas. `probar` delega en `cargo test`, por lo que un archivo sin funciones `#[test]` puede mostrar cero pruebas.
+La CLI incluye `nuevo <directorio>`, `formato <archivo.ox> [--comprobar]` y `probar <archivo.ox>`. `formato` conserva comentarios e idempotencia en ambos modos; en modo indentado aplica las convenciones de layout de Óxido cubiertas en la matriz de [pruebas](../testing.md), sin cambiar el modo. El texto `.ox` no pretende ser idéntico al Rust: al exportar, el `.rs` final pasa por `rustfmt` 1.99.1 y coincide carácter por carácter con su salida para los fixtures publicados. La matriz cubre las producciones estructurales iniciales, no todas las expresiones posibles de Rust. `probar` delega en `cargo test`, por lo que un archivo sin funciones `#[test]` puede mostrar cero pruebas.
 
 La CLI admite dependencias locales y versiones de crates.io mediante `oxido.toml`:
 
@@ -45,7 +45,7 @@ El crate `oxido-lsp` es un prototipo stdio con diagnósticos léxicos básicos. 
 - La semántica de tipos, ownership y borrowing pertenece a Rust.
 - El frontend Óxido transforma estructura y aliases; tipos y expresiones conservan sintaxis Rust.
 - Las macros estándar allowlisted traducen su nombre y pueden normalizar aliases en expresiones anidadas; DSLs de macros externos/no allowlisted y árboles de atributos desconocidos permanecen opacos.
-- El backend genera con `quote`/`proc_macro2` y formatea con `prettyplease`; los spans se guardan en un mapa lateral.
+- El backend genera con `quote`/`proc_macro2`, valida con Syn, usa `prettyplease` como formato intermedio y aplica `rustfmt` 1.99.1 al Rust final; los spans se mapean sobre la salida generada.
 
 Consulta la [especificación](/referencia/language-spec/), [arquitectura](/referencia/arquitectura/), [pipeline](/referencia/compiler-pipeline/) y [compatibilidad](/referencia/compatibility/).
 

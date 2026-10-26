@@ -1,0 +1,35 @@
+---
+const title = 'Página no encontrada | Óxido'
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="description" content="La página que buscas no existe o cambió de dirección." />
+    <title>{title}</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { box-sizing: border-box; display: grid; min-height: 100vh; margin: 0; padding: 2rem; place-items: center; background: #101820; color: #f4f7fa; }
+      main { width: min(100%, 38rem); }
+      p { color: #bdc9d4; line-height: 1.6; }
+      h1 { margin: 0; font-size: clamp(2rem, 7vw, 4rem); }
+      nav { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2rem; }
+      a { color: #91d6c2; }
+      a:focus-visible { outline: 3px solid currentColor; outline-offset: 4px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Óxido · Documentación</p>
+      <h1>404 — Página no encontrada</h1>
+      <p>La dirección no existe o cambió. Puedes volver al inicio o consultar la guía para desarrolladores.</p>
+      <nav aria-label="Navegación">
+        <a href="/">Ir al inicio</a>
+        <a href="/audiencias/desarrolladores/">Guía para desarrolladores</a>
+      </nav>
+    </main>
+  </body>
+</html>

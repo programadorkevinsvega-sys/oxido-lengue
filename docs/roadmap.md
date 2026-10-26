@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–8: completadas en el alcance documentado. Fase 9: en curso. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. Fase 9 ya cuenta con comandos iniciales `nuevo`, `formato`, `probar` e `importar-proyecto`; faltan regresiones y criterios de CLI antes de cerrarla.
+**Fases 0–9: completadas en el alcance documentado. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -52,7 +52,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 6. **Macros y atributos:** traducir nombres de macros estándar allowlisted; recorrer aliases en argumentos que son expresiones Rust, y mantener opacos los argumentos de macros externas/desconocidas y macros de metaprogramación. Los atributos solo se traducen con reglas allowlisted.
 7. **Compatibilidad:** crear matriz de construcciones conservadas, transformadas, rechazadas y pendientes.
 8. **Diagnósticos y posiciones:** definir códigos, severidad, rangos, etiquetas y contrato del mapa `.ox` ↔ `.rs`.
-9. **Backend:** especificar generación con árboles de tokens/AST (`proc_macro2`/`quote`) y formato estructural (`prettyplease`), nunca por concatenación de texto no confiable.
+9. **Backend:** especificar generación con árboles de tokens/AST (`proc_macro2`/`quote`), formato intermedio (`prettyplease`) y formato final `rustfmt` fijado, nunca por concatenación de texto no confiable.
 10. **Criterios de aceptación:** preparar fixtures positivos y negativos para cada decisión formal.
 
 **Entregables:** [especificación](language-spec.md), [gramática](grammar.md), [modos](syntax-modes.md), [alias y reservadas](aliases.md), [compatibilidad](compatibility.md), [diagnósticos y mapa](diagnostics.md), [pipeline](compiler-pipeline.md) y [criterios de aceptación](testing.md). La arquitectura y el scaffold documental están en [architecture.md](architecture.md) y [ARCHITECTURE_RULES.md](../ARCHITECTURE_RULES.md).
@@ -166,7 +166,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 5. **Escape:** comprobados `r#...` y diagnósticos `OX3001` con sugerencia en nombres de funciones, parámetros, patrones anidados, bindings y patrones de `para`.
 6. **Macros:** comprobado que las invocaciones y atributos conservan nombre y tokens internos, incluidos grupos anidados.
 7. **Equivalencia:** completada con pruebas que compilan y ejecutan el mismo caso en ambos modos y comparan su salida.
-8. **Formato:** la salida Rust de ambos modos se valida y normaliza con Syn/prettyplease; el formateo no reescribe ni cambia silenciosamente el archivo fuente `.ox`.
+8. **Formato:** la salida Rust de ambos modos se valida con Syn, usa prettyplease como formato intermedio y termina en rustfmt fijado; el formateo no reescribe ni cambia silenciosamente el archivo fuente `.ox`.
 
 **Entregables:** completados para el subconjunto inicial de funciones/control descrito en [informe de Fase 6](fase-6-sintaxis-bilinguismo.md); matriz de sintaxis y bilingüismo con pruebas de equivalencia y regresión.
 
@@ -218,7 +218,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 6. `async`/`await` y concurrencia. **Verificado para corpus concreto:** `.await` con `futures-executor`, `tokio::main`/`select!` y `std::thread`; el runtime lo elige la aplicación.
 7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus registrado:** `itoa`, `futures-executor`, Serde, Tokio, `serde_json`, `paste` y crates locales. No implica compatibilidad con crates arbitrarios.
 8. `unsafe`: preservar semántica Rust y ofrecer auditoría opcional. **Verificado para caso concreto:** una API de punteros válida compila y ejecuta sin rechazo por defecto; la auditoría puede rechazarla bajo opción explícita. Workspace Trust/sandbox de compilaciones editoriales corresponde a Fase 11.
-9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.85 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
+9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.99.1 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
 10. **Diagnósticos y preservación cruzada:** verificados para funciones, métodos, módulos y la macro externa probada. Cargo sobre el árbol exportado informa ubicaciones `.rs`; los mapas laterales no se consumen fuera de Óxido.
 
 **Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.
@@ -233,24 +233,24 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** entregar comandos estables y seguros para tareas habituales.
 
-**Estado actual:** en curso. La CLI tiene `nuevo`, `formato`, `probar` e `importar-proyecto`, además de los comandos anteriores. La implementación existe, pero el cierre requiere pruebas de integración de esos comandos y contratos precisos de idempotencia, errores y roundtrip.
+**Estado actual:** completada para el alcance documentado. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, que `formato` sea idempotente y conserve comentarios en ambos modos, y que el formato indentado reindente bloques/continuaciones, normalice espaciado, envuelva listas largas y mantenga comentarios, literales y grupos opacos. La importación de árboles cubre `.rs`/`.ox` mixtos, reescritura de `#[path]` relativo y rechazos de rutas inseguras. `compilar`, `ejecutar` y `probar` ofrecen `--json` con diagnósticos y ubicaciones relativas cuando están disponibles. La matriz CLI fija la salida `.ox`, exige que Rust exportado antes/después coincida carácter por carácter con `rustfmt` 1.99.1, compila ambos con `rustc` y ejecuta un fixture. El cruce de todas las producciones estructurales iniciales está documentado en [testing.md](testing.md); no afirma equivalencia universal para cada expresión Rust delegada a Syn. La suite remota del commit de cierre pasó.
 
 ### Subfases
 
 1. Definir nombres, argumentos, ayuda y códigos de salida.
-2. Crear proyectos con plantillas mínimas verificables.
-3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. `probar` invoca `cargo test` sobre el proyecto temporal del archivo; sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
-4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresión de idempotencia y comentarios para modo llaves. El reimportador genera modo llaves y no preserva fuentes indentadas; implementar ese modo antes de ampliar el soporte.
-5. **Diagnósticos CLI:** los mensajes humanos existen; un contrato de salida estructurada estable para CI sigue pendiente.
-6. **Importación/exportación:** exportación recursiva e importación inicial de árboles existen; falta una regresión de ida y vuelta para árboles, especialmente con `#[path]` y fuentes mixtas.
-7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables).
-8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos.
+2. Crear proyectos con plantillas mínimas verificables. La plantilla actual de `nuevo` tiene una prueba CLI que la compila y ejecuta; se comprueba también el rechazo de un directorio ya existente sin modificarlo.
+3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. Las pruebas CLI validan `nuevo` de extremo a extremo y que `probar` ejecute un ítem `#[test]`, propague el resultado fallido y rechace `--release`. Sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
+4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresiones CLI de idempotencia y conservación de comentarios para ambos modos. En modo indentado normaliza sangría a cuatro espacios, espaciado de tokens en código no opaco y envuelve listas largas en `()`/`[]` a 100 columnas; conserva literales, comentarios y DSLs opacas, y valida el resultado con el compilador. `formatter_conformance_matrix_matches_rustfmt_after_rust_export` fija el formato esperado de cinco grupos (items/tipos; traits, impl y módulos; macros/comentarios/async; expresiones/patrones; controles y bloques), comprueba idempotencia y exige que el Rust exportado, antes y después, coincida carácter por carácter con `rustfmt` 1.99.1. El cruce de producciones estructurales de `grammar.md` está completo y documentado en `testing.md`; las expresiones, tipos, patrones y DSLs que Rust delega a Syn no se enumeran exhaustivamente. La sintaxis `.ox` sigue convenciones de layout propias de Óxido; la igualdad carácter por carácter exigida es para el Rust generado.
+5. **Diagnósticos CLI:** `compilar`, `ejecutar` y `probar` aceptan `--json`. El esquema versión 1 informa éxito, diagnósticos, código/severidad/mensaje, archivo relativo y posición si existen, y salida del programa saneada. Errores tempranos usan `OX0001`; fallos Cargo sin diagnóstico mapeable usan `OX5001`. La regresión comprueba éxito y error de tipo con ubicación `.ox`, salida JSON por stdout y ausencia de rutas absolutas.
+6. **Importación/exportación:** pruebas CLI importan y vuelven a exportar árboles convencionales con `.rs`, `.ox` y `#[path]` relativo, conservan comentarios y ejecutan el resultado Rust. Se rechazan destinos existentes, enlaces simbólicos de destino, rutas fuera del proyecto, rutas ausentes y colisiones antes de escribir.
+7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables); ya hay una prueba CLI que verifica el informe y que no expone rutas absolutas.
+8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos; las regresiones actuales cubren las rutas de importación y escritura descritas arriba. El formato opera sobre el archivo solicitado y no sigue enlaces de salida ni crea archivos auxiliares.
 
 **Entregables:** CLI documentada y pruebas de integración de comandos.
 
-**Criterio de salida:** los comandos documentados tienen pruebas CLI positivas/negativas, resultados y errores verificables; operaciones de archivo restringen correctamente sus destinos. Formato y roundtrip de árboles tienen pruebas de idempotencia y conservación.
+**Criterio de salida:** cumplido para el alcance documentado. La revisión de cobertura estructural está cruzada con fixtures en `testing.md`. Para los fixtures de la matriz, el Rust exportado coincide carácter por carácter con `rustfmt`; `.ox` sigue convenciones de layout propias de Óxido. La matriz compila los exports y ejecuta un caso; no pretende enumerar todas las expresiones Rust que Syn admite. Los comandos y escenarios enumerados tienen pruebas CLI positivas/negativas, resultados verificables, destinos de importación restringidos, roundtrip ejecutable de árboles mixtos con `#[path]` y CI remota en verde.
 
-**Dependencia:** Fases 5–8 según comando.
+**Dependencia:** Fases 5–9 según comando.
 
 ---
 
@@ -395,9 +395,9 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
 | 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
-| 9 | En curso (CLI inicial) | `nuevo`, `formato`, `probar`, `importar-proyecto` ya tienen implementación inicial; ver secciones de la fase | Faltan regresiones CLI, salida estructurada y validación de formato/roundtrip de árboles |
+| 9 | Completada (alcance documentado) | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Conformidad de Rust generado con rustfmt en la matriz estructural, revisión de cobertura y CI remota; ver Fase 9 |
 | 10–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–8 están completadas para los alcances declarados. La Fase 9 está en curso. Las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–9 están completadas para los alcances declarados. Las limitaciones de la matriz no se consideran características implementadas.

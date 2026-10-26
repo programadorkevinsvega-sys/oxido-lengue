@@ -30,6 +30,406 @@ impl Drop for TestDirectory {
 }
 
 #[test]
+fn new_creates_a_runnable_project_and_rejects_an_existing_directory() {
+    let temp = TestDirectory::new();
+    let project = temp.0.join("proyecto");
+
+    let created = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["nuevo", "proyecto"])
+        .output()
+        .unwrap();
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    assert!(project.join("oxido.toml").is_file());
+    let source_path = project.join("src/main.ox");
+    let original_source = fs::read_to_string(&source_path).unwrap();
+    assert!(original_source.contains("funcion principal():"));
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["ejecutar", "proyecto/src/main.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("Hola, Óxido."));
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["nuevo", "proyecto"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("el directorio ya existe"));
+    assert_eq!(fs::read_to_string(source_path).unwrap(), original_source);
+}
+
+#[test]
+fn test_command_runs_a_real_rust_test_and_rejects_release_mode() {
+    let temp = TestDirectory::new();
+    let source_path = temp.0.join("suite.ox");
+    fs::write(
+        &source_path,
+        "sintaxis llaves\n#[test]\nfn cli_ejecuta_una_prueba_real() { assert_eq!(2 + 2, 4); }\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["probar", "suite.ox", "--release"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("probar no admite --release"));
+
+    let tested = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["probar", "suite.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        tested.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&tested.stdout),
+        String::from_utf8_lossy(&tested.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&tested.stdout).contains("1 passed"),
+        "{}",
+        String::from_utf8_lossy(&tested.stdout)
+    );
+
+    fs::write(
+        &source_path,
+        "sintaxis llaves\n#[test]\nfn cli_propaga_una_prueba_fallida() { assert_eq!(2 + 2, 5); }\nfn main() {}\n",
+    )
+    .unwrap();
+    let failed_test = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["probar", "suite.ox"])
+        .output()
+        .unwrap();
+    assert!(!failed_test.status.success());
+    let failure_output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&failed_test.stdout),
+        String::from_utf8_lossy(&failed_test.stderr)
+    );
+    assert!(
+        failure_output.contains("cli_propaga_una_prueba_fallida"),
+        "salida de la CLI:\n{failure_output}"
+    );
+    assert!(
+        failure_output.contains("FAILED"),
+        "salida de la CLI:\n{failure_output}"
+    );
+}
+
+#[test]
+fn cargo_commands_emit_structured_json_for_success_and_source_diagnostics() {
+    let temp = TestDirectory::new();
+    let source_path = temp.0.join("principal.ox");
+    fs::write(
+        &source_path,
+        "sintaxis llaves\nfuncion principal() { println!(\"json-ok\"); }\n",
+    )
+    .unwrap();
+
+    let successful = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["ejecutar", "principal.ox", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        successful.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&successful.stdout),
+        String::from_utf8_lossy(&successful.stderr)
+    );
+    assert!(successful.stderr.is_empty());
+    let success_report: serde_json::Value = serde_json::from_slice(&successful.stdout).unwrap();
+    assert_eq!(success_report["schemaVersion"], 1);
+    assert_eq!(success_report["success"], true);
+    assert!(
+        success_report["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|line| line == "json-ok")
+    );
+    assert!(!String::from_utf8_lossy(&successful.stdout).contains(temp.0.to_str().unwrap()));
+
+    fs::write(
+        &source_path,
+        "sintaxis llaves\nfuncion principal() { dejar valor: i32 = \"texto\"; }\n",
+    )
+    .unwrap();
+    let failed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["compilar", "principal.ox", "--json"])
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    assert!(failed.stderr.is_empty());
+    let failure_report: serde_json::Value = serde_json::from_slice(&failed.stdout).unwrap();
+    assert_eq!(failure_report["schemaVersion"], 1);
+    assert_eq!(failure_report["success"], false);
+    assert!(
+        failure_report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diagnostic| diagnostic["file"] == "principal.ox"
+                && diagnostic["line"].as_u64().is_some()
+                && diagnostic["column"].as_u64().is_some())
+    );
+    assert!(!String::from_utf8_lossy(&failed.stdout).contains(temp.0.to_str().unwrap()));
+
+    let missing_path = temp.0.join("no-existe.ox");
+    let early_failure = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["compilar", missing_path.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(!early_failure.status.success());
+    assert!(early_failure.stderr.is_empty());
+    let early_report: serde_json::Value = serde_json::from_slice(&early_failure.stdout).unwrap();
+    assert_eq!(early_report["diagnostics"][0]["code"], "OX0001");
+    assert!(!String::from_utf8_lossy(&early_failure.stdout).contains(temp.0.to_str().unwrap()));
+}
+
+#[test]
+fn import_project_preserves_a_runnable_tree_and_export_roundtrips_it() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir_all(&rust_source).unwrap();
+    fs::write(
+        rust_source.join("main.rs"),
+        "// raíz Rust\nmod utilidades;\nfn main() { println!(\"{}\", utilidades::mensaje()); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("utilidades.rs"),
+        "// comentario conservado\npub fn mensaje() -> &'static str { \"árbol importado\" }\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    let imported_main = fs::read_to_string(ox_source.join("main.ox")).unwrap();
+    let imported_module = fs::read_to_string(ox_source.join("utilidades.ox")).unwrap();
+    assert!(imported_main.starts_with("sintaxis llaves\n// raíz Rust"));
+    assert!(imported_module.contains("// comentario conservado"));
+    assert!(imported_module.contains("funcion mensaje()"));
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["ejecutar", "oxido/main.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("árbol importado"));
+
+    fs::create_dir(temp.0.join("exportado")).unwrap();
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["exportar", "oxido/main.ox", "--salida", "exportado/main.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let exported_main = fs::read_to_string(temp.0.join("exportado/main.rs")).unwrap();
+    let exported_module = fs::read_to_string(temp.0.join("exportado/utilidades.rs")).unwrap();
+    assert!(exported_main.contains("// raíz Rust"));
+    assert!(exported_module.contains("// comentario conservado"));
+
+    let compiled = Command::new("rustc")
+        .current_dir(&temp.0)
+        .args(["exportado/main.rs", "-o", "exportado/programa"])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let exported_run = Command::new(temp.0.join("exportado/programa"))
+        .output()
+        .unwrap();
+    assert!(exported_run.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&exported_run.stdout),
+        "árbol importado\n"
+    );
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert_eq!(
+        fs::read_to_string(ox_source.join("main.ox")).unwrap(),
+        imported_main
+    );
+}
+
+#[test]
+fn import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir_all(rust_source.join("nested")).unwrap();
+    fs::write(
+        rust_source.join("main.rs"),
+        "#[path = \"nested/datos.rs\"]\nmod datos;\nmod nativo;\nfn main() { println!(\"{}:{}\", datos::mensaje(), nativo::valor()); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("nested/datos.rs"),
+        "// módulo Rust importado\npub fn mensaje() -> &'static str { \"#[path]\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("nativo.ox"),
+        "sintaxis llaves\n// módulo Óxido preexistente\npub funcion valor() -> i32 { 42 }\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    let imported_main = fs::read_to_string(ox_source.join("main.ox")).unwrap();
+    assert!(imported_main.contains("#[path = \"nested/datos.ox\"]"));
+    assert!(
+        fs::read_to_string(ox_source.join("nativo.ox"))
+            .unwrap()
+            .contains("// módulo Óxido preexistente")
+    );
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["ejecutar", "oxido/main.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("#[path]:42"));
+
+    fs::create_dir(temp.0.join("exportado")).unwrap();
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["exportar", "oxido/main.ox", "--salida", "exportado/main.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    assert!(
+        fs::read_to_string(temp.0.join("exportado/main.rs"))
+            .unwrap()
+            .contains("#[path = \"nested/datos.rs\"]")
+    );
+    let compiled = Command::new("rustc")
+        .current_dir(&temp.0)
+        .args(["exportado/main.rs", "-o", "exportado/programa"])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let exported_run = Command::new(temp.0.join("exportado/programa"))
+        .output()
+        .unwrap();
+    assert!(exported_run.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&exported_run.stdout),
+        "#[path]:42\n"
+    );
+}
+
+#[test]
+fn import_project_rejects_a_path_attribute_that_escapes_without_creating_output() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    fs::create_dir(&rust_source).unwrap();
+    fs::write(
+        rust_source.join("main.rs"),
+        "#[path = \"../outside.rs\"]\nmod outside;\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(!imported.status.success());
+    assert!(String::from_utf8_lossy(&imported.stderr).contains("sale de la raíz"));
+    assert!(!temp.0.join("oxido").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn import_project_rejects_a_symlink_output_destination() {
+    use std::os::unix::fs::symlink;
+
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let outside = temp.0.join("outside");
+    fs::create_dir(&rust_source).unwrap();
+    fs::create_dir(&outside).unwrap();
+    fs::write(rust_source.join("main.rs"), "fn main() {}\n").unwrap();
+    symlink(&outside, temp.0.join("oxido")).unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(!imported.status.success());
+    assert!(String::from_utf8_lossy(&imported.stderr).contains("ya existe"));
+    assert_eq!(fs::read_dir(outside).unwrap().count(), 0);
+}
+
+#[test]
 fn formats_braced_source_idempotently_without_losing_comments() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");
@@ -83,6 +483,28 @@ fn formats_braced_source_idempotently_without_losing_comments() {
         first_result.find("// comentario al final del archivo") > first_result.find("funcion main")
     );
 
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["exportar", "comentarios.ox", "--salida", "comentarios.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let rustfmt_check = Command::new("rustfmt")
+        .env("RUSTUP_TOOLCHAIN", "1.99.1")
+        .current_dir(&work)
+        .args(["--check", "--edition", "2024", "comentarios.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        rustfmt_check.status.success(),
+        "el Rust exportado del modo llaves no está en formato rustfmt: {}",
+        String::from_utf8_lossy(&rustfmt_check.stderr)
+    );
+
     let check_after = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&work)
         .args(["formato", "comentarios.ox", "--comprobar"])
@@ -105,6 +527,329 @@ fn formats_braced_source_idempotently_without_losing_comments() {
         String::from_utf8_lossy(&formatted_again.stderr)
     );
     assert_eq!(fs::read_to_string(&source_path).unwrap(), first_result);
+}
+
+#[test]
+fn formats_indented_source_idempotently_without_moving_comments_or_literals() {
+    let temp = TestDirectory::new();
+    let work = temp.0.join("project");
+    fs::create_dir(&work).unwrap();
+    let source_path = work.join("indentado.ox");
+    let original = "sintaxis indentacion\n// comentario inicial con espacios   \nfuncion principal():   \n    imprimir!(r#\"primera línea  \nsegunda línea\"#)   \n    // comentario interno con espacios   \n";
+    fs::write(&source_path, original).unwrap();
+
+    let check_before = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "indentado.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(!check_before.status.success());
+    assert_eq!(fs::read_to_string(&source_path).unwrap(), original);
+
+    let formatted = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "indentado.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    let first_result = fs::read_to_string(&source_path).unwrap();
+    assert!(first_result.starts_with("sintaxis indentacion\n"));
+    assert!(first_result.contains("// comentario inicial con espacios   \n"));
+    assert!(first_result.contains("    // comentario interno con espacios   \n"));
+    assert!(first_result.contains("r#\"primera línea  \nsegunda línea\"#"));
+    assert!(first_result.contains("funcion principal():\n"));
+    assert!(!first_result.contains("principal():   \n"));
+
+    let check_after = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "indentado.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(
+        check_after.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check_after.stderr)
+    );
+
+    let formatted_again = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "indentado.ox"])
+        .output()
+        .unwrap();
+    assert!(formatted_again.status.success());
+    assert_eq!(fs::read_to_string(&source_path).unwrap(), first_result);
+}
+
+#[test]
+fn formats_indented_source_with_rust_like_spacing_and_canonical_nested_indentation() {
+    let temp = TestDirectory::new();
+    let work = temp.0.join("project");
+    fs::create_dir(&work).unwrap();
+    let source_path = work.join("anidado.ox");
+    fs::write(
+        &source_path,
+        "sintaxis indentacion\nfuncion identidad<T:Clone>( valor:T )->T:   \n  retornar valor\n\nfuncion suma(a:i32,b:i32)->i32:\n  retornar a+b\n\nfuncion principal( ):   \n  dejar resultado=suma(\n      1,\n  2\n ) // llamada   \n  si resultado>0:\n      afirmar_igual!(identidad(resultado),3)\n  sino:\n    afirmar_igual!(resultado,0)\n",
+    )
+    .unwrap();
+
+    let formatted = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "anidado.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&formatted.stdout),
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(&source_path).unwrap(),
+        "sintaxis indentacion\nfuncion identidad<T: Clone>(valor: T) -> T:\n    retornar valor\n\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n\nfuncion principal():\n    dejar resultado = suma(\n        1,\n        2\n    )  // llamada\n    si resultado > 0:\n        afirmar_igual!(identidad(resultado),3)\n    sino:\n        afirmar_igual!(resultado,0)\n"
+    );
+
+    let check = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["formato", "anidado.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&work)
+        .args(["ejecutar", "anidado.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&executed.stdout),
+        String::from_utf8_lossy(&executed.stderr)
+    );
+}
+
+#[test]
+fn formats_long_rust_expressions_into_wrapped_argument_groups() {
+    let temp = TestDirectory::new();
+    let source = temp.0.join("largo.ox");
+    fs::write(
+        &source,
+        "sintaxis indentacion\nfuncion principal():\n    dejar resultado=combinar(11111111111111111111,22222222222222222222,33333333333333333333,44444444444444444444)\n",
+    )
+    .unwrap();
+
+    let formatted = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["formato", "largo.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        formatted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    let result = fs::read_to_string(&source).unwrap();
+    assert!(
+        result.contains("combinar(\n        11111111111111111111,\n"),
+        "{result}"
+    );
+    assert!(result.contains("        44444444444444444444\n    )"));
+
+    let check = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["formato", "largo.ox", "--comprobar"])
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+}
+
+#[test]
+fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
+    let cases = [
+        (
+            "items-y-tipos",
+            "sintaxis indentacion\n#![allow(dead_code)]\n//! Documentación interna del módulo.\nusar std::collections::{HashMap,HashSet};\n#[derive(Clone,Debug)]\n/// Inventario genérico documentado.\npub estructura Inventario<T:Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T:Clone>(valor:T)->Resultado<T,Cadena>:\n    dejar copia=valor.clone()\n    Bien(copia)\n",
+            "sintaxis indentacion\n#![allow(dead_code)]\n//! Documentación interna del módulo.\nusar std::collections::{HashMap, HashSet};\n#[derive(Clone,Debug)]\n/// Inventario genérico documentado.\npub estructura Inventario<T: Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T: Clone>(valor: T) -> Resultado<T, Cadena>:\n    dejar copia = valor.clone()\n    Bien(copia)\n",
+        ),
+        (
+            "contenedores-y-control",
+            "sintaxis indentacion\n/// Contenedor usado por el ejemplo.\nestructura Contenedor<T>:\n    valor:T\n\n/// Trait con tipo asociado y método predeterminado.\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo)->usize;\n    funcion es_positivo(&mismo)->bool:\n        mismo.medir()>0\n\nimplementar Medible for Contenedor<i32>:\n    tipo Medida=usize;\n    funcion medir(&mismo)->usize:\n        mismo.valor como usize\n\nimplementar<T:Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION:u32=1;\n    publico funcion nuevo(valor:T)->Contenedor<T>:\n        Contenedor{valor:valor}\n\n    funcion obtener(&mismo)->&T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo,valor:T):\n        mismo.valor=valor\n\nmodulo interno:\n    funcion sumar(valores:&Vector<i32>)->i32:\n        valores.iter().map(|valor|*valor).sum()\n\nfuncion evaluar(valor:i32)->i32:\n    coincidir valor:\n        0=>1\n        1=>\n            dejar resultado=2\n            resultado\n        _=>3\n",
+            "sintaxis indentacion\n/// Contenedor usado por el ejemplo.\nestructura Contenedor<T>:\n    valor: T\n\n/// Trait con tipo asociado y método predeterminado.\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo) -> usize;\n    funcion es_positivo(&mismo) -> bool:\n        mismo.medir() > 0\n\nimplementar Medible for Contenedor<i32>:\n    tipo Medida = usize;\n    funcion medir(&mismo) -> usize:\n        mismo.valor como usize\n\nimplementar<T: Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION: u32 = 1;\n    publico funcion nuevo(valor: T) -> Contenedor<T>:\n        Contenedor { valor: valor }\n\n    funcion obtener(&mismo) -> &T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo, valor: T):\n        mismo.valor = valor\n\nmodulo interno:\n    funcion sumar(valores: &Vector<i32>) -> i32:\n        valores.iter().map(|valor| *valor).sum()\n\nfuncion evaluar(valor: i32) -> i32:\n    coincidir valor:\n        0 => 1\n        1 =>\n            dejar resultado = 2\n            resultado\n        _ => 3\n",
+        ),
+        (
+            "macros-comentarios-y-async",
+            "sintaxis indentacion\n// comentario de archivo\nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor:i32)->i32:\n    dejar texto=r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total=0\n    para valor en [1,2,3].iter():\n        total+=*valor\n    mientras total>0:\n        romper\n    imprimir!(\"{}\",total)\n",
+            "sintaxis indentacion\n// comentario de archivo\nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor: i32) -> i32:\n    dejar texto = r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total = 0\n    para valor en [1, 2, 3].iter():\n        total += *valor\n    mientras total > 0:\n        romper\n    imprimir!(\"{}\",total)\n",
+        ),
+        (
+            "expresiones-y-patrones",
+            "sintaxis indentacion\ntipo Par = (i32,i32);\nconst LIMITE:usize=3;\n\nfuncion evaluar(valores:&Vector<i32>,objetivo:i32)->Resultado<i32,Cadena>:\n    dejar mutable suma:i32=valores.iter().enumerate().fold(0,|acumulado,(indice,valor)|{\n        let compensado=*valor+indice as i32;\n        acumulado+compensado\n    });\n    si let Some(encontrado)=valores.iter().find(|valor|**valor==objetivo):\n        retornar Bien(*encontrado)\n    sino:\n        coincidir suma:\n            0=>Err(\"vacío\".to_owned())\n            numero=>Bien(numero)\n            _=>Err(\"sin resultado\".to_owned())\n",
+            "sintaxis indentacion\ntipo Par = (i32, i32);\nconst LIMITE: usize = 3;\n\nfuncion evaluar(valores: &Vector<i32>, objetivo: i32) -> Resultado<i32, Cadena>:\n    dejar mutable suma: i32 = valores.iter().enumerate().fold(0, |acumulado, (indice, valor)| {\n        let compensado = *valor + indice as i32;\n        acumulado + compensado\n    });\n    si let Some(encontrado) = valores.iter().find(|valor| **valor == objetivo):\n        retornar Bien(*encontrado)\n    sino:\n        coincidir suma:\n            0 => Err(\"vacío\".to_owned())\n            numero => Bien(numero)\n            _ => Err(\"sin resultado\".to_owned())\n",
+        ),
+        (
+            "control-y-bloques",
+            "sintaxis indentacion\nfuncion ciclo(limite:bool)->i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion ciclo_con_etiqueta(limite:bool)->i32:\n    'salida: loop { if limite { break 'salida 3; } continue 'salida; }\n\nfuncion seleccionar(valor:bool)->i32:\n    si valor:\n        1\n    sino:\n        2\n\nfuncion seleccionar_anidado(valor:i32)->i32:\n    si valor<0:\n        -1\n    sino si valor==0:\n        0\n    sino:\n        valor\n\nfuncion devolver_sin_valor():\n    retornar\n\nfuncion semicolon_y_tail()->i32:\n    1;\n    0\n",
+            "sintaxis indentacion\nfuncion ciclo(limite: bool) -> i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion ciclo_con_etiqueta(limite: bool) -> i32:\n    'salida: loop { if limite { break 'salida 3; } continue 'salida; }\n\nfuncion seleccionar(valor: bool) -> i32:\n    si valor:\n        1\n    sino:\n        2\n\nfuncion seleccionar_anidado(valor: i32) -> i32:\n    si valor < 0:\n        -1\n    sino si valor == 0:\n        0\n    sino:\n        valor\n\nfuncion devolver_sin_valor():\n    retornar\n\nfuncion semicolon_y_tail() -> i32:\n    1;\n    0\n",
+        ),
+    ];
+
+    for (name, input, expected) in cases {
+        let temp = TestDirectory::new();
+        let source = temp.0.join(format!("{name}.ox"));
+        fs::write(&source, input).unwrap();
+        let before_rust = temp.0.join("before.rs");
+        let before_export = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args([
+                "exportar",
+                source.file_name().unwrap().to_str().unwrap(),
+                "--salida",
+                "before.rs",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            before_export.status.success(),
+            "caso {name}: {}",
+            String::from_utf8_lossy(&before_export.stderr)
+        );
+        let before_generated = fs::read_to_string(&before_rust).unwrap();
+        let formatted_before = Command::new("rustfmt")
+            .env("RUSTUP_TOOLCHAIN", "1.99.1")
+            .current_dir(&temp.0)
+            .args(["--edition", "2024", "before.rs"])
+            .output()
+            .unwrap();
+        assert!(
+            formatted_before.status.success(),
+            "rustfmt caso {name}: {}",
+            String::from_utf8_lossy(&formatted_before.stderr)
+        );
+        let before_rustfmt = fs::read_to_string(&before_rust).unwrap();
+        assert_eq!(
+            before_generated, before_rustfmt,
+            "el Rust exportado antes de oxido formato no coincide con rustfmt, caso {name}"
+        );
+
+        let formatted_ox = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args(["formato", source.file_name().unwrap().to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(
+            formatted_ox.status.success(),
+            "caso {name}: {}",
+            String::from_utf8_lossy(&formatted_ox.stderr)
+        );
+        assert_eq!(
+            fs::read_to_string(&source).unwrap(),
+            expected,
+            "salida .ox del caso {name}"
+        );
+        let format_check = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args([
+                "formato",
+                source.file_name().unwrap().to_str().unwrap(),
+                "--comprobar",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            format_check.status.success(),
+            "formato no idempotente, caso {name}: {}",
+            String::from_utf8_lossy(&format_check.stderr)
+        );
+
+        let after_export = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args([
+                "exportar",
+                source.file_name().unwrap().to_str().unwrap(),
+                "--salida",
+                "after.rs",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            after_export.status.success(),
+            "caso {name}: {}",
+            String::from_utf8_lossy(&after_export.stderr)
+        );
+        let after_generated = fs::read_to_string(temp.0.join("after.rs")).unwrap();
+        let formatted_after = Command::new("rustfmt")
+            .env("RUSTUP_TOOLCHAIN", "1.99.1")
+            .current_dir(&temp.0)
+            .args(["--edition", "2024", "after.rs"])
+            .output()
+            .unwrap();
+        assert!(
+            formatted_after.status.success(),
+            "rustfmt tras oxido formato, caso {name}: {}",
+            String::from_utf8_lossy(&formatted_after.stderr)
+        );
+        let after_rustfmt = fs::read_to_string(temp.0.join("after.rs")).unwrap();
+        assert_eq!(
+            after_generated, after_rustfmt,
+            "el Rust exportado por oxido formato no coincide con rustfmt, caso {name}"
+        );
+        assert_eq!(
+            before_rustfmt, after_rustfmt,
+            "`oxido formato` alteró el Rust normalizado por rustfmt, caso {name}"
+        );
+
+        for rust_file in ["before.rs", "after.rs"] {
+            let compiled = Command::new("rustc")
+                .env("RUSTUP_TOOLCHAIN", "1.99.1")
+                .current_dir(&temp.0)
+                .args([
+                    "--edition",
+                    "2024",
+                    "--crate-type",
+                    "lib",
+                    "--crate-name",
+                    &name.replace('-', "_"),
+                    rust_file,
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                compiled.status.success(),
+                "rustc {rust_file}, caso {name}: {}",
+                String::from_utf8_lossy(&compiled.stderr)
+            );
+        }
+
+        if name == "macros-comentarios-y-async" {
+            let binary = temp.0.join("macros-y-async");
+            let compiled = Command::new("rustc")
+                .env("RUSTUP_TOOLCHAIN", "1.99.1")
+                .current_dir(&temp.0)
+                .args(["--edition", "2024", "after.rs", "-o", "macros-y-async"])
+                .output()
+                .unwrap();
+            assert!(
+                compiled.status.success(),
+                "rustc ejecutable del caso {name}: {}",
+                String::from_utf8_lossy(&compiled.stderr)
+            );
+            let execution = Command::new(binary).output().unwrap();
+            assert!(execution.status.success());
+            assert_eq!(execution.stdout, b"6\n");
+        }
+    }
 }
 
 #[test]

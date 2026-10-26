@@ -221,6 +221,14 @@ pub fn import_rust(source: &SourceFile) -> Result<String, String> {
     Ok(imported)
 }
 
+/// Reescribe valores de `#[path]` de forma estructural sin alterar trivia del archivo.
+pub fn rewrite_rust_module_paths(
+    source: &SourceFile,
+    rewrite: impl FnMut(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    oxido_rust_backend::rewrite_module_path_attributes(source, rewrite)
+}
+
 /// Resultado del análisis sintáctico Rust inicial.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Analysis {

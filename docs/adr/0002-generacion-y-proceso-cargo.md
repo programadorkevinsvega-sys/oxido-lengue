@@ -10,7 +10,7 @@ La Fase 4 produce un AST estructural y fragmentos Rust validados, pero todavía 
 
 ## Decisión
 
-- El backend convierte el AST con `proc_macro2`/`quote`, valida el archivo con Syn y lo formatea con `prettyplease`.
+- El backend convierte el AST con `proc_macro2`/`quote`, valida el archivo con Syn y usa `prettyplease` como formateador intermedio.
 - El mapa lateral registra spans de AST y fragmentos de origen contra ubicaciones del `.rs` formateado. Se versiona para que CLI, Cargo y el editor compartan el contrato.
 - El adaptador Cargo vive en el límite de infraestructura `oxido-cargo`; invoca `Command` con argumentos separados, directorio de trabajo explícito y mensajes JSON. El dominio del lenguaje no depende del proceso Cargo.
 - Exportar escribe Rust y mapa inspeccionables. Compilar y ejecutar son acciones explícitas; los errores de Cargo que no se puedan mapear se conservan como errores externos.
@@ -26,3 +26,6 @@ La Fase 4 produce un AST estructural y fragmentos Rust validados, pero todavía 
 ## Evidencia
 
 El estado y las tareas de la Fase 5 están en [roadmap](../roadmap.md#fase-5-primer-compilador-funcional); las reglas generales del flujo están en [pipeline](../compiler-pipeline.md).
+## Evolución de la implementación
+
+En Fase 9, el backend añadió `rustfmt` 1.99.1 (edición 2024) después de `prettyplease` y antes de exportar. La matriz verifica igualdad carácter por carácter con esa salida para las producciones estructurales documentadas. Esto conserva la decisión de generar desde tokens y AST, sin concatenar texto de entrada.

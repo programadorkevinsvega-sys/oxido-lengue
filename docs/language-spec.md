@@ -1,6 +1,6 @@
 # Especificación del lenguaje Óxido 0.1
 
-**Estado:** especificación inicial cerrada para iniciar la implementación; aún no describe código implementado.  
+**Estado:** contrato normativo de Óxido 0.1. Describe el diseño del lenguaje; la implementación verificada por característica está en [compatibility.md](compatibility.md), y no se infiere del texto de esta especificación.
 **Fuente normativa:** esta especificación y los documentos enlazados abajo.  
 **Edición objetivo de Rust:** 2024.
 

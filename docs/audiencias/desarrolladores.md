@@ -16,7 +16,9 @@ cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox
 
 Para generar y ejecutar con las optimizaciones del perfil release de Cargo, añade `--release` a `compilar` o `ejecutar`. Por ejemplo: `cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox --release`.
 
-`exportar` crea además el mapa `.oxido-map.json`. `importar` acepta solo el subconjunto reversible de funciones libres y verifica que regenerar conserve el Rust formateado. `analizar-rust` sigue validando archivos `.rs` directamente.
+`exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` convierte un único archivo dentro del subconjunto reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol y mantiene los items Rust no convertidos como passthrough; `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
+
+La CLI incluye `nuevo <directorio>`, `formato <archivo.ox> [--comprobar]` y `probar <archivo.ox>`. `formato` es un prototipo: reimporta como modo llaves y no conserva fuentes indentadas; no lo uses para reformatear esas fuentes. `probar` delega en `cargo test`, por lo que un archivo sin funciones `#[test]` puede mostrar cero pruebas.
 
 La CLI admite dependencias locales y versiones de crates.io mediante `oxido.toml`:
 
@@ -34,6 +36,8 @@ Por defecto declara dependencias de crates.io con `version`. `oxido descargar-de
 `oxido auditar-unsafe archivo.ox` informa tokens `inseguro`; añade `--rechazar` para que el comando falle al encontrar alguno. El análisis es léxico, no compila ni ejecuta el proyecto y no detecta toda la superficie de riesgo.
 
 `oxido auditar-proyecto .` enumera `unsafe`, archivos `build.rs`, manifiestos de crates `proc-macro`, bloques FFI y llamadas `Command::new` detectables. No ejecuta Cargo ni sigue symlinks; los hallazgos usan rutas relativas. Es un inventario estático, no una garantía de seguridad.
+
+El crate `oxido-lsp` es un prototipo stdio con diagnósticos léxicos básicos. La respuesta de semantic tokens es heurística e incompleta, no sirve para resaltado fiable; tampoco integra `rust-analyzer`, Workspace Trust ni compilación desde VS Code. No hay una extensión VS Code funcional.
 
 ## Dirección técnica
 

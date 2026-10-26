@@ -16,7 +16,7 @@ La meta de Óxido es interoperar con el ecosistema Rust sin exigir cambios en la
 
 ## Verificación requerida
 
-La Fase 8 debe cerrar regresiones para crates reales sin modificar, traits/genéricos/lifetimes, macros declarativas y procedurales, fidelidad de DSL, runtimes asíncronos externos, APIs `unsafe` válidas y diagnósticos mapeados a `.ox`. Incluye casos de referencia con `serde` derive, macros de función externas y `tokio::main` cuando su configuración se cubra en el fixture. La Fase 10 aporta infraestructura común de laboratorio y reportes; no absorbe ni aplaza criterios de interoperabilidad de Fase 8. Los casos no ejecutados deben quedar como pendientes/no evaluados; no como aprobados.
+La Fase 8 cerró los criterios de interoperabilidad para los casos documentados en [su informe](../fase-8-integracion-rust.md): crates externos, traits/genéricos/lifetimes, macros declarativas/procedurales, DSL, async, API `unsafe` y diagnósticos. La evidencia cubre versiones fijadas y un corpus concreto, no compatibilidad general. La Fase 10 puede aportar infraestructura común de laboratorio y reportes; cualquier nueva afirmación de compatibilidad requiere una prueba propia.
 
 ## Consecuencias
 

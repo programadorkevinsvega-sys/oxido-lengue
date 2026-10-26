@@ -1,4 +1,4 @@
-# Fase 5 — Primer compilador funcional
+# Fase 5 — Primer compilador funcional (alcance original)
 
 **Estado:** completada para la rebanada vertical inicial. Esto no representa compatibilidad general con Rust ni un compilador listo para producción.
 
@@ -16,11 +16,13 @@
 - Configuración `oxido.toml` de datos declarativos para resolver el modo del archivo.
 - Importación restringida al subconjunto reversible de funciones libres y passthrough de items Rust, suficiente para recorrer árboles con `mod` y archivos mixtos. Se rechazan modificadores de función que no pueden volver de forma reversible. La exportación conserva comentarios ordinarios no opacos insertándolos desde los spans del lexer tras el formateo de Rust; la importación conserva el texto de origen y cambia únicamente `fn` por `funcion`. La prueba CLI inspecciona ambos archivos y confirma que los comentarios sobreviven a `.ox → .rs → .ox → .rs`. El formateo puede normalizar espacios y estructura Rust; no promete conservar el formato original. Los comentarios ordinarios dentro de argumentos opacos de macros/atributos se rechazan explícitamente para evitar perderlos o alterar DSLs.
 
-## Límites pendientes
+## Límites de la entrega original
 
-La sintaxis de items y bloques sigue limitada al alcance inicial de Fases 3 y 4. No se admiten aquí dependencias de usuario, proyectos Cargo arbitrarios, importación general de Rust ni la compatibilidad amplia de la matriz. El flujo no sandboxea código de dependencias o macros: la Fase 5 genera un proyecto controlado sin dependencias de usuario y ejecuta código solo ante el comando explícito `ejecutar`. Las políticas de confianza para LSP/playground y la ampliación segura de compilación pertenecen a sus fases correspondientes.
+En el momento de esta entrega, la sintaxis de items y bloques seguía limitada al alcance inicial de Fases 3 y 4, sin dependencias de usuario ni importación de árboles. Esos límites se ampliaron después y su estado vigente está en [compatibility.md](compatibility.md), [Fase 8](fase-8-integracion-rust.md) y el [roadmap](roadmap.md). La CLI actual sigue sin sandbox para código de dependencias; `--confiar-dependencias` solo registra la autorización explícita del operador.
 
-La verificación incluye `cargo fmt --all -- --check`, `cargo test --workspace --locked` y `cargo clippy --workspace --all-targets --locked -- -D warnings`. La CI remota del repositorio público está activa y ejecuta los checks del workflow; la evidencia local no sustituye esos resultados.
+Este inventario registra los comandos y el alcance originales de Fase 5. La CLI actual añade `nuevo`, `formato` (prototipo), `probar` e `importar-proyecto`; su estado vigente está en [compatibility.md](compatibility.md) y el trabajo pendiente de cierre en [Fase 9](roadmap.md).
+
+La verificación original incluyó `cargo fmt --all -- --check`, `cargo test --workspace --locked` y `cargo clippy --workspace --all-targets --locked -- -D warnings`. La CI remota del repositorio público ejecuta los checks de su workflow; esta mención no representa el resultado de una ejecución actual.
 
 ## Decisiones
 

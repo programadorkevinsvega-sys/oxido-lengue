@@ -1,6 +1,8 @@
 # Fase 4: parser estructural inicial y AST
 
-**Estado:** completada para el subconjunto inicial que la fase entrega. El alcance se cierra aquí; las ampliaciones que aparecen como parciales en la matriz de compatibilidad no se presentan como implementadas.
+> Informe histórico del alcance al cierre de Fase 4. Las extensiones implementadas después se detallan en Fases 7–8 y en la [matriz vigente](compatibility.md).
+
+**Estado:** Fase 4 completada para su subconjunto inicial documentado. Esta etiqueta no describe por sí sola el alcance actual del parser.
 
 ## Alcance implementado
 

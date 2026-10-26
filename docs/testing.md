@@ -58,7 +58,7 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 - Comentarios `//` y `/* ... */` no se traducen y conservan su texto al exportar/importar fuera de grupos opacos.
 - Se comprueban comentarios antes de items, inline, dentro/final de bloques, entre brazos, multilínea y al final del archivo.
 - Las líneas añadidas por comentarios se reflejan en el mapa de posiciones `.ox`↔`.rs`.
-- El comando `oxido formato` aún no está implementado; su aceptación exige idempotencia y conservación explícita de comentarios.
+- `oxido formato` es un prototipo y actualmente reimporta la salida en modo llaves; no usar con fuentes indentadas. Falta implementar y probar formato que preserve modo, comentarios e idempotencia.
 
 ## Parser, backend y diagnóstico
 
@@ -67,7 +67,7 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 - Cada token emitido conserva span; tokens sintéticos mapean a introductor de bloque.
 - Error Rust en archivo generado mapea a rango `.ox` mediante JSON, no mediante texto de terminal.
 - Error de dependencia externa conserva ruta y código externos.
-- LSP usa los mismos tokens y spans que el CLI.
+- El servidor LSP inicial acepta mensajes JSON-RPC sobre stdio y publica diagnósticos léxicos al abrir/cambiar documentos. Sus semantic tokens usan una heurística incompleta; no son fiables para resaltado. Faltan pruebas de posiciones, semantic tokens y cambios incrementales.
 
 ## Interoperabilidad de ida y vuelta
 

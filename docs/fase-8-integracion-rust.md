@@ -1,6 +1,6 @@
 # Fase 8 — Integración con Rust
 
-**Estado:** el alcance inicial está verificado; la Fase 8 está reabierta para cerrar los criterios de interoperabilidad de [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md). Esto no declara compatibilidad general ni limita permanentemente el lenguaje. La meta normativa es interoperar con bibliotecas Rust sin exigir cambios en su fuente.
+**Estado:** completada para el corpus de interoperabilidad verificado y la implementación actual. No declara compatibilidad general ni limita permanentemente el lenguaje. La meta normativa es interoperar con bibliotecas Rust sin exigir cambios en su fuente.
 
 ## Contrato de interoperabilidad
 
@@ -10,17 +10,17 @@ Las macros de bibliotecas deben funcionar sin modificar la biblioteca. Admitirla
 
 ## Cobertura actual y brechas de conformidad
 
-| Área | Evidencia registrada | Brecha que sigue bajo evaluación |
+| Área | Evidencia registrada | Límite explícito |
 |---|---|---|
-| Crates externas | E2E con `itoa`, `futures-executor` y crates locales, offline y bajo lockfile | Ampliar el corpus real; el corpus actual no demuestra compatibilidad general |
+| Crates externas | E2E con `itoa`, `futures-executor`, `serde`, `serde_json`, Tokio y crates locales, offline y bajo lockfile | Solo están demostradas las versiones y construcciones del fixture |
 | Traits, genéricos y lifetimes | Corpus E2E con bounds, tipos asociados, `impl Fn`, closure e iteradores | Aumentar casos de traits/genéricos y versiones de crates sin reescribir sus fuentes |
-| Macros declarativas y DSL | E2E ejecuta `macro_rules!`, `serde_json::json!` 1.0.154, `tokio::select!` 1.54.1 y `paste::paste!` 1.0.15; aliases `si`/`tipo`/`verdadero`, cadenas y grupos anidados llegan sin traducirse dentro de las DSL | Ampliar el corpus a otras formas y versiones de crates; no implementar un expansor Óxido |
-| Macros procedurales | E2E offline ejecuta derive/atributo de Serde 1.0.229 y `tokio::main`; `paste!` recibe `[<macro_ si>]`, genera una función usada y ejecutada | Compatibilidad general no demostrada; mantener pruebas por crate/forma y diagnosticar errores del compilador |
-| `async/await` | Future con `.await` ejecutado mediante `futures-executor` | Probar más patrones async y runtimes externos de referencia; no crear runtime propio |
+| Macros declarativas y DSL | E2E ejecuta `macro_rules!`, `serde_json::json!` 1.0.154, `tokio::select!` 1.54.1 y `paste::paste!` 1.0.15; aliases `si`/`tipo`/`verdadero`, cadenas y grupos anidados llegan sin traducirse dentro de las DSL | No se implementa un expansor Óxido; otras macros/versiones requieren pruebas propias |
+| Macros procedurales | E2E offline ejecuta derive/atributo de Serde 1.0.229 y `tokio::main`; `paste!` recibe `[<macro_ si>]`, genera una función usada y ejecutada | Compatibilidad demostrada solo para los casos y versiones listados |
+| `async/await` | Future con `.await` ejecutado mediante `futures-executor`; macros de Tokio probadas en la suite de interoperabilidad | El runtime pertenece al proyecto Rust y no lo proporciona Óxido |
 | `unsafe` | Auditoría estática acotada y opción explícita de rechazo; una regresión compila una API de puntero válida y la auditoría por defecto no bloquea | La auditoría no ve llamadas indirectas ni expansiones |
-| Diagnósticos | Cargo JSON y mapas por módulo relacionan errores con `.ox` cuando existe correspondencia | Ampliar corpus de diagnósticos a macros, dependencias y casos sin mapa, conservando errores externos correctamente |
+| Diagnósticos | Cargo JSON y mapas por módulo relacionan errores con `.ox` cuando existe correspondencia; caso negativo de macro distingue `principal.ox` de `src/main.rs` exportado | Cargo no consume los mapas laterales al compilar el árbol exportado |
 
-Estas brechas son trabajo pendiente de la Fase 8 y deben cerrarse antes de avanzar a Fase 9. La Fase 10 podrá aportar infraestructura común de laboratorio; no es propietaria ni aplaza estos criterios. Ningún caso se declara aprobado sin ejecución reproducible.
+La cobertura adicional debe añadirse como nuevas regresiones identificables; no extiende automáticamente los resultados de esta matriz. Ningún caso se considera aprobado sin ejecución reproducible.
 
 ## Subfase 1 — Estructura indentada
 
@@ -38,7 +38,7 @@ Los encabezados, patrones, tipos y expresiones siguen tokens Rust con aliases Ó
 
 Ejemplo combinado: [fase_8_estructura_indentada.ox](../examples/fase_8_estructura_indentada.ox). Se ejecuta con `cargo run --locked -p oxido-cli -- ejecutar examples/fase_8_estructura_indentada.ox`.
 
-Validación local de esta entrega: el ejemplo se compiló y ejecutó con Cargo; `cargo fmt --all -- --check`, `cargo test --workspace --locked` y `cargo clippy --workspace --all-targets --locked -- -D warnings` pasan. El build del portal se valida por separado; los checks remotos se registrarán con el PR.
+Validación registrada: el ejemplo se compila y ejecuta mediante Cargo; el cierre más reciente ejecutó `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings` y `cargo test --workspace --locked`. Estos resultados corresponden a los comandos ejecutados en ese cambio, no a cada revisión futura.
 
 La cobertura de regresión de los bloques `implementar` verifica receivers `mismo`, `&mismo` y `&mutable mismo`; funciones asociadas sin receiver; genéricos y `donde` junto al `:` que abre el bloque; varios bloques para el mismo tipo; visibilidad `publico`; atributos y comentarios `///`; constantes asociadas y tipos asociados en traits/implementaciones. También comprueba el rechazo de bloques `implementar` vacíos, la mala indentación, la regla del `;` final, el mismo resultado al compilar formas indentadas y con llaves, y el mapeo de errores de rustc a la línea original `.ox`.
 
@@ -60,7 +60,7 @@ Los tipos, expresiones, closures y patrones dentro de estas firmas y cuerpos sig
 
 `oxido descargar-dependencias archivo.ox` muestra el cambio de lockfile y paquetes de crates.io; `--confirmar` aplica el plan mediante `cargo fetch --locked`, sin compilar ni ejecutar código. `--actualizar` también requiere confirmación. Fuentes `path` requieren `--permitir-rutas-locales`; git/URL no se soportan. `compilar` y `ejecutar` usan `--locked --offline`, devuelven `OX7001` si falta el lockfile para cualquier dependencia y requieren `--confiar-dependencias` para compilar cualquier dependencia. Las pruebas demuestran que fetch no activa build scripts ni macros procedurales y que la compilación confiada sí los activa. Pruebas negativas cambian un archivo vendorizado y un checksum del lockfile; Cargo falla en ambos casos. El E2E compara `.rs` emitido desde dos directorios y comprueba que no contiene rutas absolutas. La procedencia y regeneración del vendor están en [README del fixture](../tests/fixtures/cargo-registry/README.md), y la política en [ADR 0006](adr/0006-descarga-y-confianza-de-dependencias.md).
 
-Cargo ejecuta `build.rs` y macros procedurales durante compilación, no durante `cargo fetch`. `--offline` evita descargas, no aísla procesos. La CLI exige `--confiar-dependencias`; el flag no es un sandbox. Workspace Trust aplica a la integración LSP futura.
+Cargo ejecuta `build.rs` y macros procedurales durante compilación, no durante `cargo fetch`. `--offline` evita descargas, no aísla procesos. La CLI exige `--confiar-dependencias`; el flag no es un sandbox. El LSP inicial no inicia Cargo; cualquier compilación iniciada desde el editor requiere Workspace Trust.
 
 ## Subfase 5 — Macros declarativas y atributos
 
@@ -116,6 +116,6 @@ La matriz de [compatibilidad](compatibility.md) declara Rust 2024, MSRV 1.85 y l
 - Los rasgos e implementaciones conservan las reglas de Rust para receivers, coherencia, tipos asociados y métodos requeridos.
 - Los brazos conservan sintaxis Rust en patrones, guards y expresiones; solo su estructura externa usa indentación.
 - Las macros externas y las DSL probadas se preservan opacas; los aliases estándar y las expresiones que traducen se describen en [aliases](aliases.md). No se afirma fidelidad universal para toda DSL, macro o versión de Rust.
-- `async/await` está probado con `futures-executor`; otros runtimes aún no están en la matriz. No hay runtime propio, porque la aplicación selecciona su dependencia. La auditoría de `unsafe` solo detecta las formas descritas; no prueba ausencia de riesgo. Workspace Trust para compilaciones iniciadas por el LSP es trabajo de Fase 11. La CLI actual no ofrece sandbox para código de dependencias.
+- `async/await` está probado con `futures-executor` y la matriz de macros incluye Tokio; no hay runtime propio, porque la aplicación selecciona su dependencia. La auditoría de `unsafe` solo detecta las formas descritas; no prueba ausencia de riesgo. El LSP inicial ofrece transporte y diagnósticos léxicos básicos; su respuesta de semantic tokens es heurística e incompleta. Workspace Trust y compilación desde el editor no están implementados. La CLI no ofrece sandbox para código de dependencias.
 
-Las decisiones de estructura, dependencias e interoperabilidad están en [ADR 0004](adr/0004-estructura-indentada-rust.md), [ADR 0005](adr/0005-dependencias-cargo-versionadas.md) y [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md). El alcance inicial está verificado, pero la Fase 8 permanece abierta hasta completar la matriz de interoperabilidad anterior; ampliar la compatibilidad no crea una limitación permanente del lenguaje. Workspace Trust corresponde al futuro LSP: no se deben iniciar compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales, por lo que el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
+Las decisiones de estructura, dependencias e interoperabilidad están en [ADR 0004](adr/0004-estructura-indentada-rust.md), [ADR 0005](adr/0005-dependencias-cargo-versionadas.md) y [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md). La Fase 8 está completada para el corpus verificado; ampliar compatibilidad requiere nuevas pruebas y no cambia los límites actuales. Workspace Trust debe impedir compilaciones automáticas en workspaces no confiables. La CLI no sandboxa `build.rs` ni macros procedurales, por lo que el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.

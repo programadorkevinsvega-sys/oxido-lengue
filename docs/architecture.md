@@ -11,14 +11,14 @@ La decisión de limitar el parser propio a estructura Óxido y preservar fragmen
 | `oxido-language` | Fuente/spans UTF-8, diagnósticos, lexer, AST estructural y parser de `.ox` | Núcleo/dominio |
 | `oxido-compiler` | Casos de uso de parseo, generación, mapa, integración Cargo e importación reversible | Aplicación |
 | `oxido-rust-backend` | Emitir Rust desde el AST con quote/proc_macro2; validar y formatear con Syn/prettyplease | Adapter de salida |
-| `oxido-cli` | `analizar-rust`, `exportar`, `importar`, `compilar` y `ejecutar` | Adapter de entrada |
+| `oxido-cli` | `analizar-rust`, `nuevo`, `formato`, `exportar`, `importar`, `importar-proyecto`, `compilar`, `probar` y `ejecutar` | Adapter de entrada |
 | `oxido-cargo` | Invocar Cargo por argv, limitar tiempo y leer mensajes JSON | Adapter de proceso |
-| `oxido-lsp` | Transporte LSP stdio y capacidades iniciales del editor | Adapter inicial; compilación desde el editor requiere Workspace Trust |
-| `editors/vscode-oxido` | Integración y presentación en VS Code | Cliente separado |
+| `oxido-lsp` | Transporte stdio y diagnósticos léxicos iniciales | Prototipo; semantic tokens heurísticos no fiables; no usa `rust-analyzer`, no compila y no implementa Workspace Trust |
+| `editors/vscode-oxido` | Documentación/preparación para cliente VS Code | No hay extensión funcional |
 | `website` | Portal estático Markdown con documentación por audiencia y referencia | Frontend documental; Astro Starlight |
 
 El producto corre localmente como herramienta de desarrollo. Las APIs entre estos módulos son Rust tipado dentro del proceso. La comunicación distribuida, almacenamiento de negocio y telemetría remota no forman parte de esta arquitectura. La CLI exporta, compila y ejecuta la rebanada inicial de `.ox`; el objetivo es la interoperabilidad amplia con Rust, cuya cobertura se amplía y verifica progresivamente en el laboratorio de conformidad.
 
 ## Estado de los directorios
 
-Fase 2 materializó cuatro paquetes base y Fase 5 incorporó `oxido-cargo` al workspace como adaptador funcional. Fase 3 añadió el lexer y Fase 4 el parser/AST inicial. `website/` contiene el frontend documental en Astro Starlight; sus páginas de referencia se generan desde los Markdown canónicos en `docs/` para evitar mantener dos copias editables. `oxido-lsp` ofrece ahora el transporte inicial; Workspace Trust y compilación iniciada desde el editor siguen siendo controles posteriores. `examples/hola_mundo.ox` y `tests/` contienen el primer flujo end-to-end. La separación no obliga a crear un crate por cada carpeta interna.
+Fases 2–8 materializaron el workspace, lexer/parser, generación, CLI e interoperabilidad inicial. `website/` contiene el portal Astro Starlight; las páginas de referencia se generan desde Markdown canónico en `docs/`. `oxido-lsp` es un prototipo de transporte y análisis léxico; sus semantic tokens son heurísticos y no fiables, y no se conecta con `rust-analyzer`. No existe una extensión VS Code funcional ni Workspace Trust integrado. `oxido formato` también sigue siendo prototipo y no conserva el modo indentado. `examples/` y `tests/` contienen los flujos reproducibles disponibles. La separación no obliga a crear un crate por cada carpeta interna.

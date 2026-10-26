@@ -6,14 +6,14 @@ Todo diagnóstico interno usa la estructura `Diagnostic` con:
 
 - `code`: identificador estable `OX` + categoría + secuencia.
 - `severity`: `error`, `warning`, `info` o `hint`.
-- `message`: mensaje principal legible. Los mensajes propios actuales están en español; selector/traducción al inglés queda pendiente de la capa CLI/LSP.
+- `message`: mensaje principal legible. Los diagnósticos propios actuales están en español. No existe selector de idioma en la CLI ni en el LSP inicial.
 - `primary_span`: rango primario half-open `[start,end)` en bytes UTF-8 de `.ox`.
 - `labels[]`: rangos secundarios y explicación corta.
 - `notes[]`: contexto, incluyendo edición/modo si aplica.
 - `suggestions[]`: reemplazo y rango solo si la corrección es segura.
 - `related_rust`: código y mensaje de Cargo/rustc cuando el origen sea compilación.
 
-Los offsets internos son bytes UTF-8. El render CLI muestra línea/columna 1-based. LSP convierte a la codificación de posiciones negociada; si no se negocia otra, UTF-16 según LSP.
+Los offsets internos son bytes UTF-8. El render CLI muestra línea/columna 1-based. El servidor LSP actual solo publica diagnósticos léxicos iniciales y no negocia ni convierte todas las posiciones según la codificación LSP; no se deben usar sus rangos como equivalentes completos del mapa CLI.
 
 ## Códigos iniciales
 

@@ -34,7 +34,7 @@ enumeracion Estado:
     Listo(i32)
 ```
 
-Al cerrar Fase 7, `impl`, métodos, traits y módulos aún se escribían con llaves Rust, y `match` no tenía brazos indentados. La [Fase 8](fase-8-integracion-rust.md) ya añade un subconjunto estructural probado de esas formas. Siguen fuera de alcance un traductor completo de mensajes de error, un type checker propio y un runtime propio. Los diagnósticos Cargo traducen un conjunto inicial de códigos comunes y conservan código, span y detalle JSON.
+La Fase 7 entregó el lenguaje inicial; `impl`, métodos, traits, módulos anidados y brazos indentados de `match` se incorporaron y probaron en la [Fase 8](fase-8-integracion-rust.md). Siguen fuera de alcance un traductor completo de mensajes de error, un type checker propio y un runtime propio. Los diagnósticos Cargo traducen un conjunto inicial de códigos comunes y conservan código, span y detalle JSON.
 
 ## Evidencia local
 

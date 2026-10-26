@@ -2,7 +2,7 @@
 
 ## Evaluación honesta del estado
 
-Óxido aún no es un compilador listo para producción. Hay ejemplos experimentales que exportan, compilan y ejecutan: Hola, mundo; items `struct`/`enum` indentados; e interoperabilidad Rust con métodos, módulos, referencias, `Result`/`Option` y colecciones. Las dependencias Cargo locales y crates de crates.io se prueban con lockfile persistente, Cargo offline y macros externas locales. La matriz delimita esos alcances; integración LSP, Workspace Trust antes de compilaciones editoriales, sandbox para código de dependencias, conformidad amplia, seguridad de lanzamiento y artefactos de distribución siguen pendientes.
+Óxido aún no es un compilador listo para producción. Hay ejemplos experimentales que exportan, compilan y ejecutan: Hola, mundo; items indentados; módulos; y casos de interoperabilidad Rust con métodos, referencias, `Result`/`Option`, colecciones y macros concretas. Las dependencias Cargo de registry y locales se prueban con lockfile persistente y compilación offline. La matriz delimita exactamente el corpus; la CLI no sandboxa código de dependencias. El LSP es un prototipo sin integración con `rust-analyzer`, Workspace Trust ni extensión VS Code funcional. Conformidad amplia, seguridad de lanzamiento y artefactos de distribución no se presentan como capacidades disponibles.
 
 No debe adoptarse para cargas de producción hasta que esos criterios estén implementados, auditados y publicados con evidencia. Esta página no constituye una certificación ni una garantía de seguridad.
 
@@ -14,7 +14,7 @@ No debe adoptarse para cargas de producción hasta que esos criterios estén imp
 - `oxido.toml` se parsea como TOML de datos, con campos cerrados; no ejecuta comandos.
 - El workspace Rust del propio repositorio tiene lockfile; la CLI usa `--locked` en su workspace temporal.
 
-Óxido admite experimentalmente crates de crates.io; las dependencias locales `path` exigen `--permitir-rutas-locales`. La descarga muestra antes el plan y requiere `--confirmar`; solo usa `cargo fetch`, nunca compila. `compilar`/`ejecutar` exigen `--locked --offline` y `--confiar-dependencias`. Cargo puede ejecutar `build.rs` o macros procedurales durante compilación; el flag registra confianza del operador, no aísla código ni bloquea su acceso a red. Workspace Trust para compilaciones iniciadas desde el editor, sandbox, fuzzing de parser y seguridad de lanzamiento siguen pendientes.
+Óxido admite dependencias de crates.io; las dependencias locales `path` exigen `--permitir-rutas-locales`. La descarga muestra antes el plan y requiere `--confirmar`; solo usa `cargo fetch`, nunca compila. `compilar`/`ejecutar` exigen `--locked --offline` y `--confiar-dependencias`. Cargo puede ejecutar `build.rs` o macros procedurales durante compilación; el flag registra confianza del operador, no aísla código ni bloquea su acceso a red. Workspace Trust, sandbox, fuzzing de parser y seguridad de lanzamiento siguen pendientes.
 
 ## Casos de evaluación
 

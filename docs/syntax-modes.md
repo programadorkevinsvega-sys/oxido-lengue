@@ -49,4 +49,4 @@ funcion unidad():
 
 Un delimitador contrario al modo produce `OX2002` solo cuando ocupa la posición de un delimitador de bloque. Los delimitadores de macros, atributos, literales, struct literals y otras expresiones se tratan según el contexto y no se rechazan por sí solos. Las declaraciones de bloque en modo indentation usan `:`; en modo braces usan `{}`.
 
-La extensión de VS Code, el formateador y el LSP leen la misma configuración y consumen el mismo análisis. Formatear nunca cambia el modo.
+La CLI carga el modo del proyecto desde `oxido.toml` y comprueba la cabecera del archivo cuando existe. El LSP inicial aún no carga `oxido.toml` ni comparte el análisis completo del CLI. La regla del lenguaje es conservar el modo al formatear, pero el prototipo actual `oxido formato` reimporta en modo llaves y no cumple esa regla para archivos indentados; véase [compatibilidad](compatibility.md).

@@ -25,7 +25,7 @@ El AST representa explícitamente la expresión final sin `;` como `tail`; una e
 - La compatibilidad crece por subconjuntos documentados y pruebas, no por asumir que un fragmento parseable ya compila.
 - Syn valida sintaxis, pero no tipos, macros expandidas, `build.rs` ni semántica de `rustc`.
 - La Fase 4 no genera `.rs`. La generación con tokens, los mapas de posiciones y la integración Cargo pertenecen a la Fase 5.
-- La gramática de items en modo indentación, `match`, continuaciones generales y normalización de aliases dentro de fragmentos siguen pendientes.
+- Al aprobar este ADR, la gramática de items indentados, `match`, continuaciones y aliases seguían pendientes. Las ampliaciones implementadas después se describen en [Fase 7](../fase-7-lenguaje-inicial.md), [Fase 8](../fase-8-integracion-rust.md) y la [matriz vigente](../compatibility.md); los límites restantes no deben inferirse de este registro histórico.
 - Cambiar esta frontera requiere actualizar la matriz de compatibilidad, los fixtures y este ADR.
 
 ## Evidencia

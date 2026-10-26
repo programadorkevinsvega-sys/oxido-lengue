@@ -1,8 +1,9 @@
-# Auditoría del repositorio — Fase 0
+# Auditoría del repositorio — Fase 0 (registro histórico)
+
+> Este documento describe el estado del repositorio al comienzo del proyecto. No es un inventario actual; consulta [architecture.md](architecture.md), [compatibility.md](compatibility.md) y [roadmap.md](roadmap.md) para el estado vigente.
 
 **Fecha:** 2026-10-25  
-**Resultado:** Fase 0 completada; el proyecto está en etapa documental.  
-**Siguiente fase:** Fase 1 — Especificación.
+**Resultado histórico:** Fase 0 completada en la fecha de auditoría. Las referencias a componentes inexistentes describen únicamente aquel estado inicial.
 
 Este informe es una fotografía del repositorio en la fecha indicada. Sus afirmaciones sobre rama, archivos, CI y capacidades describen ese estado inicial, no el estado actual del proyecto.
 

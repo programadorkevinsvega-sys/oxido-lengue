@@ -2,7 +2,7 @@
 
 Una sintaxis en español e inglés que busca generar Rust estándar y conservar su semántica, interoperabilidad y herramientas.
 
-> **Estado del proyecto:** lexer, parser/AST inicial, generación y compilación Rust, modos de bloques, items indentados iniciales e interoperabilidad con Rust están implementados para los subconjuntos verificados de Fases 5–8. La Fase 8 está completada para su matriz inicial; la CLI no sandboxa el código de dependencias y el LSP aún debe implementar Workspace Trust. Los límites por característica están en la [matriz de compatibilidad](./compatibility) y el [roadmap](./roadmap); no se declara compatibilidad general.
+> **Estado del proyecto:** lexer, parser/AST inicial, generación y compilación Rust, modos de bloques, items indentados, CLI inicial, importación/exportación de árboles y la interoperabilidad Rust verificada están implementados para los subconjuntos documentados. El LSP ofrece transporte stdio, diagnósticos y semantic tokens; todavía no inicia compilaciones sin Workspace Trust. La CLI no sandboxa código de dependencias. Los límites por característica están en la [matriz de compatibilidad](./compatibility) y el [roadmap](./roadmap); no se declara compatibilidad general.
 
 <div class="audience-grid">
   <a class="audience-card" href="/audiencias/desarrolladores"><strong>Desarrolladores</strong><span>Arquitectura, compatibilidad con Rust y estado de la toolchain.</span></a>

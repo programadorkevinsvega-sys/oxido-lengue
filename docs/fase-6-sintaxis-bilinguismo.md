@@ -20,4 +20,4 @@ En el alcance original de Fase 6, los grupos de macros y atributos eran opacos. 
 
 ## Evidencia
 
-La suite de `oxido-language` prueba reglas de bloques, cabeceras y sugerencias de identificadores; `oxido-rust-backend` prueba normalización y opacidad; `oxido-compiler` compila los dos modos y comprueba salida equivalente, firmas, visibilidad y items passthrough. La matriz de límites está en [compatibilidad](compatibility.md). La gramática prevista, incluida la sintaxis todavía pendiente, está en [grammar](grammar.md).
+La suite de `oxido-language` prueba reglas de bloques, cabeceras y sugerencias de identificadores; `oxido-rust-backend` prueba normalización y opacidad; `oxido-compiler` compila los dos modos y comprueba salida equivalente, firmas, visibilidad y items passthrough. Este informe cubre la entrega original de Fase 6; las extensiones posteriores se detallan en [Fase 7](fase-7-lenguaje-inicial.md), [Fase 8](fase-8-integracion-rust.md) y la [matriz vigente](compatibility.md).

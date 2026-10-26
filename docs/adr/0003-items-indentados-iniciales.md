@@ -14,7 +14,7 @@ La fase de lenguaje inicial necesita permitir `struct`, `enum` y `use` con bloqu
 - El parser reconoce los límites de cada campo/variante y conserva su fragmento con span. No concatena texto para fabricar un item Rust.
 - El backend genera los items con `quote`/`proc_macro2`, normaliza aliases fuera de grupos opacos, parsea el item con Syn y aplica `prettyplease` al archivo.
 - `use` indentado tiene un nodo AST propio; el backend emite el `;` Rust aunque el archivo Óxido omita ese terminador.
-- `impl`, `trait` y módulos se preservan como items Rust con llaves en el subconjunto actual. La sintaxis indentada de sus cuerpos queda pendiente.
+- Al aprobar este ADR, `impl`, `trait` y módulos se preservaban como items Rust con llaves; sus cuerpos indentados se implementaron después en el alcance documentado de Fase 8.
 
 ## Consecuencias
 

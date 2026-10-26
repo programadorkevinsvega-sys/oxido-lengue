@@ -22,5 +22,5 @@
 
 - La clasificación de un alias como keyword es léxica. Fase 4 añadió diagnósticos para funciones y bindings simples; Fase 6 los amplió a parámetros, patrones anidados y `para` dentro del subconjunto estructural probado.
 - `OX1003` solo detecta mezcla de alfabeto latino con griego/cirílico; no implementa una tabla Unicode completa de confusables.
-- El parser de Fase 4 reconoce el subconjunto inicial descrito en su informe; estructuras y formas de lenguaje fuera de ese alcance siguen pendientes de sus fases correspondientes.
+- Al cierre de Fase 3, el parser de Fase 4 aún no existía. El alcance añadido posteriormente se registra en los informes de Fases 4–8 y en la [matriz actual](compatibility.md).
 - El CLI todavía no expone un comando `lex` ni consume `.ox` en el flujo de compilación.

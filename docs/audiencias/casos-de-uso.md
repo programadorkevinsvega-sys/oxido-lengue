@@ -5,8 +5,8 @@ Estos casos guían el diseño del lenguaje y el material del sitio. El estado di
 | Audiencia | Caso | Estado actual |
 |---|---|---|
 | Desarrolladores | Tokenizar y diagnosticar sintaxis `.ox` | Implementado como biblioteca; cobertura descrita en [Fase 3](/referencia/fase-3-lexer/) |
-| Desarrolladores | Analizar, generar y compilar `.ox` como Rust | Probado con Hola, mundo y ejemplos de Fase 7; el resto se detalla en la matriz |
-| Empresas | Evaluar límites, seguridad y reproducibilidad | Documentado parcialmente; controles empresariales completos pendientes |
+| Desarrolladores | Analizar, generar y compilar `.ox` como Rust | CLI inicial: compilar/ejecutar, exportar/importar, `nuevo`, `formato`, `probar` e importación de árboles; límites en la matriz |
+| Empresas | Evaluar límites, seguridad y reproducibilidad | Reproducibilidad y controles de CLI documentados; el producto no está listo para producción y el código de dependencias no está sandboxeado |
 | Estudiantes | Aprender sintaxis bilingüe y relacionarla con Rust | Ejemplos ejecutables de bloques, estructuras iniciales e interoperabilidad Rust; características futuras marcadas como pendientes |
 | Docentes | Diseñar ejercicios verificables y progresivos | Propuesto para la fase de educación |
 | Mantenedores | Contribuir lexer, parser, CLI y documentación | Roadmap y arquitectura disponibles |

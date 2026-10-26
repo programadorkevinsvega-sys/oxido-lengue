@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–7: completadas. Fase 8: en curso para ampliar la interoperabilidad con Rust. Fases 9–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. La Fase 6 completa alias y equivalencia de los modos de bloques para funciones/control; Fase 7 añade items indentados iniciales y aliases de prelude/macros. Fase 8 no se cierra hasta aprobar sus regresiones de interoperabilidad ampliadas; no se avanza a Fase 9 antes de ese cierre.
+**Fases 0–8: completadas en el alcance documentado. Fase 9: en curso. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. Fase 9 ya cuenta con comandos iniciales `nuevo`, `formato`, `probar` e `importar-proyecto`; faltan regresiones y criterios de CLI antes de cerrarla.
 
 ## Reglas para avanzar
 
@@ -214,16 +214,16 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 2. Dependencias Cargo reales y configuración reproducible. **Verificado para crates local y registry:** SemVer validado con `semver`; crates.io por defecto, `path` requiere `--permitir-rutas-locales`, git/URL rechazados. La vista previa lista paquetes y diff; `--confirmar` hace solo `cargo fetch`. Compilar/ejecutar exige `--locked --offline` y `--confiar-dependencias`; OX7001 explica el lock faltante. E2E verifica checksums, lock estable, vendor alterado, build.rs/proc-macro bajo confianza y Rust determinista en diferentes directorios.
 3. Genéricos, traits y lifetimes dentro del alcance del frontend. **Verificado para el corpus actual:** firmas genéricas con lifetime, `impl Fn`, bounds `where`, trait e implementación genéricos y tipos asociados pasan por generación y Cargo.
 4. Pattern matching, closures e iteradores, completando patrones y expresiones Rust preservados por el frontend. **Verificado para el corpus actual:** closure como argumento, `Iterator::find`, patrones `Some`/`None` y brazos indentados/llaves compilan y producen el mismo resultado.
-5. Macros declarativas y atributos, preservando árboles de tokens. **Parcial:** macro local exportada por una dependencia y `#[derive(Debug)]` pasan a Rust; falta probar macros externas de función, atributo y derive desde crates sin modificar, además de fidelidad de DSL/tokens. No se implementa expansor Óxido.
-6. `async`/`await` y concurrencia. **Parcial:** `.await` se ejecuta con `futures-executor`; falta probar runtimes externos adicionales, por ejemplo Tokio, mediante proyectos Cargo sin modificar sus macros. El runtime lo elige la aplicación.
-7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus inicial:** `itoa`, `futures-executor` y crates locales. Pendiente en Fase 8: fixture de `serde` derive y macros externas; compilar/ejecutar con dependencias locked y confianza explícita, sin cambiar su fuente.
-8. `unsafe`: preservar semántica Rust; política opcional de rechazo y auditoría de superficie. **Parcial:** auditoría estática acotada existe. Pendiente en Fase 8: compilar una API `unsafe` válida sin rechazo por defecto y comprobar que el modo `--rechazar` solo bloquea cuando se solicita. Workspace Trust/sandbox de compilaciones editoriales se implementa en Fase 11.
+5. Macros declarativas y atributos, preservando árboles de tokens. **Verificado para casos concretos:** `macro_rules!`, Serde derive/atributo, `tokio::main`, `tokio::select!`, `serde_json::json!` y `paste!` con versiones fijadas; no implementa expansor Óxido.
+6. `async`/`await` y concurrencia. **Verificado para corpus concreto:** `.await` con `futures-executor`, `tokio::main`/`select!` y `std::thread`; el runtime lo elige la aplicación.
+7. Bibliotecas externas de referencia y pruebas de conformidad. **Corpus registrado:** `itoa`, `futures-executor`, Serde, Tokio, `serde_json`, `paste` y crates locales. No implica compatibilidad con crates arbitrarios.
+8. `unsafe`: preservar semántica Rust y ofrecer auditoría opcional. **Verificado para caso concreto:** una API de punteros válida compila y ejecuta sin rechazo por defecto; la auditoría puede rechazarla bajo opción explícita. Workspace Trust/sandbox de compilaciones editoriales corresponde a Fase 11.
 9. **Matriz por versión/edición:** completada para Rust 2024, MSRV 1.85 y el corpus probado; límites por característica y casos no evaluados constan en [compatibility.md](compatibility.md).
-10. **Diagnósticos y preservación cruzada:** pendiente de ampliar regresiones para macros/atributos externos, dependencias y tokens Rust no transformados; verificar mapeo de errores `rustc` a `.ox` cuando haya mapa y diagnóstico explícito cuando no se pueda preservar una construcción.
+10. **Diagnósticos y preservación cruzada:** verificados para funciones, métodos, módulos y la macro externa probada. Cargo sobre el árbol exportado informa ubicaciones `.rs`; los mapas laterales no se consumen fuera de Óxido.
 
 **Entregables:** suites de conformidad, proyectos de referencia versionados y gramática indentada validada con Cargo/rustc.
 
-**Criterio de salida:** pendiente hasta que las brechas enumeradas tengan regresiones Cargo/rustc aprobadas y reproducibles. El objetivo es interoperabilidad sin cambiar fuentes de bibliotecas, no compatibilidad universal sin evidencia. La Fase 10 puede aportar infraestructura de laboratorio, pero no absorbe ni aplaza estos criterios. Workspace Trust corresponde a la integración LSP de Fase 11 y deberá impedir compilaciones automáticas en workspaces no confiables. La CLI actual no sandboxa `build.rs` ni macros procedurales; el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
+**Criterio de salida:** cumplido para las construcciones, versiones y regresiones registradas en [Fase 8](fase-8-integracion-rust.md). El objetivo es interoperabilidad sin cambiar fuentes de bibliotecas, no compatibilidad universal. Workspace Trust corresponde a la integración del editor en Fase 11. La CLI no sandboxa `build.rs` ni macros procedurales; el operador debe confiar el proyecto antes de resolver o compilar esas dependencias.
 
 **Dependencia:** Fase 7.
 
@@ -233,20 +233,22 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** entregar comandos estables y seguros para tareas habituales.
 
+**Estado actual:** en curso. La CLI tiene `nuevo`, `formato`, `probar` e `importar-proyecto`, además de los comandos anteriores. La implementación existe, pero el cierre requiere pruebas de integración de esos comandos y contratos precisos de idempotencia, errores y roundtrip.
+
 ### Subfases
 
 1. Definir nombres, argumentos, ayuda y códigos de salida.
 2. Crear proyectos con plantillas mínimas verificables.
-3. Implementar verificar, compilar, ejecutar y probar.
-4. Implementar `oxido formato` y modo de comprobación; el formato debe ser idempotente, conservar comentarios ordinarios fuera de grupos opacos y nunca descartarlos silenciosamente. Los comentarios dentro de macros/atributos opacos deben conservarse o producir un diagnóstico claro.
-5. Implementar diagnóstico y salida estructurada para CI.
-6. Implementar exportación/importación del subconjunto reversible.
+3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. `probar` invoca `cargo test` sobre el proyecto temporal del archivo; sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
+4. **Formato:** existe un prototipo `oxido formato <archivo.ox> [--comprobar]`, pero al reimportar genera modo llaves y no conserva el modo indentado. No se considera una función lista. Implementar preservación de modo/comentarios y pruebas de idempotencia antes de promoverla.
+5. **Diagnósticos CLI:** los mensajes humanos existen; un contrato de salida estructurada estable para CI sigue pendiente.
+6. **Importación/exportación:** exportación recursiva e importación inicial de árboles existen; falta una regresión de ida y vuelta para árboles, especialmente con `#[path]` y fuentes mixtas.
 7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables).
 8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos.
 
 **Entregables:** CLI documentada y pruebas de integración de comandos.
 
-**Criterio de salida:** comandos producen efectos, salidas y errores consistentes; operaciones de archivo quedan dentro del workspace permitido.
+**Criterio de salida:** los comandos documentados tienen pruebas CLI positivas/negativas, resultados y errores verificables; operaciones de archivo restringen correctamente sus destinos. Formato y roundtrip de árboles tienen pruebas de idempotencia y conservación.
 
 **Dependencia:** Fases 5–8 según comando.
 
@@ -392,9 +394,10 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 6 | Completada (bloques y aliases iniciales) | [Informe de Fase 6](fase-6-sintaxis-bilinguismo.md); `cargo test -p oxido-language -p oxido-rust-backend --locked` | La ampliación de items estructurales se documenta en Fases 7–8 |
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
-| 8 | En curso (ampliación de interoperabilidad Rust) | [Informe de Fase 8](fase-8-integracion-rust.md); falta aprobar las regresiones enumeradas allí | No avanzar a Fase 9 hasta cerrar macros externas, runtimes, API `unsafe` válida y diagnósticos/preservación cruzada; Workspace Trust es Fase 11 |
-| 9–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
+| 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
+| 9 | En curso (CLI inicial) | `nuevo`, `formato`, `probar`, `importar-proyecto` ya tienen implementación inicial; ver secciones de la fase | Faltan regresiones CLI, salida estructurada y validación de formato/roundtrip de árboles |
+| 10–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–7 están completadas. La Fase 8 sigue abierta hasta satisfacer sus criterios ampliados; no iniciar Fase 9 antes de cerrarla. Las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–8 están completadas para los alcances declarados. La Fase 9 está en curso. Las limitaciones de la matriz no se consideran características implementadas.

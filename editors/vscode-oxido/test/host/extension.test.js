@@ -50,6 +50,70 @@ async function runCargoCase(fixturePath, withTimeout) {
   console.log('Cargo host: diagnóstico real mapeado a util_error.ox con lockfile intacto');
 }
 
+async function runNavigationCase(fixturePath, withTimeout, extensionApi) {
+  assert.equal(vscode.workspace.isTrusted, false, 'la navegación local no requiere confianza');
+  const activeFile = await openFixture(fixturePath, 'main.ox');
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const request = (method, position) => extensionApi.sendLanguageServerRequest(method, {
+    textDocument: { uri: activeFile.toString() },
+    position
+  });
+  const definitionUris = async (position, label) => {
+    const locations = await withTimeout(request('textDocument/definition', position), label);
+    assert.ok(Array.isArray(locations), `${label}: se devuelve un array`);
+    return locations.map(location => location?.uri ?? '');
+  };
+
+  const alpha = await definitionUris({ line: 6, character: 12 }, 'definición alpha');
+  assert.ok(alpha.some(uri => uri.endsWith('/alpha.ox')), `alpha: ${JSON.stringify(alpha)}`);
+  const beta = await definitionUris({ line: 7, character: 12 }, 'definición beta');
+  assert.ok(beta.some(uri => uri.endsWith('/beta.ox')), `beta: ${JSON.stringify(beta)}`);
+  const structure = await definitionUris({ line: 8, character: 38 }, 'definición Alumno');
+  assert.ok(
+    structure.some(uri => uri.endsWith('/dominio/modelos.ox')),
+    `Alumno: ${JSON.stringify(structure)}`
+  );
+  const method = await definitionUris({ line: 8, character: 46 }, 'definición nuevo');
+  assert.ok(
+    method.some(uri => uri.endsWith('/dominio/modelos.ox')),
+    `nuevo: ${JSON.stringify(method)}`
+  );
+
+  const hover = await withTimeout(request('textDocument/hover', { line: 8, character: 46 }), 'hover nuevo');
+  assert.ok(
+    typeof hover?.contents?.value === 'string' && hover.contents.value.includes('método'),
+    `hover: ${JSON.stringify(hover)}`
+  );
+  const references = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/references', {
+      textDocument: { uri: activeFile.toString() },
+      position: { line: 6, character: 12 },
+      context: { includeDeclaration: true }
+    }),
+    'referencias alpha'
+  );
+  const referenceUris = (Array.isArray(references) ? references : [])
+    .map(location => location?.uri ?? '');
+  assert.ok(referenceUris.some(uri => uri.endsWith('/alpha.ox')), 'referencias de alpha');
+  assert.ok(!referenceUris.some(uri => uri.endsWith('/beta.ox')), 'alpha no referencia beta');
+
+  const messyFile = await openFixture(fixturePath, 'messy.ox');
+  const edits = await withTimeout(
+    extensionApi.sendLanguageServerRequest('textDocument/formatting', {
+      textDocument: { uri: messyFile.toString() },
+      options: { tabSize: 4, insertSpaces: true }
+    }),
+    'formato compartido'
+  );
+  assert.ok(Array.isArray(edits) && edits.length === 1, `formato: ${JSON.stringify(edits)}`);
+  assert.equal(
+    edits[0].newText,
+    'sintaxis indentacion\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n',
+    'el LSP aplica el mismo formato canónico que la CLI'
+  );
+  console.log('Navigation host: cualificadores, tipos anidados y métodos resueltos sin confianza');
+}
+
 async function runRestrictedCase(fixturePath, withTimeout) {
   assert.equal(vscode.workspace.isTrusted, false, 'el host arranca en Restricted Mode');
   const activeFile = await openFixture(fixturePath, 'main.ox');
@@ -105,6 +169,11 @@ async function run() {
   }
   if (hostCase === 'restricted') {
     await runRestrictedCase(fixturePath, withTimeout);
+    await vscode.commands.executeCommand('workbench.action.closeWindow');
+    return;
+  }
+  if (hostCase === 'navigation') {
+    await runNavigationCase(fixturePath, withTimeout, extensionApi);
     await vscode.commands.executeCommand('workbench.action.closeWindow');
     return;
   }

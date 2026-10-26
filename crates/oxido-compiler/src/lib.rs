@@ -8,6 +8,7 @@ use std::{fs, path::Path};
 pub mod config;
 pub mod application {
     pub mod cargo;
+    pub mod format;
     pub mod modules;
     pub mod source_map;
 }

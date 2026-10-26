@@ -1,9 +1,10 @@
 #![forbid(unsafe_code)]
 
+mod symbols;
+
 use oxido_compiler::application::source_map::SourceMap;
 use oxido_language::{
     SourceFile,
-    domain::ast::{File as OxFile, Item},
     domain::syntax::{LexOptions, TokenKind, lex},
 };
 use serde_json::{Value, json};
@@ -20,6 +21,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use symbols::{SymbolKind, declared_symbols};
 
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_HEADER_LINE_BYTES: usize = 8 * 1024;
@@ -62,6 +64,17 @@ struct RustAnalyzerSourceMap {
     uri: String,
     text: String,
     map: SourceMap,
+}
+
+#[derive(Clone, Debug)]
+struct WorkspaceSymbol {
+    uri: String,
+    name: String,
+    kind: SymbolKind,
+    container: Option<String>,
+    module_path: Vec<String>,
+    selection: Value,
+    range: Value,
 }
 
 struct RaWork {
@@ -963,25 +976,58 @@ fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -
         .into_iter()
         .map(|label| json!({"label":label,"kind":14,"detail":"Palabra clave o alias de Óxido"}))
         .collect::<Vec<_>>();
-    if let Some(file) = parsed_file(text, state.project_mode) {
-        for (name, _, _) in declared_functions(&file, text) {
-            items.push(
-                json!({"label":name,"kind":3,"detail":"Función declarada en este documento"}),
-            );
+    let current_uri = uri.unwrap_or_default();
+    let mut offered = BTreeSet::new();
+    if let Some(document) = state.documents.get(current_uri) {
+        for symbol in declared_symbols(&document.text, state.project_mode) {
+            if offered.insert((symbol.name.clone(), current_uri.to_owned())) {
+                items.push(completion_item(
+                    &symbol.name,
+                    symbol.kind,
+                    "Declaración en este documento",
+                ));
+            }
         }
     }
-    for (module_uri, name, _, _) in workspace_functions(state) {
-        if module_uri != uri.unwrap_or_default() {
-            items.push(
-                json!({"label":name,"kind":3,"detail":"Función declarada en otro módulo .ox"}),
-            );
+    for symbol in workspace_symbols(state) {
+        if symbol.uri == current_uri || !offered.insert((symbol.name.clone(), symbol.uri.clone())) {
+            continue;
         }
+        let detail = if symbol.module_path.is_empty() {
+            "Declaración en otro módulo .ox".to_owned()
+        } else {
+            format!(
+                "Declaración en otro módulo .ox: {}",
+                symbol.module_path.join("::")
+            )
+        };
+        items.push(completion_item(&symbol.name, symbol.kind, &detail));
     }
     json!({"jsonrpc":"2.0","id":id,"result":{"isIncomplete":false,"items":items}})
 }
 
+fn completion_item(name: &str, kind: SymbolKind, detail: &str) -> Value {
+    json!({
+        "label":name,
+        "kind":completion_kind(kind),
+        "detail":detail,
+    })
+}
+
+fn completion_kind(kind: SymbolKind) -> u8 {
+    match kind {
+        SymbolKind::Function => 3,
+        SymbolKind::Method => 2,
+        SymbolKind::Struct => 22,
+        SymbolKind::Enum => 13,
+        SymbolKind::Trait => 8,
+        SymbolKind::TypeAlias => 25,
+        SymbolKind::Module => 9,
+    }
+}
+
 fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
-    let Some((_uri, text, offset)) = request_document_position(params, state) else {
+    let Some((uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":null});
     };
     if let Some(response) = rust_analyzer_response("textDocument/hover", &id, params, state, text) {
@@ -995,15 +1041,38 @@ fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Val
         TokenKind::Keyword { rust_keyword, .. } => Some(format!(
             "`{token_text}` es el alias Óxido de Rust `{rust_keyword}`."
         )),
-        TokenKind::Identifier { .. } => workspace_functions(state)
-            .into_iter()
-            .find(|(_, name, _, _)| name == token_text)
-            .map(|(module_uri, _, _, range)| {
-                format!(
-                    "Función `{token_text}` declarada en `{module_uri}`.\n\nRango: `{}`–`{}`.",
-                    range["start"], range["end"]
-                )
-            }),
+        TokenKind::Identifier { .. } => {
+            let candidates =
+                resolve_symbol_candidates(state, &uri, text, token.span.start(), token_text);
+            match candidates.as_slice() {
+                [] => None,
+                [symbol] => Some(format!(
+                    "Declaración de {} `{token_text}` en `{}`.\n\nRango: `{}`–`{}`.",
+                    symbol_kind_label(symbol.kind),
+                    symbol.uri,
+                    symbol.range["start"],
+                    symbol.range["end"]
+                )),
+                symbols => {
+                    let mut value = format!(
+                        "`{token_text}` tiene {} declaraciones candidatas:\n",
+                        symbols.len()
+                    );
+                    for symbol in symbols {
+                        let location = if symbol.module_path.is_empty() {
+                            symbol.uri.clone()
+                        } else {
+                            format!("{} ({})", symbol.uri, symbol.module_path.join("::"))
+                        };
+                        value.push_str(&format!(
+                            "\n- {} en `{location}`",
+                            symbol_kind_label(symbol.kind)
+                        ));
+                    }
+                    Some(value)
+                }
+            }
+        }
         _ => None,
     };
     let Some(contents) = contents else {
@@ -1012,6 +1081,18 @@ fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Val
     let start = lsp_position(text, token.span.start()).unwrap_or(json!({"line":0,"character":0}));
     let end = lsp_position(text, token.span.end()).unwrap_or(start.clone());
     json!({"jsonrpc":"2.0","id":id,"result":{"contents":{"kind":"markdown","value":contents},"range":{"start":start,"end":end}}})
+}
+
+fn symbol_kind_label(kind: SymbolKind) -> &'static str {
+    match kind {
+        SymbolKind::Function => "función",
+        SymbolKind::Method => "método",
+        SymbolKind::Struct => "estructura",
+        SymbolKind::Enum => "enumeración",
+        SymbolKind::Trait => "rasgo",
+        SymbolKind::TypeAlias => "alias de tipo",
+        SymbolKind::Module => "módulo",
+    }
 }
 
 fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
@@ -1035,18 +1116,39 @@ fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerSt
     {
         return response;
     }
-    let symbols = parsed_file(&document.text, state.project_mode)
-        .map(|file| {
-            declared_functions(&file, &document.text).into_iter().map(|(name, selection, range)| {
-            json!({"name":name,"kind":12,"range":range,"selectionRange":selection,"detail":"Óxido"})
-        }).collect::<Vec<_>>()
+    let symbols = declared_symbols(&document.text, state.project_mode)
+        .into_iter()
+        .filter_map(|symbol| {
+            let selection_start = lsp_position(&document.text, symbol.name_start)?;
+            let selection_end = lsp_position(&document.text, symbol.name_end)?;
+            let range_start = lsp_position(&document.text, symbol.range_start)?;
+            let range_end = lsp_position(&document.text, symbol.range_end)?;
+            Some(json!({
+                "name":symbol.name,
+                "kind":document_symbol_kind(symbol.kind),
+                "range":{"start":range_start,"end":range_end},
+                "selectionRange":{"start":selection_start,"end":selection_end},
+                "detail":"Óxido"
+            }))
         })
-        .unwrap_or_default();
+        .collect::<Vec<_>>();
     json!({"jsonrpc":"2.0","id":id,"result":symbols})
 }
 
+fn document_symbol_kind(kind: SymbolKind) -> u8 {
+    match kind {
+        SymbolKind::Function => 12,
+        SymbolKind::Method => 6,
+        SymbolKind::Struct => 23,
+        SymbolKind::Enum => 10,
+        SymbolKind::Trait => 11,
+        SymbolKind::TypeAlias => 26,
+        SymbolKind::Module => 2,
+    }
+}
+
 fn definition_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
-    let Some((_uri, text, offset)) = request_document_position(params, state) else {
+    let Some((uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     if let Some(response) =
@@ -1059,22 +1161,77 @@ fn definition_response(id: Value, params: Option<&Value>, state: &ServerState) -
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     let name = &text[token.span.start()..token.span.end()];
-    let module_qualifier = module_qualifier_before(text, token.span.start());
-    let functions = workspace_functions(state);
-    let location = functions
+    let mut seen = BTreeSet::new();
+    let locations = resolve_symbol_candidates(state, &uri, text, token.span.start(), name)
+        .into_iter()
+        .filter_map(|symbol| {
+            let key = (symbol.uri.clone(), symbol.selection.to_string());
+            seen.insert(key)
+                .then(|| json!({"uri":symbol.uri,"range":symbol.selection}))
+        })
+        .collect::<Vec<_>>();
+    json!({"jsonrpc":"2.0","id":id,"result":locations})
+}
+
+fn resolve_symbol_candidates(
+    state: &ServerState,
+    current_uri: &str,
+    text: &str,
+    token_start: usize,
+    name: &str,
+) -> Vec<WorkspaceSymbol> {
+    let qualifier = module_qualifier_before(text, token_start);
+    let segments = qualifier.map(qualifier_segments).unwrap_or_default();
+    let candidates = workspace_symbols(state)
+        .into_iter()
+        .filter(|symbol| symbol.name == name)
+        .filter(|symbol| segments.is_empty() || matches_qualifier(symbol, &segments))
+        .collect::<Vec<_>>();
+    let local = candidates
         .iter()
-        .find(|(module_uri, declared, _, _)| {
-            declared == name
-                && module_qualifier
-                    .is_some_and(|qualifier| module_uri_matches_qualifier(module_uri, qualifier))
-        })
-        .or_else(|| {
-            functions
-                .iter()
-                .find(|(_, declared, _, _)| declared == name)
-        })
-        .map(|(module_uri, _, selection, _)| json!({"uri":module_uri,"range":selection}));
-    json!({"jsonrpc":"2.0","id":id,"result":location.into_iter().collect::<Vec<_>>()})
+        .filter(|symbol| symbol.uri == current_uri)
+        .cloned()
+        .collect::<Vec<_>>();
+    if local.is_empty() { candidates } else { local }
+}
+
+fn matches_qualifier(symbol: &WorkspaceSymbol, segments: &[&str]) -> bool {
+    if segments
+        .last()
+        .is_some_and(|last| symbol.container.as_deref() == Some(*last))
+    {
+        return module_suffix_matches(&symbol.module_path, &segments[..segments.len() - 1]);
+    }
+    module_suffix_matches(&symbol.module_path, segments)
+}
+
+fn module_suffix_matches(module_path: &[String], qualifier: &[&str]) -> bool {
+    if qualifier.is_empty() {
+        return true;
+    }
+    if qualifier.len() > module_path.len() {
+        return false;
+    }
+    module_path[module_path.len() - qualifier.len()..]
+        .iter()
+        .zip(qualifier)
+        .all(|(component, qualifier)| component == qualifier)
+}
+
+fn qualifier_segments(qualifier: &str) -> Vec<&str> {
+    let mut segments = qualifier
+        .split("::")
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    while segments.first().is_some_and(|segment| {
+        matches!(
+            *segment,
+            "crate" | "paquete" | "self" | "mismo" | "Self" | "Mismo" | "super" | "superior"
+        )
+    }) {
+        segments.remove(0);
+    }
+    segments
 }
 
 fn module_qualifier_before(text: &str, token_start: usize) -> Option<&str> {
@@ -1088,13 +1245,8 @@ fn module_qualifier_before(text: &str, token_start: usize) -> Option<&str> {
                 .then_some(index + character.len_utf8())
         })
         .unwrap_or(0);
-    let qualifier = without_separator.get(qualifier_start..)?;
+    let qualifier = without_separator.get(qualifier_start..)?.trim_end();
     (!qualifier.is_empty()).then_some(qualifier)
-}
-
-fn module_uri_matches_qualifier(uri: &str, qualifier: &str) -> bool {
-    let module_path = qualifier.replace("::", "/");
-    uri.ends_with(&format!("/{module_path}.ox"))
 }
 
 /// `rust-analyzer` can legitimately return an empty navigation result while a
@@ -1122,51 +1274,69 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     let selected_text = &text[selected.span.start()..selected.span.end()];
-    let lexed = lex(
-        &SourceFile::new(text),
-        LexOptions {
-            project_mode: state.project_mode,
-        },
-    );
-    let mut locations = lexed
-        .tokens
-        .into_iter()
-        .filter(|token| {
-            matches!(token.kind, TokenKind::Identifier { .. })
-                && &text[token.span.start()..token.span.end()] == selected_text
-        })
-        .filter_map(|token| {
-            let start = lsp_position(text, token.span.start())?;
-            let end = lsp_position(text, token.span.end())?;
-            Some(json!({"uri":uri,"range":{"start":start,"end":end}}))
-        })
-        .collect::<Vec<_>>();
+    let candidates =
+        resolve_symbol_candidates(state, &uri, text, selected.span.start(), selected_text);
+    let target_uris = candidates
+        .iter()
+        .map(|symbol| symbol.uri.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut locations = Vec::new();
     for (module_uri, module_text, _, _) in workspace_documents(state) {
-        if module_uri == uri {
-            continue;
-        }
-        let module_lexed = lex(
+        let lexed = lex(
             &SourceFile::new(&module_text),
             LexOptions {
                 project_mode: state.project_mode,
             },
         );
-        locations.extend(
-            module_lexed
-                .tokens
-                .into_iter()
-                .filter(|token| {
-                    matches!(token.kind, TokenKind::Identifier { .. })
-                        && &module_text[token.span.start()..token.span.end()] == selected_text
-                })
-                .filter_map(|token| {
-                    let start = lsp_position(&module_text, token.span.start())?;
-                    let end = lsp_position(&module_text, token.span.end())?;
-                    Some(json!({"uri":module_uri,"range":{"start":start,"end":end}}))
-                }),
-        );
+        let imports_candidate = module_uri != uri
+            && document_imports_candidate(&module_text, selected_text, &candidates);
+        for token in lexed.tokens {
+            if !matches!(token.kind, TokenKind::Identifier { .. })
+                || &module_text[token.span.start()..token.span.end()] != selected_text
+            {
+                continue;
+            }
+            let include = module_uri == uri
+                || target_uris.contains(module_uri.as_str())
+                || imports_candidate
+                || module_qualifier_before(&module_text, token.span.start()).is_some_and(
+                    |qualifier| {
+                        let segments = qualifier_segments(qualifier);
+                        candidates
+                            .iter()
+                            .any(|symbol| matches_qualifier(symbol, &segments))
+                    },
+                );
+            if !include {
+                continue;
+            }
+            let (Some(start), Some(end)) = (
+                lsp_position(&module_text, token.span.start()),
+                lsp_position(&module_text, token.span.end()),
+            ) else {
+                continue;
+            };
+            locations.push(json!({"uri":module_uri,"range":{"start":start,"end":end}}));
+        }
     }
     json!({"jsonrpc":"2.0","id":id,"result":locations})
+}
+
+fn document_imports_candidate(text: &str, name: &str, candidates: &[WorkspaceSymbol]) -> bool {
+    text.lines().any(|line| {
+        let trimmed = line.trim_start();
+        let Some(rest) = trimmed
+            .strip_prefix("use ")
+            .or_else(|| trimmed.strip_prefix("usar "))
+        else {
+            return false;
+        };
+        rest.contains(name)
+            && candidates.iter().any(|candidate| {
+                let path = candidate.module_path.join("::");
+                !path.is_empty() && rest.contains(&path)
+            })
+    })
 }
 
 fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
@@ -1179,8 +1349,16 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let Some(document) = state.documents.get(uri) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
-    if state.project_mode == Some(oxido_language::domain::syntax::SyntaxMode::Indentation) {
-        let formatted = format_indented_editor(&document.text);
+    let source = SourceFile::new(&document.text);
+    let lexed = lex(
+        &source,
+        LexOptions {
+            project_mode: state.project_mode,
+        },
+    );
+    if lexed.mode == Some(oxido_language::domain::syntax::SyntaxMode::Indentation) {
+        let formatted =
+            oxido_compiler::application::format::format_indented_source(&source, &lexed);
         if formatted == document.text {
             return json!({"jsonrpc":"2.0","id":id,"result":[]});
         }
@@ -1188,7 +1366,6 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
             .unwrap_or(json!({"line":0,"character":0}));
         return json!({"jsonrpc":"2.0","id":id,"result":[{"range":{"start":{"line":0,"character":0},"end":end},"newText":formatted}]});
     }
-    let source = SourceFile::new(&document.text);
     let Ok(generated) = oxido_compiler::generate_ox(
         &source,
         LexOptions {
@@ -1206,28 +1383,6 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let end = lsp_position(&document.text, document.text.len())
         .unwrap_or(json!({"line":0,"character":0}));
     json!({"jsonrpc":"2.0","id":id,"result":[{"range":{"start":{"line":0,"character":0},"end":end},"newText":formatted}]})
-}
-
-fn format_indented_editor(text: &str) -> String {
-    let mut depth = 0_usize;
-    let mut output = String::with_capacity(text.len());
-    for original in text.lines() {
-        let trimmed = original.trim();
-        if trimmed.is_empty() {
-            output.push('\n');
-            continue;
-        }
-        if trimmed.starts_with("sino") || trimmed.starts_with("caso ") {
-            depth = depth.saturating_sub(1);
-        }
-        output.push_str(&" ".repeat(depth.saturating_mul(4)));
-        output.push_str(trimmed);
-        output.push('\n');
-        if trimmed.ends_with(':') {
-            depth = depth.saturating_add(1);
-        }
-    }
-    output
 }
 
 fn resident_memory_kib() -> Option<u64> {
@@ -1846,59 +2001,6 @@ fn rust_analyzer_client_response(id: &Value, request: &Value) -> Value {
     json!({"jsonrpc":"2.0","id":id,"result":result})
 }
 
-fn parsed_file(
-    text: &str,
-    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
-) -> Option<OxFile> {
-    let parsed = oxido_compiler::parse_ox(&SourceFile::new(text), LexOptions { project_mode });
-    if parsed.has_errors() {
-        return None;
-    }
-    parsed.file
-}
-
-fn declared_functions(file: &OxFile, text: &str) -> Vec<(String, Value, Value)> {
-    fn visit(items: &[Item], text: &str, output: &mut Vec<(String, Value, Value)>) {
-        for item in items {
-            match item {
-                Item::Function(function) => {
-                    let start = function.span.start();
-                    let end = function.span.end().min(text.len());
-                    if let Some(relative) = text
-                        .get(start..end)
-                        .and_then(|source| source.find(&function.name))
-                    {
-                        let name_start = start + relative;
-                        let name_end = name_start + function.name.len();
-                        if let (
-                            Some(selection_start),
-                            Some(selection_end),
-                            Some(range_start),
-                            Some(range_end),
-                        ) = (
-                            lsp_position(text, name_start),
-                            lsp_position(text, name_end),
-                            lsp_position(text, start),
-                            lsp_position(text, end),
-                        ) {
-                            output.push((
-                                function.name.clone(),
-                                json!({"start":selection_start,"end":selection_end}),
-                                json!({"start":range_start,"end":range_end}),
-                            ));
-                        }
-                    }
-                }
-                Item::IndentedContainer(container) => visit(&container.members, text, output),
-                _ => {}
-            }
-        }
-    }
-    let mut output = Vec::new();
-    visit(&file.items, text, &mut output);
-    output
-}
-
 fn workspace_documents(state: &ServerState) -> Vec<(String, String, Option<i64>, String)> {
     let mut documents = state
         .documents
@@ -1976,24 +2078,70 @@ fn file_uri(path: &std::path::Path) -> String {
     format!("file://{}", path.to_string_lossy().replace(' ', "%20"))
 }
 
-fn workspace_functions(state: &ServerState) -> Vec<(String, String, Value, Value)> {
-    let mut functions = Vec::new();
+fn workspace_symbols(state: &ServerState) -> Vec<WorkspaceSymbol> {
+    let mut symbols = Vec::new();
     for (uri, text, _, _) in workspace_documents(state) {
-        let parsed = parsed_file(&text, state.project_mode);
-        let declarations = parsed
-            .as_ref()
-            .map_or_else(Vec::new, |file| declared_functions(file, &text));
+        let module_path = file_module_path(&uri, state.project_root.as_deref());
+        let declarations = declared_symbols(&text, state.project_mode);
         if declarations.is_empty() {
             for (name, selection, range) in textual_function_declarations(&text) {
-                functions.push((uri.clone(), name, selection, range));
+                symbols.push(WorkspaceSymbol {
+                    uri: uri.clone(),
+                    name,
+                    kind: SymbolKind::Function,
+                    container: None,
+                    module_path: module_path.clone(),
+                    selection,
+                    range,
+                });
             }
-        } else {
-            for (name, selection, range) in declarations {
-                functions.push((uri.clone(), name, selection, range));
-            }
+            continue;
+        }
+        for declaration in declarations {
+            let (Some(selection_start), Some(selection_end), Some(range_start), Some(range_end)) = (
+                lsp_position(&text, declaration.name_start),
+                lsp_position(&text, declaration.name_end),
+                lsp_position(&text, declaration.range_start),
+                lsp_position(&text, declaration.range_end),
+            ) else {
+                continue;
+            };
+            let mut nested_path = module_path.clone();
+            nested_path.extend(declaration.module_path);
+            symbols.push(WorkspaceSymbol {
+                uri: uri.clone(),
+                name: declaration.name,
+                kind: declaration.kind,
+                container: declaration.container,
+                module_path: nested_path,
+                selection: json!({"start":selection_start,"end":selection_end}),
+                range: json!({"start":range_start,"end":range_end}),
+            });
         }
     }
-    functions
+    symbols
+}
+
+fn file_module_path(uri: &str, root: Option<&std::path::Path>) -> Vec<String> {
+    let Some(path) = uri.strip_prefix("file://") else {
+        return Vec::new();
+    };
+    let path = PathBuf::from(path.replace("%20", " "));
+    let relative = root
+        .and_then(|root| path.strip_prefix(root).ok())
+        .unwrap_or(path.as_path());
+    relative
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => value.to_str(),
+            _ => None,
+        })
+        .map(|value| {
+            value
+                .strip_suffix(".ox")
+                .map_or_else(|| value.to_owned(), str::to_owned)
+        })
+        .collect()
 }
 
 fn textual_function_declarations(text: &str) -> Vec<(String, Value, Value)> {
@@ -2946,7 +3094,7 @@ mod tests {
     fn exposes_resource_stats_and_formats_indented_documents() {
         let mut state = configured_test_state();
         handle(
-            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"sintaxis indentacion\nfuncion principal():\npass\n"}}}),
+            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"sintaxis indentacion\nfuncion principal():\n  pass\n"}}}),
             &mut state,
         );
         let formatting = handle(
@@ -2957,6 +3105,32 @@ mod tests {
             formatting[0]["result"][0]["newText"],
             "sintaxis indentacion\nfuncion principal():\n    pass\n"
         );
+    }
+
+    #[test]
+    fn lsp_formatting_uses_the_same_indented_formatter_as_the_cli() {
+        let mut state = configured_test_state();
+        let original = "sintaxis indentacion\nfuncion suma(a:i32,b:i32)->i32:   \n  retornar a+b\n";
+        let expected =
+            "sintaxis indentacion\nfuncion suma(a: i32, b: i32) -> i32:\n    retornar a + b\n";
+        handle(
+            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///suma.ox","text":original}}}),
+            &mut state,
+        );
+        let formatting = handle(
+            json!({"jsonrpc":"2.0","id":71,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file:///suma.ox"}}}),
+            &mut state,
+        );
+        assert_eq!(formatting[0]["result"][0]["newText"], expected);
+        handle(
+            json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///suma.ox","version":2},"contentChanges":[{"text":expected}]}}),
+            &mut state,
+        );
+        let formatting = handle(
+            json!({"jsonrpc":"2.0","id":72,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file:///suma.ox"}}}),
+            &mut state,
+        );
+        assert_eq!(formatting[0]["result"], json!([]));
     }
 
     #[test]
@@ -3173,6 +3347,179 @@ mod tests {
         );
     }
 
+    fn navigation_fixture_state() -> (ServerState, String, String) {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../editors/vscode-oxido/test/fixtures/navigation")
+            .canonicalize()
+            .expect("navigation fixture root exists");
+        let main_path = root.join("main.ox");
+        let main_uri = file_uri(&main_path);
+        let main_text =
+            std::fs::read_to_string(&main_path).expect("navigation fixture is readable");
+        let mut state = ServerState {
+            project_root: Some(root),
+            project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
+            ..ServerState::default()
+        };
+        state.documents.insert(
+            main_uri.clone(),
+            TextDocument {
+                version: Some(1),
+                text: main_text.clone(),
+            },
+        );
+        (state, main_uri, main_text)
+    }
+
+    fn params_for_nth(uri: &str, text: &str, needle: &str, occurrence: usize) -> Value {
+        let mut search = 0_usize;
+        let mut found = None;
+        for _ in 0..=occurrence {
+            let relative = text
+                .get(search..)
+                .and_then(|rest| rest.find(needle))
+                .expect("needle exists");
+            found = Some(search + relative);
+            search += relative + needle.len();
+        }
+        let position = lsp_position(text, found.expect("needle exists")).expect("offset maps");
+        json!({"textDocument":{"uri":uri},"position":position})
+    }
+
+    #[test]
+    fn resolves_qualified_repeated_functions_to_distinct_modules() {
+        let (state, uri, text) = navigation_fixture_state();
+        let alpha = definition_response(
+            json!(51),
+            Some(&params_for_nth(&uri, &text, "repetida", 0)),
+            &state,
+        );
+        assert!(
+            alpha["result"][0]["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/alpha.ox")),
+            "alpha definition: {alpha}"
+        );
+        let beta = definition_response(
+            json!(52),
+            Some(&params_for_nth(&uri, &text, "repetida", 1)),
+            &state,
+        );
+        assert!(
+            beta["result"][0]["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/beta.ox")),
+            "beta definition: {beta}"
+        );
+    }
+
+    #[test]
+    fn resolves_nested_type_and_associated_method_through_qualified_path() {
+        let (state, uri, text) = navigation_fixture_state();
+        let structure = definition_response(
+            json!(53),
+            Some(&params_for_nth(&uri, &text, "Alumno", 0)),
+            &state,
+        );
+        assert!(
+            structure["result"][0]["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/dominio/modelos.ox")),
+            "type definition: {structure}"
+        );
+        let method = definition_response(
+            json!(54),
+            Some(&params_for_nth(&uri, &text, "nuevo", 0)),
+            &state,
+        );
+        assert!(
+            method["result"][0]["uri"]
+                .as_str()
+                .is_some_and(|uri| uri.ends_with("/dominio/modelos.ox")),
+            "method definition: {method}"
+        );
+        let hover = hover_response(
+            json!(55),
+            Some(&params_for_nth(&uri, &text, "nuevo", 0)),
+            &state,
+        );
+        assert!(
+            hover["result"]["contents"]["value"]
+                .as_str()
+                .is_some_and(|value| value.contains("método")),
+            "method hover: {hover}"
+        );
+    }
+
+    #[test]
+    fn repeated_references_do_not_cross_into_another_qualified_module() {
+        let (state, uri, text) = navigation_fixture_state();
+        let references = references_response(
+            json!(56),
+            Some(&params_for_nth(&uri, &text, "repetida", 0)),
+            &state,
+        );
+        let uris = references["result"]
+            .as_array()
+            .expect("references array")
+            .iter()
+            .filter_map(|location| location["uri"].as_str())
+            .collect::<Vec<_>>();
+        assert!(uris.iter().any(|uri| uri.ends_with("/alpha.ox")));
+        assert!(!uris.iter().any(|uri| uri.ends_with("/beta.ox")));
+    }
+
+    #[test]
+    fn completion_and_document_symbols_include_types_methods_and_modules() {
+        let (mut state, uri, _text) = navigation_fixture_state();
+        let models_path = std::path::PathBuf::from(uri.strip_prefix("file://").expect("file uri"))
+            .parent()
+            .expect("fixture directory")
+            .join("dominio/modelos.ox");
+        state.documents.insert(
+            file_uri(&models_path),
+            TextDocument {
+                version: Some(1),
+                text: std::fs::read_to_string(&models_path).expect("models fixture is readable"),
+            },
+        );
+        let completion = completion_response(
+            json!(57),
+            Some(&json!({"textDocument":{"uri":uri},"position":{"line":0,"character":0}})),
+            &state,
+        );
+        let labels = completion["result"]["items"]
+            .as_array()
+            .expect("completion items")
+            .iter()
+            .filter_map(|item| item["label"].as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(labels.contains("Alumno"));
+        assert!(labels.contains("nuevo"));
+        assert!(labels.contains("repetida"));
+
+        let document_symbols = document_symbols_response(
+            json!(58),
+            Some(&json!({"textDocument":{"uri":file_uri(&models_path)}})),
+            &state,
+        );
+        let symbols = document_symbols["result"]
+            .as_array()
+            .expect("document symbols")
+            .iter()
+            .collect::<Vec<_>>();
+        assert!(
+            symbols
+                .iter()
+                .any(|symbol| { symbol["name"] == "Alumno" && symbol["kind"] == 23 })
+        );
+        assert!(
+            symbols
+                .iter()
+                .any(|symbol| { symbol["name"] == "nuevo" && symbol["kind"] == 6 })
+        );
+    }
+
     #[test]
     fn indexes_closed_ox_modules_from_the_workspace_root() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -3183,11 +3530,20 @@ mod tests {
             project_root: Some(root),
             ..ServerState::default()
         };
-        let functions = workspace_functions(&state);
+        let symbols = workspace_symbols(&state);
         assert!(
-            functions
+            symbols
                 .iter()
-                .any(|(uri, name, _, _)| uri.ends_with("/dominio/modelos.ox") && name == "nuevo")
+                .any(|symbol| symbol.uri.ends_with("/dominio/modelos.ox")
+                    && symbol.name == "nuevo"
+                    && symbol.container.as_deref() == Some("Alumno"))
+        );
+        assert!(
+            symbols
+                .iter()
+                .any(|symbol| symbol.uri.ends_with("/dominio/modelos.ox")
+                    && symbol.name == "Alumno"
+                    && symbol.kind == SymbolKind::Struct)
         );
     }
 

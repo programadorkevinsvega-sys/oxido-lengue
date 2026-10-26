@@ -98,6 +98,17 @@ async function main() {
       }
     });
   }
+  if (!only || only === 'navigation') {
+    await runHostCase({
+      label: 'navigation workspace',
+      fixture: path.join(__dirname, 'fixtures', 'navigation'),
+      extraArgs: [],
+      environment: {
+        OXIDO_EXPECT_TRUSTED: 'false',
+        OXIDO_HOST_CASE: 'navigation'
+      }
+    });
+  }
   if (!only || only === 'restricted') {
     const restrictedProfile = path.join(extensionRoot, '.vscode-test', 'restricted-workspace');
     const fakeCargo = prepareFakeCargo(restrictedProfile);

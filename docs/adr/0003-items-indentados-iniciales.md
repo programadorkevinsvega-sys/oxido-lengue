@@ -12,9 +12,13 @@ La fase de lenguaje inicial necesita permitir `struct`, `enum` y `use` con bloqu
 
 - `struct` y `enum` indentados tienen nodos explícitos en el AST: kind, visibilidad, atributos, encabezado, miembros y spans.
 - El parser reconoce los límites de cada campo/variante y conserva su fragmento con span. No concatena texto para fabricar un item Rust.
-- El backend genera los items con `quote`/`proc_macro2`, normaliza aliases fuera de grupos opacos, parsea el item con Syn y aplica `prettyplease` al archivo.
+- En la entrega inicial, el backend generaba los items con `quote`/`proc_macro2`, normalizaba aliases fuera de grupos opacos, parseaba el item con Syn y aplicaba `prettyplease` al archivo.
 - `use` indentado tiene un nodo AST propio; el backend emite el `;` Rust aunque el archivo Óxido omita ese terminador.
 - Al aprobar este ADR, `impl`, `trait` y módulos se preservaban como items Rust con llaves; sus cuerpos indentados se implementaron después en el alcance documentado de Fase 8.
+
+## Evolución de la implementación
+
+La salida actual también pasa por `rustfmt` 1.99.1 después de `prettyplease`; ver la implementación y los criterios de Fase 9 en [roadmap.md](../roadmap.md) y [testing.md](../testing.md).
 
 ## Consecuencias
 

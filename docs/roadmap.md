@@ -250,7 +250,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Criterio de salida:** cumplido para el alcance documentado. La revisión de cobertura estructural está cruzada con fixtures en `testing.md`. Para los fixtures de la matriz, el Rust exportado coincide carácter por carácter con `rustfmt`; `.ox` sigue convenciones de layout propias de Óxido. La matriz compila los exports y ejecuta un caso; no pretende enumerar todas las expresiones Rust que Syn admite. Los comandos y escenarios enumerados tienen pruebas CLI positivas/negativas, resultados verificables, destinos de importación restringidos, roundtrip ejecutable de árboles mixtos con `#[path]` y CI remota en verde.
 
-**Dependencia:** Fases 5–8 según comando.
+**Dependencia:** Fases 5–9 según comando.
 
 ---
 

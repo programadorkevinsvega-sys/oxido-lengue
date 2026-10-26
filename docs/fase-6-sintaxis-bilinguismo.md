@@ -10,7 +10,7 @@
 - Los grupos de macros externas/desconocidas y atributos desconocidos permanecen opacos. Los nombres de macros estándar allowlisted y las expresiones que su contrato permite recorrer se traducen selectivamente desde Fase 7; `r#identificador` se conserva sin traducir.
 - Colisiones de alias reciben `OX3001` y sugerencia `r#...` en nombres de función, parámetros, patrones anidados, bindings y patrones `para` cubiertos por el parser.
 - Ambos modos compilan y ejecutan un caso equivalente con la misma salida. Se mantienen pruebas de mezcla de delimitadores y semicolon/tail.
-- El Rust generado pasa por Syn y se formatea con `prettyplease`. No se reescribe el archivo `.ox` ni se altera su modo al generarlo.
+- En la entrega de Fase 6, el Rust generado pasaba por Syn y se formateaba con `prettyplease`. En la Fase 9 se añadió `rustfmt` 1.99.1 como paso final. `oxido formato` sí reescribe el archivo `.ox` cuando se invoca sin `--comprobar`, pero conserva el modo declarado.
 
 ## Límites que pasan a Fase 7
 

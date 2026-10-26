@@ -8,7 +8,7 @@ La mayoría de las pruebas vive junto al crate que valida:
 - `crates/oxido-rust-backend/`: pruebas unitarias del emisor, normalización y mapas.
 - `tests/fixtures/cargo-registry/`: crates fijadas y vendor local para integración Cargo repetible sin depender de la caché personal.
 - `tests/fixtures/cargo-execution/`: fixtures controlados con `build.rs` y macro procedural para probar la política de confianza.
-- `fuzz/`: harnesses `cargo-fuzz` y corpus semilla versionado para lexer, parser, backend y `oxido.toml`; los inputs que encuentre el fuzzing se ignoran localmente hasta que se revisen y se añadan como regresiones.
+- `fuzz/`: harnesses `cargo-fuzz` y corpus semilla versionado para lexer, parser, backend, dispatcher LSP y `oxido.toml`; los inputs que encuentre el fuzzing se ignoran localmente hasta que se revisen y se añadan como regresiones.
 - `examples/` y `prueba/`: ejemplos ejecutables y proyectos de referencia funcionales; no sustituyen las pruebas del compilador.
 
 ### Contrato para añadir una referencia
@@ -33,6 +33,7 @@ cargo +nightly-2026-10-16 fuzz run lexer -- -runs=1000 -max_len=8192
 cargo +nightly-2026-10-16 fuzz run parser -- -runs=1000 -max_len=8192
 cargo +nightly-2026-10-16 fuzz run config -- -runs=1000 -max_len=8192
 cargo +nightly-2026-10-16 fuzz run backend -- -runs=1000 -max_len=8192
+cargo +nightly-2026-10-16 fuzz run lsp -- -runs=1000 -max_len=8192
 ```
 
 Para investigar un fallo, conserva el artefacto, minimízalo con `cargo fuzz tmin <target> <artefacto>` y añade el caso mínimo al corpus versionado y a una prueba de regresión determinista apropiada. No reportes como fuzzing prolongado un smoke de 1.000 ejecuciones. Los informes de ejecución deben distinguir aprobadas, fallidas y no evaluadas; cualquier cifra de rendimiento exige entorno, carga, repeticiones y método medido.

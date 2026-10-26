@@ -5,9 +5,12 @@ corpus/*
 !corpus/lexer/
 !corpus/parser/
 !corpus/config/
+!corpus/lsp/
 corpus/lexer/*
 corpus/parser/*
 corpus/config/*
 !corpus/lexer/*.ox
 !corpus/parser/*.ox
 !corpus/config/*.toml
+corpus/lsp/*
+!corpus/lsp/*.json

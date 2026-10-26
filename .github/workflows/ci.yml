@@ -43,3 +43,4 @@ jobs:
       - run: cargo fuzz run parser -- -runs=1000 -max_len=8192
       - run: cargo fuzz run config -- -runs=1000 -max_len=8192
       - run: cargo fuzz run backend -- -runs=1000 -max_len=8192
+      - run: cargo fuzz run lsp -- -runs=1000 -max_len=8192

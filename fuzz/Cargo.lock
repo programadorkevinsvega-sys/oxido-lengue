@@ -139,6 +139,15 @@ dependencies = [
  "libfuzzer-sys",
  "oxido-compiler",
  "oxido-language",
+ "oxido-lsp",
+]
+
+[[package]]
+name = "oxido-lsp"
+version = "0.1.0"
+dependencies = [
+ "oxido-language",
+ "serde_json",
 ]
 
 [[package]]

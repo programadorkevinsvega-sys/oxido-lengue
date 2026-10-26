@@ -49,6 +49,22 @@ for (const entry of await readdir(join(sourceDocs, 'audiencias'), { withFileType
   )
 }
 
+async function addMarkdownTree(sourceDirectory, destinationDirectory) {
+  await mkdir(destinationDirectory, { recursive: true })
+  for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
+    const source = join(sourceDirectory, entry.name)
+    const destination = join(destinationDirectory, entry.name)
+    if (entry.isDirectory()) {
+      await addMarkdownTree(source, destination)
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      await addFrontmatter(source, destination, entry.name)
+    }
+  }
+}
+
+const reportsDirectory = join(sourceDocs, 'reports')
+await addMarkdownTree(reportsDirectory, join(references, 'reports'))
+
 await addFrontmatter(
   resolve(root, '../ARCHITECTURE_RULES.md'),
   join(references, 'reglas-de-arquitectura.md'),

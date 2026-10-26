@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 const CRUD_ADDRESS: &str = "127.0.0.1:38211";
@@ -34,12 +34,136 @@ fn run() -> Result<(), String> {
         "interoperabilidad con std",
         false,
     )?;
+    run_terminal_reference(&workspace)?;
 
     run_crud_case(&workspace, false)?;
     run_crud_case(&workspace, true)?;
 
     println!("Proyectos de referencia funcionales aprobados; rendimiento no medido.");
     Ok(())
+}
+
+fn run_terminal_reference(workspace: &Path) -> Result<(), String> {
+    let oxido_binary = workspace.join("target/terminal-cli-reference/terminal-cli");
+    let rust_binary = workspace.join("prueba/terminal-cli-rust/target/debug/terminal-cli");
+    if !oxido_binary.is_file() || !rust_binary.is_file() {
+        return Err("faltan los binarios de las referencias de terminal".to_owned());
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("no se pudo leer el reloj para la prueba CLI: {error}"))?
+        .as_nanos();
+    let test_directory = env::temp_dir().join(format!(
+        "oxido-terminal-reference-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir(&test_directory)
+        .map_err(|error| format!("no se pudo crear el directorio temporal CLI: {error}"))?;
+    let fixture = (|| {
+        fs::create_dir(test_directory.join("subdirectorio"))
+            .map_err(|error| format!("no se pudo crear el subdirectorio CLI: {error}"))?;
+        fs::write(
+            test_directory.join("archivo.txt"),
+            "contenido desde fixture\n",
+        )
+        .map_err(|error| format!("no se pudo crear el archivo temporal CLI: {error}"))?;
+
+        let input = concat!(
+            "help\n",
+            "echo \"modo interactivo\"\n",
+            "comando-invalido\n",
+            "pwd\n",
+            "ls\n",
+            "cat archivo.txt\n",
+            "cd subdirectorio\n",
+            "pwd\n",
+            "exit\n"
+        );
+        let oxido = run_interactive_binary(&oxido_binary, &test_directory, input, "Óxido")?;
+        let rust = run_interactive_binary(&rust_binary, &test_directory, input, "Rust")?;
+        if !oxido.status.success() || !rust.status.success() {
+            return Err("una referencia CLI interactiva terminó con error".to_owned());
+        }
+        if oxido.stdout != rust.stdout || oxido.stderr != rust.stderr {
+            return Err("la salida interactiva de Óxido difiere de la línea base Rust".to_owned());
+        }
+
+        let stdout = String::from_utf8_lossy(&oxido.stdout);
+        let stderr = String::from_utf8_lossy(&oxido.stderr);
+        for expected in [
+            "Comandos disponibles:",
+            "modo interactivo\n",
+            "archivo.txt\nsubdirectorio/\n",
+            "contenido desde fixture\n",
+        ] {
+            if !stdout.contains(expected) {
+                return Err("la sesión CLI no produjo una salida funcional esperada".to_owned());
+            }
+        }
+        if !stderr.contains("Comando desconocido: comando-invalido") {
+            return Err("la sesión CLI no informó el comando desconocido".to_owned());
+        }
+        println!("CLI interactiva Óxido/Rust: salida idéntica y casos funcionales aprobados.");
+        Ok(())
+    })();
+    let cleanup = fs::remove_dir_all(&test_directory)
+        .map_err(|error| format!("no se pudo limpiar el directorio temporal CLI: {error}"));
+
+    match (fixture, cleanup) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(fixture_error), Ok(())) => Err(fixture_error),
+        (Ok(()), Err(cleanup_error)) => Err(cleanup_error),
+        (Err(fixture_error), Err(cleanup_error)) => {
+            Err(format!("{fixture_error}; {cleanup_error}"))
+        }
+    }
+}
+
+fn run_interactive_binary(
+    binary: &Path,
+    working_directory: &Path,
+    input: &str,
+    label: &str,
+) -> Result<std::process::Output, String> {
+    let mut child = Command::new(binary)
+        .current_dir(working_directory)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("no se pudo iniciar la CLI {label}: {error}"))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("la CLI {label} no expuso stdin"))?;
+    if let Err(error) = stdin.write_all(input.as_bytes()) {
+        drop(stdin);
+        let kill_result = child
+            .kill()
+            .map_err(|kill_error| format!("no se pudo detener la CLI {label}: {kill_error}"));
+        let wait_result = child
+            .wait()
+            .map_err(|wait_error| format!("no se pudo recoger la CLI {label}: {wait_error}"));
+        return match (kill_result, wait_result) {
+            (Ok(()), Ok(_)) => Err(format!(
+                "no se pudo enviar la sesión a la CLI {label}: {error}"
+            )),
+            (Err(kill_error), Ok(_)) => Err(format!(
+                "no se pudo enviar la sesión a la CLI {label}: {error}; {kill_error}"
+            )),
+            (Ok(()), Err(wait_error)) => Err(format!(
+                "no se pudo enviar la sesión a la CLI {label}: {error}; {wait_error}"
+            )),
+            (Err(kill_error), Err(wait_error)) => Err(format!(
+                "no se pudo enviar la sesión a la CLI {label}: {error}; {kill_error}; {wait_error}"
+            )),
+        };
+    }
+    drop(stdin);
+    child
+        .wait_with_output()
+        .map_err(|error| format!("no se pudo recoger la salida de la CLI {label}: {error}"))
 }
 
 fn run_crud_case(workspace: &Path, overflow: bool) -> Result<(), String> {

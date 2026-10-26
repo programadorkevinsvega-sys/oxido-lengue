@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–9: completadas en el alcance documentado. Fase 10: en curso. Fases 11–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
+**Fases 0–10: completadas en sus alcances documentados. Fases 11–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -258,7 +258,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** consolidar pruebas, compatibilidad, fuzzing y evidencia continua.
 
-**Estado actual:** en curso. El workspace tiene matrices de lexer/parser/configuración/pipeline/CLI, pruebas de modos equivalentes, roundtrip y límites; la evidencia está inventariada en [fase-10-laboratorio-validacion.md](fase-10-laboratorio-validacion.md). Hay cinco targets `cargo-fuzz` con corpus semilla y smoke CI fijado; cuatro diferenciales (tres ejecuciones positivas y un error de tipos) contra Rust directo; el LSP cubre cambios completos e incrementales y cancelación cooperativa de semantic tokens; y el recolector local genera informes por commit/entorno con un límite configurable. Se registró una campaña local de 10.000 iteraciones por target. Falta incorporar el informe como artefacto de CI, ampliar el corpus diferencial, cubrir cancelación de otros trabajos LSP si se añaden y seguir comprobando los procedimientos manuales de referencia.
+**Estado actual:** completada para el alcance definido. La matriz cubre los componentes publicados; siete pares diferenciales positivos más un diagnóstico negativo comparan Óxido con Rust; las regresiones de importación/exportación y módulos corren en CLI; el LSP prueba cambios incrementales, recuperación y cancelación cooperativa de semantic tokens; cinco targets de fuzz tienen corpus, smoke en push/PR y campaña semanal de 10.000 casos; el informe Markdown se publica como artefacto de CI por 30 días; y las referencias funcionales, incluida la interacción de terminal, se automatizan. El benchmark release de cinco rondas se ejecutó en GitHub Actions y sus resultados se registran en [el informe comparativo](reports/fase-10/2026-10-26-benchmark-release-github.md). Es una medición exploratoria y no demuestra rendimiento de producción. CI de cierre aprobada en PR #29, commit `dd1f07c`.
 
 ### Subfases
 
@@ -398,9 +398,9 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; `site` apunta a `https://oxido-lengue.pages.dev`, sitemap y `404.html` personalizados construyen sin avisos |
 | 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
 | 9 | Completada (alcance documentado) | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Conformidad de Rust generado con rustfmt en la matriz estructural, revisión de cobertura y CI remota; ver Fase 9 |
-| 10 | En curso | [Informe de Fase 10](fase-10-laboratorio-validacion.md); fuzz targets acotados en nightly, diferencial `.ox`/Rust y `cargo test --workspace --locked` | Completar diferenciales, cobertura por característica, informes y suites CI |
+| 10 | Completada | [Informe de Fase 10](fase-10-laboratorio-validacion.md); siete diferenciales positivos, un caso negativo, matriz por característica, fuzz semanal 10k/target, informe CI, referencias automatizadas y benchmark release archivado | Evidencia acotada; benchmark no equivale a rendimiento de producción |
 | 11–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–9 están completadas para los alcances declarados; la Fase 10 está en curso. Las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–10 están completadas para los alcances declarados y registrados. Las limitaciones de la matriz no se consideran características implementadas.

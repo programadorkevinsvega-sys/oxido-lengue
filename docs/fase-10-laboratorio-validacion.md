@@ -1,20 +1,22 @@
 # Fase 10 — Laboratorio de validación
 
-**Estado:** en curso. Esta fase consolida evidencia reproducible; no amplía por sí sola la compatibilidad del lenguaje.
+**Estado:** completada para los criterios definidos y probados. Esta fase consolida evidencia reproducible; no amplía por sí sola la compatibilidad del lenguaje.
 
 ## Inventario inicial
 
 | Subfase | Estado inicial verificado | Evidencia disponible / trabajo pendiente |
 |---|---|---|
-| 1. Matriz por componente | Implementación inicial | [`testing.md`](testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas) enlaza áreas anunciadas con funciones de prueba. Una prueba del recolector valida que los identificadores documentados existen; todavía requiere revisión humana del alcance de cada evidencia. |
-| 2. Regresiones | Implementada en el corpus existente | Los defectos corregidos tienen pruebas en el crate afectado; fuzz crashes futuros deben añadirse como seed y regresión determinista. |
-| 3. Diferencial contra Rust | Parcial | Seis casos positivos compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones, `struct`/`impl`/método/`match`, propagación `Result`/`?`, patrones de enum, préstamo mutable/iteración y polling de async; un caso negativo compara `E0308` y su mapeo al `.ox`. Es una muestra acotada. |
-| 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs` y roundtrip de árboles mixtos; no equivale a roundtrip universal. |
-| 5. Fuzzing | Campaña extendida inicial aprobada | Cinco targets con corpus semilla y smoke CI de 1.000 casos; se ejecutó localmente una campaña de 10.000 casos por target y se generó el informe reproducible. Esto sigue siendo una campaña corta, no fuzzing prolongado. |
-| 6. Límites y recuperación | Parcial | Hay límites de tamaños/anidamiento, Unicode, spans y framing. El LSP anuncia sincronización incremental y tiene pruebas de ediciones en secuencia con UTF-16, versiones obsoletas, rangos inválidos y recuperación. Semantic tokens admite cancelación cooperativa mediante `$/cancelRequest`; los diagnósticos de edición permanecen síncronos. |
-| 7. Proyectos reutilizables | Parcial | `reference-regressions` automatiza en CI interoperabilidad con `std`, CRUD concurrente y overflow, los árboles Rust de módulos, parser de la CLI exportada y su línea base Rust, API SQLite Óxido/Rust secuencial, y persistencia del árbol exportado. Los manifiestos Rust de referencias también se comprueban con rustfmt. El benchmark comparativo queda automatizado semanalmente y puede iniciarse desde `workflow_dispatch`; esta implementación no ejecutó ni reportó una nueva medición. Las interacciones de terminal y referencias listadas como manuales en `tests/README.md` siguen pendientes. |
-| 8. Informes reproducibles | Integrado en CI | `tools/validation-report` registra commit/entorno/estados/duración y escribe Markdown; `validation-report` ejecuta el recolector e instala las herramientas requeridas y conserva `target/validation-report.md` como artefacto de Actions por 30 días, incluso si fallan suites después de generar el archivo. La campaña de 10.000 por target se archivó en [`reports/fase-10/2026-10-26-10000-por-target.md`](reports/fase-10/2026-10-26-10000-por-target.md). No se inventan métricas de rendimiento. |
-| 9. CI | En progreso | Además de fmt, Clippy, tests, cargo-deny y smoke fuzz, la CI incluye informe descargable y regresiones de referencia SQLite. La comparación de rendimiento queda como workflow optativo, separada de la verificación funcional. Este cambio aún requiere su propio resultado remoto verde. |
+| 1. Matriz por componente | Implementada para capacidades anunciadas | [`testing.md`](testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas) vincula lexer, parser, modos, alias, macros, backend, diagnósticos, módulos, formato, configuración y LSP con pruebas nombradas. La revisión estructural enumera las producciones cubiertas y marca los límites de Rust passthrough. |
+| 2. Regresiones | Implementada | Los defectos cubiertos por el corpus tienen pruebas en el crate correspondiente; los crashes de fuzz deben convertirse en seeds y regresiones deterministas antes de aceptarse. |
+| 3. Diferencial contra Rust | Implementada para la cobertura declarada | Siete casos positivos compilan/ejecutan pares `.ox`/Rust para iteradores/colecciones, `struct`/`impl`/método/`match`, propagación `Result`/`?`, patrones de enum, préstamo mutable/iteración, polling de async y genéricos/traits/closures; un caso negativo compara `E0308` y su mapeo al `.ox`. Es evidencia acotada, no equivalencia general. |
+| 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs`, árboles mixtos y módulos jerárquicos; construcciones no reversibles se rechazan con diagnóstico. No equivale a roundtrip universal. |
+| 5. Fuzzing | Implementada con corpus y campañas programadas | Cinco targets versionados con corpus y smoke CI de 1.000 casos por push/PR. El job semanal del informe ejecuta 10.000 iteraciones por target; existe informe archivado de una campaña 10k previa. No se declara cobertura ni ausencia de defectos a partir del conteo. |
+| 6. Límites y recuperación | Implementada para los límites publicados | Hay pruebas de tamaño/anidamiento, Unicode, spans y framing. El LSP cubre ediciones incrementales UTF-16, versiones obsoletas, rangos inválidos, recuperación y cancelación cooperativa de semantic tokens mediante `$/cancelRequest`. Los diagnósticos de edición son síncronos y esa limitación está documentada. |
+| 7. Proyectos reutilizables | Implementada en el índice de referencias | `reference-regressions` automatiza interoperabilidad con `std`, CRUD concurrente/overflow, módulos, pruebas y sesión interactiva de la CLI, API SQLite Óxido/Rust secuencial y persistencia del árbol exportado. Verifica formato de las líneas base Rust. El benchmark release comparativo se ejecutó en GitHub Actions; resultados y límites están en [`informe del benchmark`](reports/fase-10/2026-10-26-benchmark-release-github.md). |
+| 8. Informes reproducibles | Integrado en CI | `tools/validation-report` registra commit/entorno/estados/duración y escribe Markdown; `validation-report` conserva `target/validation-report.md` como artefacto de Actions por 30 días, incluso si falla una verificación tras producirse el archivo. La campaña de 10.000 por target está archivada en [`reports/fase-10/2026-10-26-10000-por-target.md`](reports/fase-10/2026-10-26-10000-por-target.md). El benchmark tiene un informe separado con versiones, carga, medianas, rangos y limitaciones; no se confunde con rendimiento del compilador o de producción. |
+| 9. CI | Implementada y aprobada | En PR #29, commit `dd1f07c`, pasaron los workflows de push y PR: Rust, dependencias, fuzz smoke, regresiones de referencia, informe reproducible y Cloudflare Pages. El benchmark release de cierre también pasó en el workflow manual [40318401833](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/40318401833). |
+
+La tabla anterior refleja el estado vigente. Los registros titulados «Registro» o «Iteración» más abajo preservan evidencia histórica de commits previos; sus estados pendientes describen esos commits y no sustituyen esta tabla ni el cierre más reciente.
 
 ## Harnesses de fuzzing
 
@@ -111,7 +113,7 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 
 ## Criterio de cierre
 
-La fase seguirá abierta hasta que las características publicadas en la matriz tengan tests identificables, las limitaciones y campañas no ejecutadas figuren como pendientes, los diferenciales/roundtrips relevantes estén automatizados y el job de CI de fuzzing pase. No se exige demostrar exhaustivamente toda la gramática de Rust ni trasladar a este laboratorio la aceptación funcional de crates, macros, runtimes o `unsafe`; esa decisión corresponde a la Fase 8 según ADR-0007.
+Para cerrar esta fase, las características publicadas deben tener pruebas identificables; las limitaciones y campañas no ejecutadas deben figurar como pendientes; los diferenciales/roundtrips requeridos deben estar automatizados; y el job de CI de fuzzing debe pasar. No se exige demostrar exhaustivamente toda la gramática de Rust ni trasladar a este laboratorio la aceptación funcional de crates, macros, runtimes o `unsafe`; esa decisión corresponde a la Fase 8 según ADR-0007.
 
 ## Iteración de diferenciales, sincronización LSP y campaña extendida
 
@@ -130,13 +132,13 @@ La fase seguirá abierta hasta que las características publicadas en la matriz 
 
 | Dato | Estado de esta iteración |
 |---|---|
-| Diferenciales añadidos | `differential_patterns_borrows_and_async_match_native_rust` ejecuta tres pares `.ox`/Rust: patrones de enum, préstamo mutable con iteración, y función async con polling de `Future`. Se comparan procesos y stdout exacto. El corpus diferencial queda en seis pares positivos y una comparación negativa de `E0308`; sigue siendo cobertura de casos, no equivalencia universal. |
+| Diferenciales añadidos | `differential_patterns_borrows_and_async_match_native_rust` ejecuta cuatro pares `.ox`/Rust: patrones de enum, préstamo mutable con iteración, polling de `Future` async, y genéricos con trait y closure. Se comparan procesos y stdout exacto. El corpus diferencial queda en siete pares positivos y una comparación negativa de `E0308`; sigue siendo cobertura de casos, no equivalencia universal. |
 | Informe en CI | Job `validation-report`: corre el recolector con Rust 1.99.1, nightly fijado, cargo-deny, cargo-fuzz y dependencias del portal; sube el Markdown como artefacto asociado al commit durante 30 días. Si el recolector produce el archivo y luego falla, el paso de subida usa `always()`. |
-| Referencias funcionales | Job `reference-regressions`: `reference-runner` ejecuta interoperabilidad con `std`, CRUD concurrente y overflow; regenera el Rust exportado, comprueba formato y determinismo, ejecuta los tests de parser de la CLI exportada y Rust, descarga dependencias con Cargo, ejecuta secuencialmente los árboles Rust y servidores Óxido/Rust sin cargas medidas, y valida persistencia/reinicios del proyecto exportado. |
-| Benchmark | Se ejecuta automáticamente cada lunes en GitHub Actions y también puede iniciarse con `workflow_dispatch` (`ejecutar_benchmark`). Conserva el log del benchmark release de cinco rondas. No fue ejecutado en esta iteración; **rendimiento no medido**. |
+| Referencias funcionales | Job `reference-regressions`: `reference-runner` ejecuta interoperabilidad con `std`, compara una sesión de terminal Óxido/Rust con stdin compartido, CRUD concurrente y overflow; regenera el Rust exportado, comprueba formato y determinismo, ejecuta los tests de parser de la CLI exportada y Rust, descarga dependencias con Cargo, ejecuta secuencialmente los árboles Rust y servidores Óxido/Rust sin cargas medidas, y valida persistencia/reinicios del proyecto exportado. |
+| Benchmark | Ejecutado en el workflow [40318401833](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/40318401833), cinco rondas release en Linux `ubuntu26`; diez muestras por carga/servidor, 0 errores HTTP. Resultados resumidos y limitaciones en [`informe comparativo`](reports/fase-10/2026-10-26-benchmark-release-github.md); log completo en el artefacto asociado al commit `046bce9`. |
 | Verificación local | Aprobados `cargo fmt --all -- --check`, Clippy y tests del workspace (148), fmt/Clippy/tests del recolector (5), `cargo deny check`, cinco fuzz smoke de 1.000 iteraciones y build de website. `reference-runner` pasó `std`, 3.200 altas totales en olas de hasta 100 y overflow; pruebas HTTP SQLite secuenciales y persistencia exportada tras reinicios; ambos árboles Rust de módulos; y los tests del parser de terminal Rust/exportado. |
-| CI remota | Pendiente para esta rama; el job de informe, las regresiones de referencia y el workflow completo deben pasar en Actions antes de afirmar que están integrados. |
-| Límites | Las olas del CRUD funcional quedan limitadas a 100 solicitudes simultáneas; los lotes de 500 y 1.000 comprueban volumen e IDs en varias olas. El benchmark depende del host de GitHub y es exploratorio; sus números no se usan como criterio de compatibilidad ni rendimiento de producción. Las referencias restantes se enumeran en `tests/README.md`. |
+| CI remota | Aprobada en PR #28 para commit `802f16b`; informe, referencias, fuzz, Rust, dependencias y Cloudflare Pages pasaron. La campaña de cierre actual deberá registrar su propio PR/checks. |
+| Límites | Las olas del CRUD funcional quedan limitadas a 100 solicitudes simultáneas; los lotes de 500 y 1.000 comprueban volumen e IDs en varias olas. El benchmark depende del host de GitHub y es exploratorio; sus números no se usan como criterio de compatibilidad ni rendimiento de producción. La ejecución interactiva de terminal contra ambos binarios quedó automatizada después de esta iteración. |
 
 ## Iteración de trazabilidad y referencias
 
@@ -147,6 +149,19 @@ La fase seguirá abierta hasta que las características publicadas en la matriz 
 | Verificación local | Reporte `tools/validation-report`: fmt, Clippy y 139 pruebas del workspace aprobadas; cargo-deny aprobado; compilación y smoke de 1.000 iteraciones en los cinco targets fuzz aprobados; build del portal aprobado. La suite independiente del recolector aprobó 4 pruebas, incluida la nueva comprobación de trazabilidad. |
 | CI remota | Aprobada en PR #24 (`230e705`): `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en los workflows de push y PR |
 | Límites | El índice no convierte ejecuciones de servicios ni benchmarks en pruebas de CI; cancelación LSP, recuperación incremental sistemática, diferenciales más amplios y campañas prolongadas continúan pendientes. Rendimiento no medido por el informe. |
+
+## Cierre de criterios — implementación local
+
+| Criterio | Evidencia de cierre | Estado |
+|---|---|---|
+| Matriz, regresiones, differential y roundtrip | Matriz revisada en [`testing.md`](testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas); siete pares diferenciales positivos más un caso negativo `E0308`; pruebas CLI de exportación/importación y módulos mixtos. | Aprobado localmente; diferencias delimitadas en los documentos. |
+| Límites, Unicode y recuperación LSP | Casos deterministas y cinco targets de fuzz; LSP incremental por UTF-16, versiones, rangos inválidos, recuperación y cancelación de semantic tokens. | Aprobado localmente; diagnósticos de edición síncronos documentados. |
+| Corpus fuzz extendido | [`Informe de 10.000 ejecuciones por target`](reports/fase-10/2026-10-26-10000-por-target.md), campaña de lexer/parser/config/backend/LSP sin crash ni spans inválidos reportados. CI semanal repite 10.000 por target; push/PR mantiene 1.000. | Aprobado localmente; campaña sin objetivo de cobertura implícito. |
+| Referencias funcionales | `reference-runner` compara sesión interactiva de terminal Óxido/Rust y ejecuta `std`, CRUD concurrente/overflow. Job de referencia regenera export, compara contra fuente versionada, ejecuta SQLite/persistencia y árboles Rust secuencialmente. | Aprobado localmente y en push/PR #29 (`dd1f07c`). |
+| Informe y privacidad | El recolector reporta commit, entorno, suites, duración y estados; artefacto CI conserva el Markdown 30 días. No copia logs crudos. El benchmark separado tiene informe con límites explícitos. | Aprobado localmente y en push/PR #29; artefacto remoto generado. |
+| Benchmark | Job semanal y `workflow_dispatch`; ejecución release de cinco rondas realizada en GitHub Actions. El informe registra entorno, versiones, carga, QPS, latencias, errores, recursos aproximados y variación observada. | Ejecutado; alcance exploratorio, no acredita rendimiento de producción ni del compilador. |
+
+Los criterios de esta fase están completados en el alcance documentado. Los registros históricos anteriores reflejan sus respectivos commits; sus estados pendientes no sustituyen la tabla vigente.
 
 ## Iteración de recuperación LSP
 

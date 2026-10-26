@@ -580,17 +580,17 @@ fn export_ox(args: &[OsString]) -> Result<(), String> {
 fn cleanup_export_paths(files: &[PathBuf], directories: &[PathBuf]) -> Result<(), String> {
     let mut failures = Vec::new();
     for path in files.iter().rev() {
-        if let Err(error) = fs::remove_file(path) {
-            if error.kind() != std::io::ErrorKind::NotFound {
-                failures.push(format!("{}: {error}", path.display()));
-            }
+        if let Err(error) = fs::remove_file(path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            failures.push(format!("{}: {error}", path.display()));
         }
     }
     for path in directories.iter().rev() {
-        if let Err(error) = fs::remove_dir(path) {
-            if error.kind() != std::io::ErrorKind::NotFound {
-                failures.push(format!("{}: {error}", path.display()));
-            }
+        if let Err(error) = fs::remove_dir(path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            failures.push(format!("{}: {error}", path.display()));
         }
     }
     if failures.is_empty() {

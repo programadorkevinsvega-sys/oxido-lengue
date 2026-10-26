@@ -106,14 +106,13 @@ impl Scanner<'_> {
         self.mode = self.options.project_mode.or(header_mode);
         if let (Some(project), Some(file_mode), Some(header)) =
             (self.options.project_mode, header_mode, self.header)
+            && project != file_mode
         {
-            if project != file_mode {
-                self.error(
-                    "OX0002",
-                    "el modo del archivo contradice la configuración del proyecto",
-                    self.span(header.start, header.end),
-                );
-            }
+            self.error(
+                "OX0002",
+                "el modo del archivo contradice la configuración del proyecto",
+                self.span(header.start, header.end),
+            );
         }
         if self.mode.is_none() {
             self.error(
@@ -261,12 +260,12 @@ impl Scanner<'_> {
             self.scan_comment();
             return;
         }
-        if let Some(header) = self.header {
-            if self.position == header.start {
-                self.pending_indent = None;
-                self.position = header.end;
-                self.emit(TokenKind::ModeHeader(header.mode), header.start, header.end);
-            }
+        if let Some(header) = self.header
+            && self.position == header.start
+        {
+            self.pending_indent = None;
+            self.position = header.end;
+            self.emit(TokenKind::ModeHeader(header.mode), header.start, header.end);
         }
     }
 

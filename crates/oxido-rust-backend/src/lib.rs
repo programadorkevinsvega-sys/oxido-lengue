@@ -81,13 +81,12 @@ fn collect_declared_method_aliases(source: &str) -> HashSet<String> {
         let trees = tokens.into_iter().collect::<Vec<_>>();
         for (index, tree) in trees.iter().enumerate() {
             if matches!(tree, TokenTree::Ident(ident) if matches!(ident.to_string().as_str(), "fn" | "funcion"))
+                && let Some(TokenTree::Ident(name)) = trees.get(index + 1)
             {
-                if let Some(TokenTree::Ident(name)) = trees.get(index + 1) {
-                    let spelling = name.to_string();
-                    let spelling = spelling.strip_prefix("r#").unwrap_or(&spelling);
-                    if oxido_language::domain::syntax::method_translation(spelling).is_some() {
-                        names.insert(spelling.to_owned());
-                    }
+                let spelling = name.to_string();
+                let spelling = spelling.strip_prefix("r#").unwrap_or(&spelling);
+                if oxido_language::domain::syntax::method_translation(spelling).is_some() {
+                    names.insert(spelling.to_owned());
                 }
             }
             if let TokenTree::Group(group) = tree {

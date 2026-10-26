@@ -62,15 +62,13 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
         _ => id.map(|id| json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":"método LSP no soportado"}})),
     };
     let mut messages = response.into_iter().collect::<Vec<_>>();
-    if matches!(method, "textDocument/didOpen" | "textDocument/didChange") {
-        if let Some(uri) = request
+    if matches!(method, "textDocument/didOpen" | "textDocument/didChange")
+        && let Some(uri) = request
             .pointer("/params/textDocument/uri")
             .and_then(Value::as_str)
-        {
-            if let Some(text) = state.documents.get(uri) {
-                messages.push(diagnostic_notification(uri, text));
-            }
-        }
+        && let Some(text) = state.documents.get(uri)
+    {
+        messages.push(diagnostic_notification(uri, text));
     }
     messages
 }

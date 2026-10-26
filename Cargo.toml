@@ -12,7 +12,7 @@ default-members = ["crates/oxido-cli"]
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.99.1"
 
 [workspace.dependencies]
 oxido-language = { path = "crates/oxido-language" }

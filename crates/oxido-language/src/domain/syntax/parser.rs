@@ -625,12 +625,11 @@ impl Parser<'_> {
         self.position += 1;
         let open = self.find_control_body_open(style)?;
         let header = self.fragment(self.position, open);
-        if kind == ControlKind::For {
-            if let Some(in_index) =
+        if kind == ControlKind::For
+            && let Some(in_index) =
                 (self.position..open).find(|index| self.is_keyword_at(*index, "in"))
-            {
-                self.check_pattern_keyword_identifier(self.position, in_index);
-            }
+        {
+            self.check_pattern_keyword_identifier(self.position, in_index);
         }
         self.position = open;
         let (body, match_arms) = if kind == ControlKind::Match {

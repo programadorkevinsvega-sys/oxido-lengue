@@ -268,14 +268,14 @@ pub fn parse_ox(
                             statement.pattern.span,
                         ));
                     }
-                    if let Some(ty) = &statement.type_annotation {
-                        if let Err(error) = oxido_rust_backend::validate_type(&ty.text) {
-                            diagnostics.push(Diagnostic::error(
-                                "OX4001",
-                                format!("tipo Rust inválido: {error}"),
-                                ty.span,
-                            ));
-                        }
+                    if let Some(ty) = &statement.type_annotation
+                        && let Err(error) = oxido_rust_backend::validate_type(&ty.text)
+                    {
+                        diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("tipo Rust inválido: {error}"),
+                            ty.span,
+                        ));
                     }
                     if let Some(control) = &statement.match_initializer {
                         validate_control(control, diagnostics);
@@ -290,14 +290,14 @@ pub fn parse_ox(
                     }
                 }
                 Statement::Return(statement) => {
-                    if let Some(value) = &statement.value {
-                        if let Err(error) = oxido_rust_backend::validate_expression(&value.text) {
-                            diagnostics.push(Diagnostic::error(
-                                "OX4001",
-                                format!("expresión de retorno inválida: {error}"),
-                                value.span,
-                            ));
-                        }
+                    if let Some(value) = &statement.value
+                        && let Err(error) = oxido_rust_backend::validate_expression(&value.text)
+                    {
+                        diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("expresión de retorno inválida: {error}"),
+                            value.span,
+                        ));
                     }
                 }
                 Statement::Break(statement) => {
@@ -341,14 +341,14 @@ pub fn parse_ox(
                 }
             }
         }
-        if let Some(tail) = &block.tail {
-            if let Err(error) = oxido_rust_backend::validate_expression(&tail.value.text) {
-                diagnostics.push(Diagnostic::error(
-                    "OX4001",
-                    format!("expresión final Rust inválida: {error}"),
-                    tail.value.span,
-                ));
-            }
+        if let Some(tail) = &block.tail
+            && let Err(error) = oxido_rust_backend::validate_expression(&tail.value.text)
+        {
+            diagnostics.push(Diagnostic::error(
+                "OX4001",
+                format!("expresión final Rust inválida: {error}"),
+                tail.value.span,
+            ));
         }
     }
 
@@ -377,14 +377,14 @@ pub fn parse_ox(
                         arm.pattern.span,
                     ));
                 }
-                if let Some(expression) = &arm.expression {
-                    if let Err(error) = oxido_rust_backend::validate_expression(&expression.text) {
-                        diagnostics.push(Diagnostic::error(
-                            "OX4001",
-                            format!("expresión de brazo `coincidir` inválida: {error}"),
-                            expression.span,
-                        ));
-                    }
+                if let Some(expression) = &arm.expression
+                    && let Err(error) = oxido_rust_backend::validate_expression(&expression.text)
+                {
+                    diagnostics.push(Diagnostic::error(
+                        "OX4001",
+                        format!("expresión de brazo `coincidir` inválida: {error}"),
+                        expression.span,
+                    ));
                 }
                 if let Some(block) = &arm.body {
                     validate_block(block, diagnostics);
@@ -417,16 +417,15 @@ pub fn parse_ox(
                             ));
                         }
                     }
-                    if let Some(visibility) = &function.visibility {
-                        if let Err(error) =
+                    if let Some(visibility) = &function.visibility
+                        && let Err(error) =
                             oxido_rust_backend::validate_visibility(&visibility.text)
-                        {
-                            rust_diagnostics.push(Diagnostic::error(
-                                "OX4001",
-                                format!("visibilidad Rust inválida: {error}"),
-                                visibility.span,
-                            ));
-                        }
+                    {
+                        rust_diagnostics.push(Diagnostic::error(
+                            "OX4001",
+                            format!("visibilidad Rust inválida: {error}"),
+                            visibility.span,
+                        ));
                     }
                     if let Err(error) =
                         oxido_rust_backend::validate_signature(&function.signature.text)

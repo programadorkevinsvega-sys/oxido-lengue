@@ -120,6 +120,16 @@ Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend,lsp}`.
 
 Las regresiones `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` y `differential_indented_impl_and_match_have_the_same_result_as_rust` compilan y ejecutan dos muestras en Óxido y Rust nativo, y comparan stdout. Cubren expresiones/iteradores/colecciones y estructuras/impl/métodos/match. Son evidencia de esos fixtures concretos, no certifican equivalencia semántica general.
 
+## Informe reproducible
+
+Desde la raíz, ejecuta:
+
+```sh
+cargo run --manifest-path tools/validation-report/Cargo.toml --locked
+```
+
+El ejecutor registra commit, rama, estado limpio/modificado, sistema, toolchains, comandos, códigos de salida, duración y totales de tests que Cargo reporta. Incluye sus propios fmt/Clippy/tests y los del workspace, cargo-deny, build/smoke de fuzz y build del sitio. El informe se escribe en `target/validation-report.md`; una suite que falle deja al comando con código distinto de cero. Si una herramienta opcional no está instalada, su estado es **No evaluada**. No copia logs de procesos, por lo que evita filtrar rutas absolutas; consulta el log de CI para el diagnóstico detallado. Declara explícitamente que el rendimiento no se midió y que la CI remota no se consulta desde local. No presentes este reporte como sustituto de resultados remotos.
+
 ## Parser, backend y diagnóstico
 
 - Tipos, patrones y expresiones pasan a Syn y se exige consumo completo del fragmento.

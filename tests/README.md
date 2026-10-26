@@ -6,6 +6,7 @@ La mayoría de las pruebas vive junto al crate que valida:
 - `crates/oxido-compiler/tests/`: configuración, generación, integración con rustc/Cargo, modos, aliases y roundtrip.
 - `crates/oxido-cli/tests/`: flujos de comandos reales, proyectos de referencia, importación/exportación y formato.
 - `crates/oxido-rust-backend/`: pruebas unitarias del emisor, normalización y mapas.
+- `tools/validation-report/`: ejecutor Rust local que consolida suites, herramientas/versions y estados en un reporte Markdown.
 - `tests/fixtures/cargo-registry/`: crates fijadas y vendor local para integración Cargo repetible sin depender de la caché personal.
 - `tests/fixtures/cargo-execution/`: fixtures controlados con `build.rs` y macro procedural para probar la política de confianza.
 - `fuzz/`: harnesses `cargo-fuzz` y corpus semilla versionado para lexer, parser, backend, framing/dispatcher LSP y `oxido.toml`; los inputs que encuentre el fuzzing se ignoran localmente hasta que se revisen y se añadan como regresiones.
@@ -25,6 +26,14 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo deny check
 ```
+
+Para ejecutar el conjunto registrado y generar un Markdown con commit, entorno y resultados por suite:
+
+```sh
+cargo run --manifest-path tools/validation-report/Cargo.toml --locked
+```
+
+El reporte queda en `target/validation-report.md`. Las herramientas opcionales no instaladas quedan como **No evaluada**; cualquier verificación que sí se ejecuta y falla aparece como **Fallida** y hace fallar el comando.
 
 El fuzzing usa `cargo-fuzz` 0.13.2 y Rust nightly 2026-10-16, fijados en el job `fuzz-smoke` de CI:
 

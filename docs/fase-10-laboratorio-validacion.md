@@ -8,13 +8,13 @@
 |---|---|---|
 | 1. Matriz por componente | Parcial | Lexer y parser en `oxido-language`; configuración y pipeline en `oxido-compiler`; formato/macros/CLI en `oxido-cli`; la matriz explícita de características y tests sigue creciendo. |
 | 2. Regresiones | Implementada en el corpus existente | Los defectos corregidos tienen pruebas en el crate afectado; fuzz crashes futuros deben añadirse como seed y regresión determinista. |
-| 3. Diferencial contra Rust | Parcial, con primera regresión | `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` compila y ejecuta un programa indentado `.ox` y un equivalente Rust con `rustc`, y compara stdout. Hace falta ampliar expresiones/errores y mantener toolchains alineados. |
+| 3. Diferencial contra Rust | Parcial | Dos regresiones compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones y `struct`/`impl`/método/`match`; stdout coincide. Hace falta ampliar casos y cubrir diagnósticos equivalentes. |
 | 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs` y roundtrip de árboles mixtos; no equivale a roundtrip universal. |
 | 5. Fuzzing | Implementación inicial | Targets de lexer, parser, configuración TOML, backend/mapas y framing/dispatcher JSON-RPC LSP; corpus semilla y smoke CI. Las campañas siguen acotadas. |
 | 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans, recuperación de parser y límites LSP de cabecera 8 KiB/frame 4 MiB; faltan recuperación sistemática, cancelación LSP y reportes de límites medidos. |
 | 7. Proyectos reutilizables | Parcial | `tests/README.md` define un contrato mínimo para nuevas referencias; los proyectos previos aún no están todos normalizados a ese contrato. |
-| 8. Informes reproducibles | Pendiente | Este informe registra herramienta/commit/entorno y estados; no hay aún recolector de informes por ejecución ni benchmark reproducible del compilador. No se inventan métricas de rendimiento. |
-| 9. CI | En progreso | CI valida fmt, Clippy, workspace, cargo-deny y smoke de fuzzing; los jobs remotos pasaron para el commit registrado abajo. Falta mantener esta evidencia en siguientes iteraciones. |
+| 8. Informes reproducibles | Implementación inicial | `tools/validation-report` ejecuta las suites, registra commit/entorno/estados y escribe un Markdown; el PR actual incorpora sus pruebas a CI, pendiente el primer resultado remoto. Falta mantener muestras históricas de las campañas. No se inventan métricas de rendimiento. |
+| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing; los jobs remotos pasaron para el commit registrado abajo. Falta mantener evidencia en futuras iteraciones. |
 
 ## Harnesses de fuzzing
 

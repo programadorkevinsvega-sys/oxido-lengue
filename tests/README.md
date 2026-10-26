@@ -16,6 +16,20 @@ La mayoría de las pruebas vive junto al crate que valida:
 
 Cada proyecto de `examples/` o fixture de integración debe documentar: archivo raíz, modo de sintaxis, comando exacto, dependencias y lockfile, resultado observable esperado, estado (aprobado/fallido/no evaluado) y límites que no cubre. Si requiere servicios o estado persistente, el harness debe iniciar y detener los procesos de forma secuencial, aislar los datos por ejecución y verificar limpieza sin descartar errores. Las pruebas de referencia no deben presentarse como mediciones de rendimiento salvo que registren entorno, calentamiento, concurrencia, rondas y latencias/throughput medidos.
 
+### Índice de proyectos de referencia
+
+| Proyecto | Fuente raíz / modo | Evidencia y estado |
+|---|---|---|
+| Ejemplos básicos | `examples/hola_mundo.ox`, indentación | La CI compila/ejecuta la prueba CLI `exports_compiles_and_runs_the_hello_world_fixture`; otros ejemplos tienen instrucciones en [`examples/README.md`](../examples/README.md) y sus límites se describen allí. |
+| Interoperabilidad con `std` | `prueba/interoperabilidad_std/main.ox`, indentación | Proyecto autónomo con aserciones ejecutables; pasos y alcance en [`prueba/README.md`](../prueba/README.md). |
+| Módulos jerárquicos | `prueba/modulos_jerarquicos/fuente/main.ox`, indentación | La regresión CLI compara compilación/exportación y ejecuciones. El README registra que la importación de declaraciones y módulos no está soportada. |
+| CLI interactiva | `prueba/terminal-cli-oxido-py/src/main.ox`, indentación | Guía de exportación, compilación y tests manuales en [`prueba/terminal-cli-oxido-py/README.md`](../prueba/terminal-cli-oxido-py/README.md); no se presenta como suite automática del workspace. |
+| CRUD concurrente | `prueba/crud_api_concurrencia.ox` y `prueba/verificar_api_concurrencia.ox`, indentación | Requiere iniciar servidor y cliente en procesos separados; procedimiento y límites en [`prueba/README.md`](../prueba/README.md). No es un benchmark de rendimiento. |
+| CRUD persistente | `prueba/crud_sqlite/crud_api_persistencia.ox` y `verificar_persistencia.ox`, indentación | Requiere SQLite vía SQLx, lockfile y reinicios secuenciales; pasos, estados observables y medición exploratoria en [`prueba/crud_sqlite/README.md`](../prueba/crud_sqlite/README.md). |
+| Línea base y exportación Rust | `prueba/crud_sqlite_rust/` y `prueba/crud_sqlite_export_rust/`, Rust generado / Rust nativo | Supervisor de benchmark secuencial y regresión exportada documentados en sus respectivos README. Son ejecuciones manuales costosas; sus mediciones no forman parte de cada test del workspace. |
+
+Las pruebas automatizadas exactas por capacidad están en la [matriz de trazabilidad](../docs/testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas). Los procedimientos manuales no se cuentan como aprobados por CI.
+
 ## Comandos reproducibles
 
 Desde la raíz del repositorio:

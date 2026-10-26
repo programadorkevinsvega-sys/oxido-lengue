@@ -462,6 +462,7 @@ fn escape_cell(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn parses_cargo_test_totals_across_multiple_test_binaries() {
@@ -489,5 +490,50 @@ mod tests {
         assert!(!report.contains(&absolute_workspace));
         assert!(report.contains("Métricas de rendimiento | No medidas"));
         assert!(report.contains("CI remota | No consultada"));
+    }
+
+    #[test]
+    fn documented_validation_matrix_references_existing_test_functions() {
+        let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let documentation = include_str!("../../../docs/testing.md");
+        let matrix = documentation
+            .split_once("## Matriz de trazabilidad de capacidades anunciadas\n")
+            .expect("validation matrix heading exists")
+            .1
+            .split("\n## ")
+            .next()
+            .expect("validation matrix section exists");
+        let referenced_tests = matrix
+            .split('`')
+            .filter(|candidate| {
+                candidate.contains('_')
+                    && candidate.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_'
+                    })
+            })
+            .collect::<HashSet<_>>();
+
+        let mut pending = vec![workspace.join("crates")];
+        let mut rust_sources = Vec::new();
+        while let Some(directory) = pending.pop() {
+            for entry in fs::read_dir(directory).expect("crate source directory is readable") {
+                let path = entry.expect("crate source entry is readable").path();
+                if path.is_dir() {
+                    pending.push(path);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    rust_sources.push(fs::read_to_string(path).expect("Rust source is UTF-8"));
+                }
+            }
+        }
+
+        for test_name in referenced_tests {
+            let declaration = format!("fn {test_name}(");
+            assert!(
+                rust_sources
+                    .iter()
+                    .any(|source| source.contains(&declaration)),
+                "documented test `{test_name}` must exist as a Rust function"
+            );
+        }
     }
 }

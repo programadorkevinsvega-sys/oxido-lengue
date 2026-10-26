@@ -10,8 +10,8 @@
 | 2. Regresiones | Implementada en el corpus existente | Los defectos corregidos tienen pruebas en el crate afectado; fuzz crashes futuros deben añadirse como seed y regresión determinista. |
 | 3. Diferencial contra Rust | Parcial, con primera regresión | `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` compila y ejecuta un programa indentado `.ox` y un equivalente Rust con `rustc`, y compara stdout. Hace falta ampliar expresiones/errores y mantener toolchains alineados. |
 | 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs` y roundtrip de árboles mixtos; no equivale a roundtrip universal. |
-| 5. Fuzzing | Implementación inicial | Targets de lexer, parser, configuración TOML, backend/mapas y dispatcher JSON-RPC LSP; corpus semilla y smoke CI. El fuzz LSP aún no ejercita el framing Content-Length de stdio; campañas acotadas. |
-| 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans, recuperación de parser y límite de frame LSP 4 MiB; faltan recuperación sistemática, cancelación LSP y reportes de límites medidos. |
+| 5. Fuzzing | Implementación inicial | Targets de lexer, parser, configuración TOML, backend/mapas y framing/dispatcher JSON-RPC LSP; corpus semilla y smoke CI. Las campañas siguen acotadas. |
+| 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans, recuperación de parser y límites LSP de cabecera 8 KiB/frame 4 MiB; faltan recuperación sistemática, cancelación LSP y reportes de límites medidos. |
 | 7. Proyectos reutilizables | Parcial | `tests/README.md` define un contrato mínimo para nuevas referencias; los proyectos previos aún no están todos normalizados a ese contrato. |
 | 8. Informes reproducibles | Pendiente | Este informe registra herramienta/commit/entorno y estados; no hay aún recolector de informes por ejecución ni benchmark reproducible del compilador. No se inventan métricas de rendimiento. |
 | 9. CI | En progreso | CI valida fmt, Clippy, workspace, cargo-deny y smoke de fuzzing; los jobs remotos pasaron para el commit registrado abajo. Falta mantener esta evidencia en siguientes iteraciones. |
@@ -81,12 +81,24 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 | Dato | Valor |
 |---|---|
 | Commit base | `f04f34fca39f5e6b19ac620534d3d672bf23e17e` |
-| Cambios | Dispatcher LSP aislado en biblioteca para pruebas/fuzz; límite `Content-Length` de 4 MiB; pruebas de lifecycle, diagnóstico, semantic tokens básicos y límite; quinto target `cargo-fuzz` para JSON-RPC |
-| Verificación local | fmt, Clippy y `cargo test --workspace --locked`: 135 pruebas aprobadas, 0 fallidas; `cargo +nightly check --manifest-path fuzz/Cargo.toml --bins --locked`: aprobado |
+| Cambios | Dispatcher LSP aislado en biblioteca; decoder stdio con cabeceras de hasta 8 KiB y `Content-Length` hasta 4 MiB; rechaza longitud duplicada y cubre faltante/truncamiento; quinto target `cargo-fuzz` para el stream y dispatcher |
+| Verificación local | fmt, Clippy y `cargo test --workspace --locked`: 138 pruebas aprobadas, 0 fallidas; `cargo +nightly check --manifest-path fuzz/Cargo.toml --bins --locked`: aprobado |
 | Smoke LSP | `cargo +nightly fuzz run lsp -- -runs=1000 -max_len=8192`: 1.000 iteraciones, sin crash |
 | Commit implementado y probado | `46fa7d73bf4901b1b00ea4a20f57fe9327eedf5c` |
 | CI remota | Aprobada para el commit registrado: `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages, tanto en push como en pull request |
-| Límites | El target fuzz ejercita payloads JSON y dispatcher, no el framing stdio; no hay cancelación LSP ni campaña prolongada |
+| Límites | No hay cancelación LSP, campaña prolongada ni pruebas de recuperación incremental del documento |
+
+## Iteración de framing LSP
+
+| Dato | Valor |
+|---|---|
+| Base | `46fa7d73bf4901b1b00ea4a20f57fe9327eedf5c` |
+| Decoder | El fuzzer consume bytes del framing `Content-Length` y despacha payloads válidos; máximo 8 KiB por línea de cabecera y 4 MiB por frame; longitudes duplicadas se rechazan |
+| Regresiones de transporte | Frame válido, EOF, Content-Length ausente/duplicado, cabecera demasiado larga, frame sobredimensionado y cuerpo truncado |
+| Verificación local | `cargo fmt --all -- --check`, Clippy y `cargo test --workspace --locked`: 138 pruebas aprobadas, 0 fallidas; fuzz manifiesto chequeado con `--locked` |
+| Smoke LSP | `cargo +nightly fuzz run lsp -- -runs=1000 -max_len=8192`: 1.000 ejecuciones, sin crash |
+| CI remota | Pendiente para el commit de esta iteración |
+| Límites | La cancelación LSP y la recuperación incremental siguen sin implementar/probar |
 
 ## Criterio de cierre
 

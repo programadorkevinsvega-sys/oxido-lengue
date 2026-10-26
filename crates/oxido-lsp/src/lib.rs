@@ -1,9 +1,13 @@
 #![forbid(unsafe_code)]
 
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, io};
+use std::{
+    collections::BTreeMap,
+    io::{self, BufRead},
+};
 
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_HEADER_LINE_BYTES: usize = 8 * 1024;
 
 #[derive(Default)]
 pub struct ServerState {
@@ -18,6 +22,71 @@ pub fn validate_frame_length(length: usize) -> io::Result<()> {
         ));
     }
     Ok(())
+}
+
+pub fn read_frame(input: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
+    let mut content_length = None;
+    let mut line = Vec::new();
+    loop {
+        let has_line = read_bounded_header_line(input, &mut line)?;
+        if !has_line {
+            if line.is_empty() && content_length.is_none() {
+                return Ok(None);
+            }
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "cabecera LSP incompleta",
+            ));
+        }
+        if line == b"\r\n" || line == b"\n" {
+            break;
+        }
+        if let Some(value) = line.strip_prefix(b"Content-Length:") {
+            if content_length.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Content-Length duplicado",
+                ));
+            }
+            let value = std::str::from_utf8(value)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+            let length = value
+                .trim()
+                .parse::<usize>()
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+            validate_frame_length(length)?;
+            content_length = Some(length);
+        }
+    }
+
+    let length = content_length
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "falta Content-Length"))?;
+    let mut body = vec![0_u8; length];
+    input.read_exact(&mut body)?;
+    Ok(Some(body))
+}
+
+fn read_bounded_header_line(input: &mut impl BufRead, line: &mut Vec<u8>) -> io::Result<bool> {
+    line.clear();
+    loop {
+        let available = input.fill_buf()?;
+        if available.is_empty() {
+            return Ok(!line.is_empty());
+        }
+        let newline = available.iter().position(|byte| *byte == b'\n');
+        let bytes_to_consume = newline.map_or(available.len(), |position| position + 1);
+        if line.len().saturating_add(bytes_to_consume) > MAX_HEADER_LINE_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "línea de cabecera LSP supera 8 KiB",
+            ));
+        }
+        line.extend_from_slice(&available[..bytes_to_consume]);
+        input.consume(bytes_to_consume);
+        if newline.is_some() {
+            return Ok(true);
+        }
+    }
 }
 
 /// Decodes one JSON-RPC payload and dispatches it through the LSP state machine.
@@ -175,5 +244,47 @@ mod tests {
     fn accepts_the_frame_size_boundary_and_rejects_oversized_messages() {
         assert!(validate_frame_length(MAX_MESSAGE_BYTES).is_ok());
         assert!(validate_frame_length(MAX_MESSAGE_BYTES + 1).is_err());
+    }
+
+    #[test]
+    fn reads_a_complete_frame_and_handles_end_of_stream() {
+        let body = br#"{"jsonrpc":"2.0","id":1,"method":"shutdown"}"#;
+        let mut wire = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        wire.extend_from_slice(body);
+        let mut input = io::Cursor::new(wire);
+        assert_eq!(
+            read_frame(&mut input).unwrap().as_deref(),
+            Some(body.as_slice())
+        );
+        assert!(read_frame(&mut input).unwrap().is_none());
+    }
+
+    #[test]
+    fn rejects_duplicate_missing_oversized_and_truncated_frames() {
+        let mut duplicate = io::Cursor::new(b"Content-Length: 0\r\nContent-Length: 0\r\n\r\n");
+        assert!(read_frame(&mut duplicate).is_err());
+
+        let mut missing = io::Cursor::new(b"Other: value\r\n\r\n");
+        assert!(read_frame(&mut missing).is_err());
+
+        let oversized_header = format!("Content-Length: {}\r\n\r\n", MAX_MESSAGE_BYTES + 1);
+        let mut oversized = io::Cursor::new(oversized_header.into_bytes());
+        assert!(read_frame(&mut oversized).is_err());
+
+        let mut truncated = io::Cursor::new(b"Content-Length: 5\r\n\r\n{}" as &[u8]);
+        assert_eq!(
+            read_frame(&mut truncated).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn rejects_a_header_line_over_the_limit_without_reading_the_body() {
+        let bytes = vec![b'x'; MAX_HEADER_LINE_BYTES + 1];
+        let mut input = io::Cursor::new(bytes);
+        assert_eq!(
+            read_frame(&mut input).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 }

@@ -8,7 +8,7 @@ La mayoría de las pruebas vive junto al crate que valida:
 - `crates/oxido-rust-backend/`: pruebas unitarias del emisor, normalización y mapas.
 - `tests/fixtures/cargo-registry/`: crates fijadas y vendor local para integración Cargo repetible sin depender de la caché personal.
 - `tests/fixtures/cargo-execution/`: fixtures controlados con `build.rs` y macro procedural para probar la política de confianza.
-- `fuzz/`: harnesses `cargo-fuzz` y corpus semilla versionado para lexer, parser, backend, dispatcher LSP y `oxido.toml`; los inputs que encuentre el fuzzing se ignoran localmente hasta que se revisen y se añadan como regresiones.
+- `fuzz/`: harnesses `cargo-fuzz` y corpus semilla versionado para lexer, parser, backend, framing/dispatcher LSP y `oxido.toml`; los inputs que encuentre el fuzzing se ignoran localmente hasta que se revisen y se añadan como regresiones.
 - `examples/` y `prueba/`: ejemplos ejecutables y proyectos de referencia funcionales; no sustituyen las pruebas del compilador.
 
 ### Contrato para añadir una referencia

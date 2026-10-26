@@ -114,9 +114,9 @@ La revisión encuentra cobertura para las producciones estructurales enumeradas 
 | `parser` | Bytes; ignora secuencias que no sean UTF-8 válido | Ejecuta parser en ambos modos, no debe panicar y spans de diagnósticos/labels/sugerencias deben ser válidos |
 | `config` | Bytes; ignora secuencias que no sean UTF-8 válido | Parsea `oxido.toml` declarativo; todo éxito debe respetar Rust 2024 y todo rechazo debe contener diagnóstico |
 | `backend` | Bytes; ignora secuencias que no sean UTF-8 válido | Para ambos modos, Rust generado por Syn parseable y rangos del mapa dentro de límites UTF-8 de la fuente |
-| `lsp` | Bytes JSON-RPC, hasta el máximo de frame | No debe panicar al decodificar/despachar mensajes; limita el tamaño de frame a 4 MiB y acota a dos respuestas por mensaje |
+| `lsp` | Bytes arbitrarios del stream con framing LSP | El decoder de frames y el dispatcher no deben panicar; limita líneas de cabecera a 8 KiB y cuerpos a 4 MiB, rechaza longitud duplicada/ausente y maneja truncamiento |
 
-Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend,lsp}`. El target LSP llama el dispatcher JSON-RPC ya separado en una biblioteca; no ejercita todavía el framing `Content-Length` sobre stdio. Corpus descubierto, crashes, cobertura y binarios se mantienen fuera del repositorio hasta revisarse. El job `fuzz-smoke` ejecuta 1.000 casos con límite de entrada de 8 KiB por target usando cargo-fuzz 0.13.2 y nightly 2026-10-16. Es un smoke determinista acotado, no reemplaza fuzzing continuo ni demuestra ausencia de bugs. Siguen pendientes pruebas del framing LSP, cancelación y recuperación.
+Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend,lsp}`. El target LSP entrega bytes aleatorios al decoder de framing `Content-Length` y, si obtiene un payload completo, al dispatcher JSON-RPC. Las pruebas deterministas cubren frame completo, EOF, cabecera ausente/duplicada, línea demasiado larga, cuerpo truncado y límite de tamaño. Corpus descubierto, crashes, cobertura y binarios se mantienen fuera del repositorio hasta revisarse. El job `fuzz-smoke` ejecuta 1.000 casos con límite de entrada de 8 KiB por target usando cargo-fuzz 0.13.2 y nightly 2026-10-16. Es un smoke determinista acotado, no reemplaza fuzzing continuo ni demuestra ausencia de bugs. Siguen pendientes cancelación LSP y recuperación sistemática.
 
 Las regresiones `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result` y `differential_indented_impl_and_match_have_the_same_result_as_rust` compilan y ejecutan dos muestras en Óxido y Rust nativo, y comparan stdout. Cubren expresiones/iteradores/colecciones y estructuras/impl/métodos/match. Son evidencia de esos fixtures concretos, no certifican equivalencia semántica general.
 
@@ -127,7 +127,7 @@ Las regresiones `differential_indented_ox_and_equivalent_rust_have_the_same_obse
 - Cada token emitido conserva span; tokens sintéticos mapean a introductor de bloque.
 - Error Rust en archivo generado mapea a rango `.ox` mediante JSON, no mediante texto de terminal.
 - Error de dependencia externa conserva ruta y código externos.
-- El dispatcher LSP tiene pruebas unitarias básicas de `didOpen`, diagnósticos y semantic tokens. El transporte stdio limita `Content-Length` a 4 MiB. Los semantic tokens siguen una heurística incompleta; faltan pruebas de framing, cambios incrementales, posiciones exhaustivas y cancelación.
+- El dispatcher LSP tiene pruebas unitarias básicas de `didOpen`, diagnósticos y semantic tokens. El decoder de transporte stdio limita líneas de cabecera a 8 KiB y `Content-Length` a 4 MiB. Los semantic tokens siguen una heurística incompleta; faltan pruebas exhaustivas de cambios incrementales/posiciones y cancelación.
 
 ## Interoperabilidad de ida y vuelta
 

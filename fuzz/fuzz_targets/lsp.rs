@@ -1,14 +1,15 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use oxido_lsp::{ServerState, handle_json, validate_frame_length};
+use oxido_lsp::{ServerState, handle_json, read_frame};
+use std::io::Cursor;
 
 fuzz_target!(|data: &[u8]| {
-    if validate_frame_length(data.len()).is_err() {
-        return;
-    }
-    let mut state = ServerState::default();
-    if let Ok(responses) = handle_json(data, &mut state) {
-        assert!(responses.len() <= 2);
+    let mut wire = Cursor::new(data);
+    if let Ok(Some(body)) = read_frame(&mut wire) {
+        let mut state = ServerState::default();
+        if let Ok(responses) = handle_json(&body, &mut state) {
+            assert!(responses.len() <= 2);
+        }
     }
 });

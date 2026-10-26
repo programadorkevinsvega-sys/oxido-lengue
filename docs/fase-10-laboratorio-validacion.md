@@ -130,5 +130,5 @@ La fase seguirá abierta hasta que las características publicadas en la matriz 
 | Base | Merge de trazabilidad: `7adf63dc70737393703e538074e0ec66b9dce68b` |
 | Caso | `recovers_diagnostics_after_a_full_document_change`: abre un `.ox` con error de indentación, envía `didChange` de sincronización completa y exige publicación de diagnósticos vacía |
 | Verificación local | `cargo fmt --all -- --check`, `cargo test -p oxido-lsp --locked`, Clippy de `oxido-lsp` y el informe integral aprobados; 140 pruebas del workspace, 4 del recolector y 8 de `oxido-lsp`; fuzz-smoke 1.000 por target, cargo-deny y build del portal aprobados |
-| CI remota | Pendiente |
+| CI remota | Aprobada en PR #25 (`84f071d`): `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en los workflows de push y PR |
 | Límites | Comprueba recuperación ante reemplazo completo, no cambios incrementales por rango; el dispatcher síncrono no implementa cancelación de solicitudes. |

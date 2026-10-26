@@ -15,17 +15,43 @@ use oxido_language::{
     SourceFile,
     domain::{
         diagnostics::Diagnostic,
-        syntax::{LexOptions, SyntaxMode},
+        syntax::{LexOptions, SyntaxMode, TokenKind, lexer::LexOutput},
     },
 };
 
 const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
+const STRUCTURED_ERROR_PREFIX: &str = "\u{1e}oxido-json:";
 
 fn main() -> ExitCode {
-    match run(env::args_os().skip(1).collect()) {
+    let args = env::args_os().skip(1).collect::<Vec<_>>();
+    let json_requested = args.iter().any(|argument| argument == "--json");
+    match run(args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("oxido: {message}");
+            if json_requested {
+                if let Some(json) = message.strip_prefix(STRUCTURED_ERROR_PREFIX) {
+                    println!("{json}");
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "schemaVersion": 1,
+                            "success": false,
+                            "diagnostics": [{
+                                "code": "OX0001",
+                                "severity": "error",
+                                "message": sanitize_report_text(&message, None),
+                                "file": null,
+                                "line": null,
+                                "column": null
+                            }],
+                            "output": []
+                        })
+                    );
+                }
+            } else {
+                eprintln!("oxido: {message}");
+            }
             ExitCode::FAILURE
         }
     }
@@ -462,7 +488,12 @@ fn format_ox(args: &[OsString]) -> Result<(), String> {
     let settings = project_settings(&path)?;
     let generated = generate_ox(&source, settings.options)
         .map_err(|diagnostics| format_diagnostics(&source, &path, &diagnostics))?;
-    let imported = oxido_compiler::import_rust(&SourceFile::new(generated.rust))?;
+    let lexed = oxido_language::domain::syntax::lex(&source, settings.options);
+    let imported = match lexed.mode {
+        Some(SyntaxMode::Indentation) => format_indented_source(&source, &lexed),
+        Some(SyntaxMode::Braces) => oxido_compiler::import_rust(&SourceFile::new(generated.rust))?,
+        None => return Err("no se pudo determinar el modo de sintaxis del archivo".into()),
+    };
     if check {
         if imported != source.text() {
             return Err(
@@ -476,6 +507,56 @@ fn format_ox(args: &[OsString]) -> Result<(), String> {
         println!("Óxido formateado: {}", path.display());
     }
     Ok(())
+}
+
+fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
+    let line_count = source.text().lines().count().max(1);
+    let mut preserve_lines = vec![false; line_count];
+    for token in &lexed.tokens {
+        if !token.opaque
+            && !matches!(
+                token.kind,
+                TokenKind::Comment | TokenKind::StringLiteral | TokenKind::CharacterLiteral
+            )
+        {
+            continue;
+        }
+        let Some(start) = source.position(token.span.start()) else {
+            continue;
+        };
+        let Some(end) = source.position(token.span.end()) else {
+            continue;
+        };
+        for line in start.line..=end.line {
+            if let Some(preserve) = preserve_lines.get_mut(line.saturating_sub(1)) {
+                *preserve = true;
+            }
+        }
+    }
+
+    let mut formatted = String::with_capacity(source.text().len() + 1);
+    for (index, line) in source.text().split_inclusive('\n').enumerate() {
+        let (content, ending) = match line.strip_suffix('\n') {
+            Some(content) => (content.strip_suffix('\r').unwrap_or(content), {
+                if content.ends_with('\r') {
+                    "\r\n"
+                } else {
+                    "\n"
+                }
+            }),
+            None => (line, ""),
+        };
+        if preserve_lines.get(index).copied().unwrap_or(false) {
+            formatted.push_str(content);
+        } else {
+            formatted.push_str(content.trim_end_matches([' ', '\t']));
+        }
+        formatted.push_str(ending);
+    }
+    if !formatted.is_empty() && !formatted.ends_with('\n') {
+        formatted.push('\n');
+    }
+    formatted
 }
 
 fn export_ox(args: &[OsString]) -> Result<(), String> {
@@ -651,34 +732,112 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         return Err("la entrada debe ser un directorio Rust".into());
     }
     let output = PathBuf::from(output);
-    if output.exists() {
-        return Err("el directorio de salida ya existe; elige otra ruta".into());
+    validate_output_parent(&output)?;
+    match fs::symlink_metadata(&output) {
+        Ok(_) => return Err("el directorio de salida ya existe; elige otra ruta".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!("no se pudo inspeccionar la salida: {error}"));
+        }
     }
     let mut files = Vec::new();
-    collect_rust_files(&input, &mut files)?;
+    collect_project_sources(&input, &input, &mut files)?;
     if files.is_empty() {
-        return Err("el árbol no contiene archivos .rs".into());
+        return Err("el árbol no contiene archivos .rs ni .ox".into());
     }
-    for file in files {
-        let relative = file
-            .strip_prefix(&input)
-            .map_err(|_| "ruta de módulo inválida")?;
-        let destination = output.join(relative).with_extension("ox");
-        let text = fs::read_to_string(&file)
-            .map_err(|error| format!("no se pudo leer {}: {error}", file.display()))?;
-        let imported = oxido_compiler::import_rust(&SourceFile::with_path(&file, text))?;
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|error| format!("no se pudo crear {}: {error}", parent.display()))?;
+    let rust_sources = files
+        .iter()
+        .filter(|file| file.kind == ProjectSourceKind::Rust)
+        .map(|file| file.relative.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let ox_sources = files
+        .iter()
+        .filter(|file| file.kind == ProjectSourceKind::Oxido)
+        .map(|file| file.relative.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut outputs = Vec::with_capacity(files.len());
+    let mut destinations = std::collections::BTreeSet::new();
+    for file in &files {
+        let destination_relative = match file.kind {
+            ProjectSourceKind::Rust => file.relative.with_extension("ox"),
+            ProjectSourceKind::Oxido => file.relative.clone(),
+        };
+        if !destinations.insert(destination_relative.clone()) {
+            return Err(format!(
+                "varias fuentes producirían la misma salida: {}",
+                destination_relative.display()
+            ));
         }
-        fs::write(&destination, imported)
-            .map_err(|error| format!("no se pudo escribir {}: {error}", destination.display()))?;
-        println!("Óxido importado a {}", destination.display());
+        let metadata = fs::metadata(&file.source).map_err(|error| {
+            format!("no se pudo inspeccionar {}: {error}", file.source.display())
+        })?;
+        if metadata.len() > MAX_SOURCE_BYTES {
+            return Err(format!(
+                "el archivo supera el límite de 4 MiB: {}",
+                file.relative.display()
+            ));
+        }
+        let contents = match file.kind {
+            ProjectSourceKind::Rust => {
+                let text = fs::read_to_string(&file.source).map_err(|error| {
+                    format!("no se pudo leer {}: {error}", file.source.display())
+                })?;
+                let source = SourceFile::with_path(&file.source, text);
+                let source_parent = file.relative.parent().unwrap_or_else(|| Path::new(""));
+                let rewritten = oxido_compiler::rewrite_rust_module_paths(&source, |path| {
+                    rewrite_project_module_path(source_parent, path, &rust_sources, &ox_sources)
+                })?;
+                oxido_compiler::import_rust(&SourceFile::with_path(&file.source, rewritten))?
+                    .into_bytes()
+            }
+            ProjectSourceKind::Oxido => fs::read(&file.source)
+                .map_err(|error| format!("no se pudo leer {}: {error}", file.source.display()))?,
+        };
+        outputs.push((destination_relative, contents));
+    }
+
+    fs::create_dir(&output)
+        .map_err(|error| format!("no se pudo crear el directorio de salida: {error}"))?;
+    let mut created_directories = Vec::new();
+    let mut created_files = Vec::new();
+    for (relative, contents) in &outputs {
+        let parent = relative
+            .parent()
+            .ok_or_else(|| "una salida no tiene directorio padre".to_owned())?;
+        if let Err(error) = create_output_directories(&output, parent, &mut created_directories) {
+            cleanup_import_project(&output, &created_files, &created_directories)?;
+            return Err(error);
+        }
+        let destination = output.join(relative);
+        if let Err(error) = write_new(&destination, contents) {
+            cleanup_import_project(&output, &created_files, &created_directories)?;
+            return Err(error);
+        }
+        created_files.push(destination);
+    }
+    for path in created_files {
+        println!("Óxido importado a {}", path.display());
     }
     Ok(())
 }
 
-fn collect_rust_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ProjectSourceKind {
+    Rust,
+    Oxido,
+}
+
+struct ProjectSourceFile {
+    source: PathBuf,
+    relative: PathBuf,
+    kind: ProjectSourceKind,
+}
+
+fn collect_project_sources(
+    root: &Path,
+    project_root: &Path,
+    files: &mut Vec<ProjectSourceFile>,
+) -> Result<(), String> {
     for entry in fs::read_dir(root)
         .map_err(|error| format!("no se pudo leer {}: {error}", root.display()))?
     {
@@ -690,16 +849,108 @@ fn collect_rust_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), Strin
             continue;
         }
         if metadata.is_dir() {
-            if path.file_name().is_some_and(|name| name == "target") {
+            if path
+                .file_name()
+                .is_some_and(|name| matches!(name.to_str(), Some("target" | ".git")))
+            {
                 continue;
             }
-            collect_rust_files(&path, files)?;
-        } else if metadata.is_file() && path.extension() == Some(OsStr::new("rs")) {
-            files.push(path);
+            collect_project_sources(&path, project_root, files)?;
+        } else if metadata.is_file() {
+            let kind = match path.extension() {
+                Some(extension) if extension == "rs" => ProjectSourceKind::Rust,
+                Some(extension) if extension == "ox" => ProjectSourceKind::Oxido,
+                _ => continue,
+            };
+            let relative = path
+                .strip_prefix(project_root)
+                .map_err(|_| "la ruta de una fuente escapa del árbol de entrada")?
+                .to_path_buf();
+            files.push(ProjectSourceFile {
+                source: path,
+                relative,
+                kind,
+            });
         }
     }
-    files.sort();
+    files.sort_by(|left, right| left.source.cmp(&right.source));
     Ok(())
+}
+
+fn rewrite_project_module_path(
+    source_parent: &Path,
+    path: &str,
+    rust_sources: &std::collections::BTreeSet<PathBuf>,
+    ox_sources: &std::collections::BTreeSet<PathBuf>,
+) -> Result<String, String> {
+    let path = Path::new(path);
+    let relative = normalize_project_relative_path(source_parent, path)?;
+    match relative.extension() {
+        Some(extension) if extension == "rs" => {
+            if !rust_sources.contains(&relative) {
+                return Err(format!(
+                    "el atributo `#[path]` apunta a una fuente Rust que no se importará: {}",
+                    relative.display()
+                ));
+            }
+            Ok(relative.with_extension("ox").to_string_lossy().into_owned())
+        }
+        Some(extension) if extension == "ox" => {
+            if !ox_sources.contains(&relative) {
+                return Err(format!(
+                    "el atributo `#[path]` apunta a una fuente Óxido que no existe: {}",
+                    relative.display()
+                ));
+            }
+            Ok(relative.to_string_lossy().into_owned())
+        }
+        _ => Err(format!(
+            "el atributo `#[path]` no apunta a una fuente .rs o .ox del árbol: {}",
+            relative.display()
+        )),
+    }
+}
+
+fn normalize_project_relative_path(base: &Path, path: &Path) -> Result<PathBuf, String> {
+    if path.is_absolute() {
+        return Err("el atributo `#[path]` no puede salir del árbol importado".into());
+    }
+    let mut components = Vec::new();
+    for component in base.components().chain(path.components()) {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::Normal(value) => components.push(value.to_os_string()),
+            std::path::Component::ParentDir if components.pop().is_some() => {}
+            std::path::Component::ParentDir => {
+                return Err("el atributo `#[path]` sale de la raíz del árbol importado".into());
+            }
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                return Err("el atributo `#[path]` no puede salir del árbol importado".into());
+            }
+        }
+    }
+    Ok(components.into_iter().collect())
+}
+
+fn cleanup_import_project(
+    output: &Path,
+    files: &[PathBuf],
+    directories: &[PathBuf],
+) -> Result<(), String> {
+    let cleanup_result = cleanup_export_paths(files, directories);
+    let root_cleanup = fs::remove_dir(output);
+    match (cleanup_result, root_cleanup) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(()), Err(error)) => Err(format!(
+            "no se pudo retirar la salida parcial {}: {error}",
+            output.display()
+        )),
+        (Err(cleanup_error), Err(error)) => Err(format!(
+            "{cleanup_error}; tampoco se pudo retirar la raíz de salida {}: {error}",
+            output.display()
+        )),
+    }
 }
 
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
@@ -717,10 +968,12 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     };
     let mut trusted = false;
     let mut release = false;
+    let mut json_output = false;
     for argument in &args[1..] {
         match argument.to_str() {
             Some("--confiar-dependencias") if !trusted => trusted = true,
             Some("--release") if !release => release = true,
+            Some("--json") if !json_output => json_output = true,
             _ => {
                 return Err("uso: oxido compilar|ejecutar <archivo.ox> [--release] [--confiar-dependencias]".into());
             }
@@ -751,8 +1004,74 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         Some(&lockfile),
         action,
         &settings.root,
-    )
-    .map_err(|diagnostics| format_diagnostics(&source, &display_path, &diagnostics))?;
+    );
+    let result = match result {
+        Ok(result) => result,
+        Err(diagnostics) if json_output => {
+            let diagnostics = diagnostics
+                .iter()
+                .map(|diagnostic| {
+                    structured_source_diagnostic(&source, &display_path, &settings.root, diagnostic)
+                })
+                .collect();
+            return Err(structured_failure(diagnostics, Vec::new()));
+        }
+        Err(diagnostics) => {
+            return Err(format_diagnostics(&source, &display_path, &diagnostics));
+        }
+    };
+    if json_output {
+        let mut diagnostics = result
+            .diagnostics
+            .iter()
+            .map(|diagnostic| {
+                let file = diagnostic
+                    .source_file
+                    .as_deref()
+                    .and_then(|path| structured_report_path(path, &settings.root));
+                serde_json::json!({
+                    "code": diagnostic.code.as_deref().unwrap_or("OX5001"),
+                    "severity": diagnostic.level,
+                    "message": sanitize_report_text(&diagnostic.message, Some(&settings.root)),
+                    "file": file,
+                    "line": diagnostic.source.map(|location| location.line),
+                    "column": diagnostic.source.map(|location| location.column)
+                })
+            })
+            .collect::<Vec<_>>();
+        let output = structured_program_output(&result.program_output, &settings.root);
+        if !result.success && diagnostics.is_empty() {
+            let message = if result.timed_out {
+                "Cargo superó el límite de ejecución de 120 segundos".to_owned()
+            } else {
+                format!(
+                    "Cargo terminó con estado {}",
+                    result
+                        .exit_code
+                        .map_or_else(|| "sin código de salida".into(), |code| code.to_string())
+                )
+            };
+            diagnostics.push(serde_json::json!({
+                "code": "OX5001",
+                "severity": "error",
+                "message": message,
+                "file": null,
+                "line": null,
+                "column": null
+            }));
+        }
+        let report = serde_json::json!({
+            "schemaVersion": 1,
+            "success": result.success,
+            "diagnostics": diagnostics,
+            "output": output
+        });
+        if result.success {
+            println!("{report}");
+            return Ok(());
+        }
+        return Err(format!("{STRUCTURED_ERROR_PREFIX}{report}"));
+    }
     for diagnostic in &result.diagnostics {
         let code = diagnostic
             .code
@@ -819,6 +1138,100 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         println!("El programa .ox compila correctamente.");
     }
     Ok(())
+}
+
+fn structured_failure(diagnostics: Vec<serde_json::Value>, output: Vec<String>) -> String {
+    let report = serde_json::json!({
+        "schemaVersion": 1,
+        "success": false,
+        "diagnostics": diagnostics,
+        "output": output
+    });
+    format!("{STRUCTURED_ERROR_PREFIX}{report}")
+}
+
+fn structured_source_diagnostic(
+    source: &SourceFile,
+    display_path: &Path,
+    project_root: &Path,
+    diagnostic: &Diagnostic,
+) -> serde_json::Value {
+    let location = source.position(diagnostic.primary_span.start());
+    let file = fs::canonicalize(display_path)
+        .ok()
+        .and_then(|path| path.strip_prefix(project_root).ok().map(Path::to_path_buf))
+        .and_then(|path| structured_report_path(&path.to_string_lossy(), project_root));
+    serde_json::json!({
+        "code": diagnostic.code,
+        "severity": match diagnostic.severity {
+            oxido_language::domain::diagnostics::Severity::Error => "error",
+            oxido_language::domain::diagnostics::Severity::Warning => "warning",
+            oxido_language::domain::diagnostics::Severity::Info => "information",
+            oxido_language::domain::diagnostics::Severity::Hint => "hint",
+        },
+        "message": sanitize_report_text(&diagnostic.message, Some(project_root)),
+        "file": file,
+        "line": location.map(|position| position.line),
+        "column": location.map(|position| position.column)
+    })
+}
+
+fn structured_report_path(path: &str, project_root: &Path) -> Option<String> {
+    let path = Path::new(path);
+    let relative = if path.is_absolute() {
+        path.strip_prefix(project_root).ok()?
+    } else {
+        path
+    };
+    if relative.as_os_str().is_empty()
+        || relative
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
+    Some(relative.to_string_lossy().replace('\\', "/"))
+}
+
+fn sanitize_report_text(value: &str, project_root: Option<&Path>) -> String {
+    let mut sanitized = value.to_owned();
+    if let Some(project_root) = project_root {
+        sanitized = sanitized.replace(&project_root.to_string_lossy().to_string(), "<proyecto>");
+    }
+    for root in [
+        env::current_dir().ok(),
+        fs::canonicalize(env::temp_dir()).ok(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        sanitized = sanitized.replace(&root.to_string_lossy().to_string(), "<ruta>");
+    }
+    sanitized
+        .split_whitespace()
+        .map(|word| {
+            let prefix_len = word
+                .char_indices()
+                .take_while(|(_, character)| matches!(character, '(' | '[' | '{' | '\'' | '"'))
+                .map(|(index, character)| index + character.len_utf8())
+                .last()
+                .unwrap_or(0);
+            let (prefix, candidate) = word.split_at(prefix_len);
+            if candidate.starts_with('/') {
+                format!("{prefix}<ruta>")
+            } else {
+                word.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn structured_program_output(output: &[String], project_root: &Path) -> Vec<String> {
+    output
+        .iter()
+        .map(|line| sanitize_report_text(line, Some(project_root)))
+        .collect()
 }
 
 fn load_ox(path: &OsStr) -> Result<(SourceFile, PathBuf), String> {

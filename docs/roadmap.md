@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–8: completadas en el alcance documentado. Fase 9: en curso. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. Fase 9 ya cuenta con comandos iniciales `nuevo`, `formato`, `probar` e `importar-proyecto`; faltan regresiones y criterios de CLI antes de cerrarla.
+**Fases 0–8: completadas en el alcance documentado. Fase 9: completada en el alcance inicial documentado. Fases 10–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cubre los comandos iniciales y sus regresiones CLI documentadas; el formato indentado es conservador y los diagnósticos JSON cubren `compilar`, `ejecutar` y `probar`.
 
 ## Reglas para avanzar
 
@@ -233,22 +233,22 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** entregar comandos estables y seguros para tareas habituales.
 
-**Estado actual:** en curso. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, que `formato` sea idempotente en modo llaves y que un árbol Rust convencional pase por importar `.rs` → `.ox` → exportar `.rs` y se compile/ejecute. Faltan los casos `#[path]` y fuentes mixtas en la importación de árboles, formato indentado y diagnósticos estructurados antes de cerrar la fase.
+**Estado actual:** completada en el alcance inicial documentado. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, que `formato` sea idempotente y conserve comentarios en modo llaves, y que el formato indentado conservador no mueva comentarios ni altere literales. La importación de árboles cubre `.rs`/`.ox` mixtos, reescritura de `#[path]` relativo y rechazos de rutas inseguras. `compilar`, `ejecutar` y `probar` ofrecen `--json` con diagnósticos y ubicaciones relativas cuando están disponibles. Esto no significa que el formateador reindente ni que todos los comandos tengan salida JSON.
 
 ### Subfases
 
 1. Definir nombres, argumentos, ayuda y códigos de salida.
 2. Crear proyectos con plantillas mínimas verificables. La plantilla actual de `nuevo` tiene una prueba CLI que la compila y ejecuta; se comprueba también el rechazo de un directorio ya existente sin modificarlo.
 3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. Las pruebas CLI validan `nuevo` de extremo a extremo y que `probar` ejecute un ítem `#[test]`, propague el resultado fallido y rechace `--release`. Sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
-4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresión CLI de idempotencia y conservación de comentarios para modo llaves. El reimportador genera modo llaves y no preserva fuentes indentadas; implementar ese modo antes de ampliar el soporte.
-5. **Diagnósticos CLI:** los mensajes humanos existen; un contrato de salida estructurada estable para CI sigue pendiente.
-6. **Importación/exportación:** una prueba CLI importa y vuelve a exportar un árbol convencional de módulos `.rs`, conserva comentarios y ejecuta el binario Rust resultante. Faltan casos de `#[path]`, fuentes mixtas y sus errores negativos.
+4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresiones CLI de idempotencia y conservación de comentarios para modo llaves, y de idempotencia/conservación de comentarios, literales y grupos opacos para modo indentado. En modo indentado solo elimina espacios finales fuera de spans protegidos y asegura el salto final; no reindenta ni normaliza expresiones.
+5. **Diagnósticos CLI:** `compilar`, `ejecutar` y `probar` aceptan `--json`. El esquema versión 1 informa éxito, diagnósticos, código/severidad/mensaje, archivo relativo y posición si existen, y salida del programa saneada. Errores tempranos usan `OX0001`; fallos Cargo sin diagnóstico mapeable usan `OX5001`. La regresión comprueba éxito y error de tipo con ubicación `.ox`, salida JSON por stdout y ausencia de rutas absolutas.
+6. **Importación/exportación:** pruebas CLI importan y vuelven a exportar árboles convencionales con `.rs`, `.ox` y `#[path]` relativo, conservan comentarios y ejecutan el resultado Rust. Se rechazan destinos existentes, enlaces simbólicos de destino, rutas fuera del proyecto, rutas ausentes y colisiones antes de escribir.
 7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables); ya hay una prueba CLI que verifica el informe y que no expone rutas absolutas.
-8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos; la importación de árboles rechaza un destino existente, pero falta cubrir rutas y enlaces simbólicos en importación y formato.
+8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos; las regresiones actuales cubren las rutas de importación y escritura descritas arriba. El formato opera sobre el archivo solicitado y no sigue enlaces de salida ni crea archivos auxiliares.
 
 **Entregables:** CLI documentada y pruebas de integración de comandos.
 
-**Criterio de salida:** los comandos documentados tienen pruebas CLI positivas/negativas, resultados y errores verificables; operaciones de archivo restringen correctamente sus destinos. Formato y roundtrip de árboles tienen pruebas de idempotencia y conservación.
+**Criterio de salida:** cumplido para los comandos y escenarios enumerados en esta fase: pruebas CLI positivas/negativas, resultados verificables, destinos de importación restringidos, formato idempotente en ambos modos dentro de su alcance, y roundtrip ejecutable de árboles mixtos con `#[path]`. Las funciones no enumeradas aquí no se consideran compatibles por inferencia.
 
 **Dependencia:** Fases 5–8 según comando.
 
@@ -395,7 +395,7 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 7 | Completada (alcance inicial del lenguaje) | [Informe de Fase 7](fase-7-lenguaje-inicial.md); `cargo test -p oxido-compiler --test pipeline --locked` | Alcance ampliado en Fase 8 |
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; build y publicación estática operativos | Sitemap requiere configurar el dominio `site`; Starlight muestra un aviso informativo al resolver la ruta 404 |
 | 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
-| 9 | En curso (CLI inicial) | `nuevo`, `formato`, `probar`, `importar-proyecto` ya tienen implementación inicial; ver secciones de la fase | Faltan regresiones CLI, salida estructurada y validación de formato/roundtrip de árboles |
+| 9 | Completada en alcance inicial | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Formato indentado conservador; ver límites y pruebas exactas en la sección de Fase 9 |
 | 10–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.

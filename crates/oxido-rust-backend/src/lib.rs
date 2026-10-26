@@ -507,6 +507,87 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     Ok(output)
 }
 
+/// Reescribe únicamente los valores de atributos `#[path = "..."]`, conservando el resto del archivo.
+pub fn rewrite_module_path_attributes(
+    source: &SourceFile,
+    mut rewrite: impl FnMut(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    fn visit_items(
+        items: &[syn::Item],
+        replacements: &mut Vec<(usize, usize, String)>,
+        rewrite: &mut impl FnMut(&str) -> Result<String, String>,
+        source: &SourceFile,
+    ) -> Result<(), String> {
+        for item in items {
+            let syn::Item::Mod(module) = item else {
+                continue;
+            };
+            for attribute in &module.attrs {
+                if !attribute.path().is_ident("path") {
+                    continue;
+                }
+                let syn::Meta::NameValue(value) = &attribute.meta else {
+                    return Err("el atributo `path` debe tener un valor de texto".into());
+                };
+                let syn::Expr::Lit(expression) = &value.value else {
+                    return Err("el atributo `path` debe tener un valor literal de texto".into());
+                };
+                let syn::Lit::Str(path) = &expression.lit else {
+                    return Err("el atributo `path` debe tener un valor literal de texto".into());
+                };
+                let rewritten = rewrite(&path.value())?;
+                if rewritten == path.value() {
+                    continue;
+                }
+                let start = source_offset(source.text(), path.span().start())
+                    .ok_or_else(|| "no se pudo ubicar el valor del atributo `path`".to_owned())?;
+                let end = source_offset(source.text(), path.span().end())
+                    .ok_or_else(|| "no se pudo ubicar el final del atributo `path`".to_owned())?;
+                let replacement = syn::LitStr::new(&rewritten, path.span());
+                replacements.push((start, end, quote!(#replacement).to_string()));
+            }
+            if let Some((_, nested)) = &module.content {
+                visit_items(nested, replacements, rewrite, source)?;
+            }
+        }
+        Ok(())
+    }
+
+    let file = syn::parse_file(source.text()).map_err(|error| error.to_string())?;
+    let mut replacements = Vec::new();
+    visit_items(&file.items, &mut replacements, &mut rewrite, source)?;
+    replacements.sort_unstable_by_key(|(start, _, _)| *start);
+    let mut output = String::with_capacity(source.text().len());
+    let mut cursor = 0;
+    for (start, end, replacement) in replacements {
+        if start < cursor || end < start {
+            return Err("los atributos `path` tienen rangos superpuestos".into());
+        }
+        output.push_str(&source.text()[cursor..start]);
+        output.push_str(&replacement);
+        cursor = end;
+    }
+    output.push_str(&source.text()[cursor..]);
+    Ok(output)
+}
+
+fn source_offset(text: &str, location: LineColumn) -> Option<usize> {
+    let mut line_start = 0;
+    for _ in 1..location.line {
+        let relative = text[line_start..].find('\n')?;
+        line_start += relative + 1;
+    }
+    let line_end = text[line_start..]
+        .find('\n')
+        .map_or(text.len(), |relative| line_start + relative);
+    let line = &text[line_start..line_end];
+    let column_offset = line.char_indices().nth(location.column).map_or_else(
+        || (location.column == line.chars().count()).then_some(line.len()),
+        |(offset, _)| Some(offset),
+    )?;
+    Some(line_start + column_offset)
+}
+
 fn emit_item(item: &Item, mappings: &mut Vec<PendingMapping>) -> Result<TokenStream, SynError> {
     match item {
         Item::Function(function) => emit_function(function, mappings),

@@ -14,7 +14,7 @@
 | 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans y recuperación de parser; faltan recuperación sistemática, cancelación LSP y reportes de límites medidos. |
 | 7. Proyectos reutilizables | Parcial | `examples/`, `prueba/` y `tests/fixtures/` contienen programas Cargo y árboles de referencia; falta documentar un contrato único de harness para que fases futuras los reutilicen. |
 | 8. Informes reproducibles | Pendiente | Este informe registra herramienta/commit/entorno y estados; no hay aún recolector de informes por ejecución ni benchmark reproducible del compilador. No se inventan métricas de rendimiento. |
-| 9. CI | En progreso | CI valida fmt, Clippy, workspace, cargo-deny y ahora smoke de fuzzing; se debe observar el primer run remoto del job `fuzz-smoke`. |
+| 9. CI | En progreso | CI valida fmt, Clippy, workspace, cargo-deny y smoke de fuzzing; los jobs remotos pasaron para el commit registrado abajo. Falta mantener esta evidencia en siguientes iteraciones. |
 
 ## Harnesses de fuzzing
 
@@ -51,17 +51,17 @@ Este registro describe la primera ejecución de la Fase 10 antes del commit de e
 
 | Dato | Valor |
 |---|---|
-| Commit base | `af85cc5` (árbol de trabajo con cambios de Fase 10 sin commit) |
+| Commit implementado y probado | `1911824a9fc8e948d0212957689f079bb2068dee` |
 | Toolchain workspace | Rust/Cargo 1.99.1; Linux x86_64 |
 | Diferencial | `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result`: aprobado; un programa compilado/ejecutado en ambas rutas, stdout idéntico |
 | Workspace | `cargo fmt --all -- --check`: aprobado; `cargo clippy --workspace --all-targets --locked -- -D warnings`: aprobado; `cargo test --workspace --locked`: 130 pruebas aprobadas, 0 fallidas |
 | Fuzz | Lexer, parser, config y backend: 1.000 iteraciones cada uno, máximo 8 KiB; aprobados localmente sin crash ni spans inválidos |
 | Compilación fuzz | `cargo +nightly check --manifest-path fuzz/Cargo.toml --bins --locked` y `cargo +nightly fuzz build backend`: aprobados |
 | Dependencias | `cargo deny check`: exit 0; mostró diagnósticos no fatales `unresolved-workspace-dependency` y `wildcard` para dependencias path/workspace locales |
-| CI remota | Pendiente para el commit de esta iteración; el smoke local no sustituye el resultado de Actions |
+| CI remota | Aprobada en push y pull request: `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages |
 | Rendimiento | No medido |
 
-Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../tests/README.md). Este registro se refiere al árbol de trabajo local sobre `af85cc5`, no a un commit publicado; se actualizará después de ejecutar CI remota.
+Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../tests/README.md). La CI corresponde al commit indicado y sus mismos contenidos de implementación. Este documento registra la evidencia disponible, pero no cierra la fase: siguen pendientes diferenciales más amplios, decoder/cancelación LSP y la revisión final de cobertura por característica.
 
 ## Criterio de cierre
 

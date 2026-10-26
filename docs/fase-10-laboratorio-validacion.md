@@ -93,11 +93,12 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 | Dato | Valor |
 |---|---|
 | Base | `46fa7d73bf4901b1b00ea4a20f57fe9327eedf5c` |
+| Commit probado | `8311436f565af6fb1915820e8f617c338e487950` |
 | Decoder | El fuzzer consume bytes del framing `Content-Length` y despacha payloads válidos; máximo 8 KiB por línea de cabecera y 4 MiB por frame; longitudes duplicadas se rechazan |
 | Regresiones de transporte | Frame válido, EOF, Content-Length ausente/duplicado, cabecera demasiado larga, frame sobredimensionado y cuerpo truncado |
 | Verificación local | `cargo fmt --all -- --check`, Clippy y `cargo test --workspace --locked`: 138 pruebas aprobadas, 0 fallidas; fuzz manifiesto chequeado con `--locked` |
 | Smoke LSP | `cargo +nightly fuzz run lsp -- -runs=1000 -max_len=8192`: 1.000 ejecuciones, sin crash |
-| CI remota | Pendiente para el commit de esta iteración |
+| CI remota | Aprobada para este commit: `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en push y pull request |
 | Límites | La cancelación LSP y la recuperación incremental siguen sin implementar/probar |
 
 ## Criterio de cierre

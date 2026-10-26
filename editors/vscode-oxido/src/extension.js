@@ -17,7 +17,10 @@ async function startClient() {
     args: [],
     options: workspace ? { cwd: workspace.uri.fsPath } : {}
   };
-  const clientOptions = { documentSelector: [{ scheme: 'file', language: 'oxido' }] };
+  const clientOptions = {
+    documentSelector: [{ scheme: 'file', language: 'oxido' }],
+    initializationOptions: { trusted: vscode.workspace.isTrusted }
+  };
 
   client = new LanguageClient('oxido', 'Óxido Language Server', serverOptions, clientOptions);
   await client.start();

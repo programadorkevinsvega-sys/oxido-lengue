@@ -10,6 +10,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     io::{self, BufRead, BufReader, Read, Write},
     path::PathBuf,
+    process::{Command, Stdio},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -29,12 +30,14 @@ const MAX_SINGLE_DOCUMENT_BYTES: usize = 4 * 1024 * 1024;
 const MAX_QUEUED_DIAGNOSTIC_TASKS: usize = 1;
 const CANCELED_ERROR_CODE: i64 = -32800;
 const CONTENT_MODIFIED_ERROR_CODE: i64 = -32801;
+static NEXT_RA_WORKSPACE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Default)]
 pub struct ServerState {
     documents: BTreeMap<String, TextDocument>,
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
     project_root: Option<PathBuf>,
+    trusted_workspace: bool,
     total_document_bytes: usize,
     diagnostic_runs: u64,
     last_diagnostic_ms: Option<u128>,
@@ -588,6 +591,10 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
     let response = match method {
         "initialize" => {
             state.project_mode = project_syntax_mode(&request);
+            state.trusted_workspace = request
+                .pointer("/params/initializationOptions/trusted")
+                .and_then(Value::as_bool)
+                == Some(true);
             state.project_root = request
                 .pointer("/params/rootUri")
                 .and_then(Value::as_str)
@@ -640,7 +647,8 @@ fn diagnostic_notification(
 
 fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
     let id = request.get("id").cloned().unwrap_or(Value::Null);
-    let trusted = request.pointer("/params/trusted").and_then(Value::as_bool) == Some(true);
+    let trusted = state.trusted_workspace
+        && request.pointer("/params/trusted").and_then(Value::as_bool) == Some(true);
     if !trusted {
         return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32003,"message":"Cargo requiere confianza explícita del workspace"}});
     }
@@ -734,6 +742,11 @@ fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let text = uri
         .and_then(|uri| state.documents.get(uri))
         .map_or("", |document| document.text.as_str());
+    if let Some(response) =
+        rust_analyzer_response("textDocument/completion", &id, params, state, text)
+    {
+        return response;
+    }
     let mut labels = BTreeSet::new();
     for (alias, _, _) in oxido_language::domain::syntax::token::KEYWORD_ALIASES {
         labels.insert(*alias);
@@ -771,6 +784,9 @@ fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Val
     let Some((_uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":null});
     };
+    if let Some(response) = rust_analyzer_response("textDocument/hover", &id, params, state, text) {
+        return response;
+    }
     let Some(token) = lex_token_at(text, offset, state.project_mode) else {
         return json!({"jsonrpc":"2.0","id":id,"result":null});
     };
@@ -810,6 +826,17 @@ fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerSt
     let Some(document) = state.documents.get(uri) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
+    if state.trusted_workspace
+        && let Some(response) = rust_analyzer_response(
+            "textDocument/documentSymbol",
+            &id,
+            params,
+            state,
+            &document.text,
+        )
+    {
+        return response;
+    }
     let symbols = parsed_file(&document.text, state.project_mode)
         .map(|file| {
             declared_functions(&file, &document.text).into_iter().map(|(name, selection, range)| {
@@ -824,6 +851,11 @@ fn definition_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let Some((uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
+    if let Some(response) =
+        rust_analyzer_response("textDocument/definition", &id, params, state, text)
+    {
+        return response;
+    }
     let Some(token) = lex_token_at(text, offset, state.project_mode) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
@@ -842,6 +874,11 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let Some((uri, text, offset)) = request_document_position(params, state) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
+    if let Some(response) =
+        rust_analyzer_response("textDocument/references", &id, params, state, text)
+    {
+        return response;
+    }
     let Some(selected) = lex_token_at(text, offset, state.project_mode) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
@@ -951,6 +988,12 @@ fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -
     let Some(document) = state.documents.get(uri) else {
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
+    if state.trusted_workspace
+        && let Some(response) =
+            rust_analyzer_response("textDocument/inlayHint", &id, params, state, &document.text)
+    {
+        return response;
+    }
     let mut hints = Vec::new();
     for (line_number, line) in document.text.lines().enumerate() {
         let Some(rest) = line.trim_start().strip_prefix("dejar ") else {
@@ -976,6 +1019,140 @@ fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -
         hints.push(json!({"position":{"line":line_number,"character":character},"label":format!(": {inferred}"),"kind":1,"paddingLeft":true}));
     }
     json!({"jsonrpc":"2.0","id":id,"result":hints})
+}
+
+fn rust_analyzer_response(
+    method: &str,
+    id: &Value,
+    params: Option<&Value>,
+    state: &ServerState,
+    text: &str,
+) -> Option<Value> {
+    if !state.trusted_workspace {
+        return None;
+    }
+    let generated = oxido_compiler::generate_ox(
+        &SourceFile::new(text),
+        LexOptions {
+            project_mode: state.project_mode,
+        },
+    )
+    .ok()?;
+    let generated_position = params
+        .and_then(|value| value.get("position"))
+        .and_then(|position| position_at_generated(text, &generated.rust, position))?;
+    let mut request_params = params.cloned().unwrap_or_else(|| json!({}));
+    if let Some(document) = request_params.get_mut("textDocument") {
+        *document = json!({"uri":"file:///src/main.rs"});
+    }
+    if let Some(position) = generated_position
+        && let Some(object) = request_params.as_object_mut()
+    {
+        object.insert("position".to_owned(), position);
+    }
+    let response = run_rust_analyzer(&generated.rust, method, id, request_params)?;
+    Some(response)
+}
+
+fn position_at_generated(source: &str, generated: &str, position: &Value) -> Option<Option<Value>> {
+    let offset = offset_at_position(source, position)?;
+    let mut token_start = offset;
+    while token_start > 0
+        && source
+            .as_bytes()
+            .get(token_start - 1)
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+    {
+        token_start -= 1;
+    }
+    let mut token_end = offset;
+    while token_end < source.len()
+        && source
+            .as_bytes()
+            .get(token_end)
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+    {
+        token_end += 1;
+    }
+    let token = source.get(token_start..token_end)?;
+    let generated_offset = generated.find(token)?;
+    Some(lsp_position(generated, generated_offset))
+}
+
+fn run_rust_analyzer(rust: &str, method: &str, id: &Value, params: Value) -> Option<Value> {
+    let root = std::env::temp_dir().join(format!(
+        "oxido-ra-{}",
+        NEXT_RA_WORKSPACE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let source_dir = root.join("src");
+    std::fs::create_dir_all(&source_dir).ok()?;
+    let cleanup = || {
+        if let Err(error) = std::fs::remove_dir_all(&root) {
+            eprintln!("no se pudo limpiar workspace temporal de rust-analyzer: {error}");
+        }
+    };
+    if std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"oxido_lsp_generated\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .is_err()
+        || std::fs::write(source_dir.join("main.rs"), rust).is_err()
+    {
+        cleanup();
+        return None;
+    }
+    let executable =
+        std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into());
+    let mut child = Command::new(executable)
+        .arg("--stdio")
+        .current_dir(&root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let mut input = child.stdin.take()?;
+    let mut output = BufReader::new(child.stdout.take()?);
+    let initialize = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":format!("file://{}", root.display()),"capabilities":{}}});
+    write_lsp_message(&mut input, &initialize).ok()?;
+    read_response(&mut output, 1)?;
+    write_lsp_message(
+        &mut input,
+        &json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    )
+    .ok()?;
+    let generated_uri = format!("file://{}/src/main.rs", root.display());
+    write_lsp_message(&mut input, &json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":generated_uri,"languageId":"rust","version":1,"text":rust}}})).ok()?;
+    let mut params = params;
+    if let Some(document) = params.get_mut("textDocument") {
+        *document = json!({"uri":format!("file://{}/src/main.rs", root.display())});
+    }
+    let request = json!({"jsonrpc":"2.0","id":id,"method":method,"params":params});
+    write_lsp_message(&mut input, &request).ok()?;
+    let response = read_response(&mut output, id.as_i64().unwrap_or(2));
+    write_lsp_message(
+        &mut input,
+        &json!({"jsonrpc":"2.0","id":99,"method":"shutdown","params":{}}),
+    )
+    .ok();
+    if let Err(error) = child.kill() {
+        eprintln!("no se pudo detener rust-analyzer temporal: {error}");
+    }
+    if let Err(error) = child.wait() {
+        eprintln!("no se pudo esperar rust-analyzer temporal: {error}");
+    }
+    cleanup();
+    response
+}
+
+fn read_response(input: &mut impl BufRead, expected_id: i64) -> Option<Value> {
+    loop {
+        let body = read_frame(input).ok()??;
+        let response: Value = serde_json::from_slice(&body).ok()?;
+        if response.get("id").and_then(Value::as_i64) == Some(expected_id) {
+            return Some(response);
+        }
+    }
 }
 
 fn parsed_file(
@@ -1832,6 +2009,41 @@ mod tests {
             formatting[0]["result"][0]["newText"],
             "sintaxis indentacion\nfuncion principal():\n    pass\n"
         );
+    }
+
+    #[test]
+    fn uses_real_rust_analyzer_when_workspace_is_trusted() {
+        if std::process::Command::new(
+            std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into()),
+        )
+        .arg("--version")
+        .output()
+        .is_err()
+        {
+            return;
+        }
+        let mut state = ServerState {
+            trusted_workspace: true,
+            project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Braces),
+            ..ServerState::default()
+        };
+        let text = "fn principal() {\n    let valor = 1;\n}\n";
+        state.documents.insert(
+            "file:///main.ox".into(),
+            TextDocument {
+                version: Some(1),
+                text: text.into(),
+            },
+        );
+        let response = hover_response(
+            json!(1),
+            Some(
+                &json!({"textDocument":{"uri":"file:///main.ox"},"position":{"line":1,"character":8}}),
+            ),
+            &state,
+        );
+        assert_eq!(response["id"], 1);
+        assert!(response.get("result").is_some() || response.get("error").is_some());
     }
 
     #[test]

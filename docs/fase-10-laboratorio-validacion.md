@@ -8,7 +8,7 @@
 |---|---|---|
 | 1. Matriz por componente | Parcial | Lexer y parser en `oxido-language`; configuración y pipeline en `oxido-compiler`; formato/macros/CLI en `oxido-cli`; la matriz explícita de características y tests sigue creciendo. |
 | 2. Regresiones | Implementada en el corpus existente | Los defectos corregidos tienen pruebas en el crate afectado; fuzz crashes futuros deben añadirse como seed y regresión determinista. |
-| 3. Diferencial contra Rust | Parcial | Dos regresiones compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones y `struct`/`impl`/método/`match`; stdout coincide. Hace falta ampliar casos y cubrir diagnósticos equivalentes. |
+| 3. Diferencial contra Rust | Parcial | Dos regresiones compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones y `struct`/`impl`/método/`match`; una tercera compara el rechazo `E0308` y el mapeo al `.ox`. Hace falta ampliar casos. |
 | 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs` y roundtrip de árboles mixtos; no equivale a roundtrip universal. |
 | 5. Fuzzing | Implementación inicial | Targets de lexer, parser, configuración TOML, backend/mapas y framing/dispatcher JSON-RPC LSP; corpus semilla y smoke CI. Las campañas siguen acotadas. |
 | 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans, recuperación de parser y límites LSP de cabecera 8 KiB/frame 4 MiB; faltan recuperación sistemática, cancelación LSP y reportes de límites medidos. |
@@ -74,7 +74,15 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 | Construcciones comparadas | Iteradores/colección/condicional y `struct`/`impl`/método/`match` |
 | Verificación local | Antes de extraer el dispatcher LSP: `cargo fmt --all -- --check`, Clippy y `cargo test --workspace --locked`: 131 pruebas aprobadas, 0 fallidas. La extensión LSP añade 4 pruebas unitarias; suite completa pendiente de repetir antes del commit |
 | CI remota de esta iteración | Pendiente al registrar; actualizar con el commit y checks cuando termine |
-| Límites | Solo dos fixtures; no cubre equivalencia semántica general ni diagnostica pares de errores equivalentes |
+| Límites | Solo dos fixtures positivos; no cubre equivalencia semántica general ni diagnostica pares de errores equivalentes |
+
+## Iteración de diagnóstico diferencial
+
+| Dato | Valor |
+|---|---|
+| Base | `654938990534c691a481295e257d2b69c00110be` |
+| Caso | `differential_type_errors_match_rustc_and_map_back_to_the_ox_line`: `.ox` y Rust directo rechazan `E0308`; el diagnóstico de Óxido mapea a la línea 3 fuente |
+| Verificación local | Prueba dirigida aprobada; suite completa y CI remota pendientes |
 
 ## Iteración de LSP y corpus JSON-RPC
 

@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–9: completadas en el alcance documentado. Fase 10: en cierre, pendiente del benchmark release solicitado y sus checks remotos. Fases 11–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
+**Fases 0–9: completadas en el alcance documentado. Fase 10: implementación y benchmark completados; checks remotos de esta actualización pendientes. Fases 11–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -258,7 +258,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** consolidar pruebas, compatibilidad, fuzzing y evidencia continua.
 
-**Estado actual:** en cierre. La matriz cubre los componentes publicados; siete pares diferenciales positivos más un diagnóstico negativo comparan Óxido con Rust; las regresiones de importación/exportación y módulos corren en CLI; el LSP prueba cambios incrementales, recuperación y cancelación cooperativa de semantic tokens; cinco targets de fuzz tienen corpus, smoke en push/PR y campaña semanal de 10.000 casos; el informe Markdown se publica como artefacto de CI por 30 días; y las referencias funcionales, incluida la interacción de terminal, se automatizan. El benchmark release de cinco rondas se ejecutará ahora en runner de GitHub a petición del usuario y su reporte quedará asociado al commit. La fase se cierra cuando esa ejecución y los checks remotos del PR pasen. Rendimiento de producción no queda demostrado.
+**Estado actual:** implementación completa; checks remotos de este cambio pendientes. La matriz cubre los componentes publicados; siete pares diferenciales positivos más un diagnóstico negativo comparan Óxido con Rust; las regresiones de importación/exportación y módulos corren en CLI; el LSP prueba cambios incrementales, recuperación y cancelación cooperativa de semantic tokens; cinco targets de fuzz tienen corpus, smoke en push/PR y campaña semanal de 10.000 casos; el informe Markdown se publica como artefacto de CI por 30 días; y las referencias funcionales, incluida la interacción de terminal, se automatizan. El benchmark release de cinco rondas se ejecutó en GitHub Actions y sus resultados se registran en [el informe comparativo](reports/fase-10/2026-10-26-benchmark-release-github.md). Es una medición exploratoria y no demuestra rendimiento de producción.
 
 ### Subfases
 
@@ -398,9 +398,9 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | Portal documental | Publicado en Cloudflare Pages | [website/README.md](../website/README.md), Astro Starlight; `site` apunta a `https://oxido-lengue.pages.dev`, sitemap y `404.html` personalizados construyen sin avisos |
 | 8 | Completada (corpus de interoperabilidad verificado) | [Informe de Fase 8](fase-8-integracion-rust.md); `cargo test --workspace --locked` y regresiones E2E de macros/interoperabilidad | No implica compatibilidad universal; Workspace Trust/sandbox permanecen en Fase 11 |
 | 9 | Completada (alcance documentado) | `nuevo`, `formato`, `probar`, `importar-proyecto`; `--json` en `compilar`/`ejecutar`/`probar` | Conformidad de Rust generado con rustfmt en la matriz estructural, revisión de cobertura y CI remota; ver Fase 9 |
-| 10 | En cierre | [Informe de Fase 10](fase-10-laboratorio-validacion.md); siete diferenciales positivos, un caso negativo, matriz por característica, fuzz semanal 10k/target, informe CI y referencias automatizadas | Esperar benchmark release de cinco rondas y checks remotos verdes; no equivale a rendimiento de producción |
+| 10 | Implementación completa; CI pendiente | [Informe de Fase 10](fase-10-laboratorio-validacion.md); siete diferenciales positivos, un caso negativo, matriz por característica, fuzz semanal 10k/target, informe CI, referencias automatizadas y benchmark release archivado | Esperar checks remotos verdes antes de marcar completada; la medición no equivale a rendimiento de producción |
 | 11–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 
-Las fases 0–9 están completadas para los alcances declarados; la Fase 10 está pendiente únicamente de la medición exploratoria solicitada y la validación remota final. Las limitaciones de la matriz no se consideran características implementadas.
+Las fases 0–9 están completadas para los alcances declarados; la Fase 10 tiene sus criterios implementados y evidencia local/CI registrada, y espera la validación remota final de esta actualización. Las limitaciones de la matriz no se consideran características implementadas.

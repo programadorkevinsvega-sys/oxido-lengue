@@ -28,7 +28,7 @@ Ejecuta el supervisor secuencial desde la raíz del repositorio:
 python3 prueba/crud_sqlite_rust/benchmark_secuencial.py --rondas 5
 ```
 
-La CI ejecuta el mismo supervisor con `--solo-funcional`: compila los binarios release, inicia Óxido y Rust uno por uno, realiza las consultas HTTP de preparación y confirma que el puerto queda libre. No envía lotes de benchmark ni calcula QPS/latencias. Para una medición explícita, ejecuta el workflow `CI` con `ejecutar_benchmark=true`; su log queda como artefacto del workflow. No se genera ni se declara una medición automáticamente en los pushes.
+La CI ejecuta el mismo supervisor con `--solo-funcional`: compila los binarios release, inicia Óxido y Rust uno por uno, realiza las consultas HTTP de preparación y confirma que el puerto queda libre. No envía lotes de benchmark ni calcula QPS/latencias. El benchmark comparativo se ejecuta semanalmente o mediante el workflow `CI` con `ejecutar_benchmark=true`; su log queda como artefacto del workflow. La ejecución del 2026-10-26 y sus límites están resumidos en [`informe de Fase 10`](../../docs/reports/fase-10/2026-10-26-benchmark-release-github.md).
 
 El cliente de carga está escrito en Python para mantener una herramienta pequeña y transparente que use únicamente la biblioteca estándar; el servidor y el benchmark ejecutado dentro del proceso siguen siendo Rust. La comparación exige artefactos `--release` y ejecuta Óxido y Rust de forma secuencial.
 

@@ -165,5 +165,5 @@ fn main() {
             "server resources during load: cpu_ticks_delta={cpu_ticks_delta} sampled_peak_rss_kib={peak_rss_kib}"
         );
     }
-    println!("Exploratory local benchmark; compilation is outside the measured runtime.");
+    println!("Exploratory benchmark; compilation is outside the measured runtime.");
 }

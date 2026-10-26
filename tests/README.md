@@ -51,7 +51,7 @@ El reporte queda en `target/validation-report.md`. Las herramientas opcionales n
 En GitHub Actions, el job `validation-report` ejecuta el mismo recolector con sus herramientas instaladas y publica `validation-report-<commit>` como artefacto por 30 días, incluso cuando alguna suite falla y alcanza a escribir el reporte.
 Los informes locales que deban conservarse como evidencia histórica se revisan y archivan en `docs/reports/`; el reporte de la campaña extendida de Fase 10 es [`2026-10-26-10000-por-target.md`](../docs/reports/fase-10/2026-10-26-10000-por-target.md).
 
-El job `reference-regressions` ejecuta las referencias con servicios en procesos secuenciales. El benchmark comparativo release se ejecuta cada lunes en GitHub Actions y se puede iniciar también desde GitHub Actions → CI → Run workflow → `ejecutar_benchmark`. El log completo se publica como `oxido-rust-benchmark-<commit>`. Esa ejecución mide únicamente la carga definida por el harness y no prueba rendimiento de producción; este cambio no ejecutó ni midió el benchmark.
+El job `reference-regressions` ejecuta las referencias con servicios en procesos secuenciales. El benchmark comparativo release se ejecuta cada lunes en GitHub Actions y se puede iniciar también desde GitHub Actions → CI → Run workflow → `ejecutar_benchmark`. El log completo se publica como `oxido-rust-benchmark-<commit>`. La ejecución del 2026-10-26 está resumida en [`informe de benchmark`](../docs/reports/fase-10/2026-10-26-benchmark-release-github.md). Mide únicamente la carga definida por el harness y no prueba rendimiento de producción.
 
 El fuzzing usa `cargo-fuzz` 0.13.2 y Rust nightly 2026-10-16, fijados en el job `fuzz-smoke` de CI:
 

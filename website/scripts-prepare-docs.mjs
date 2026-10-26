@@ -1,5 +1,5 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, posix, relative as relativePath, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(fileURLToPath(import.meta.url))
@@ -21,12 +21,16 @@ async function addFrontmatter(source, destination, fallbackTitle) {
   }
   const title = body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? fallbackTitle
   const description = `Documentación de Óxido: ${title}.`
+  const sourceDirectory = relativePath(sourceDocs, dirname(source)).split('\\').join('/')
   const rewritten = body
     .replaceAll('```ox', '```text')
     .replaceAll('```ebnf', '```text')
     .replaceAll('../ARCHITECTURE_RULES.md', '/referencia/reglas-de-arquitectura/')
     .replaceAll('../website/README.md', '/referencia/sitio-documental/')
-    .replace(/\]\(([^/][^)]*?)\.md\)/g, '](/referencia/$1/)')
+    .replace(/\]\(([^/][^)]*?)\.md(#[^)]*)?\)/g, (_match, path, anchor = '') => {
+      const page = posix.normalize(posix.join(sourceDirectory, path))
+      return `](/referencia/${page}/${anchor})`
+    })
     .replaceAll('](/referencia/architecture/)', '](/referencia/arquitectura/)')
   const content = `---\ntitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(description)}\n---\n\n${rewritten}`
   await mkdir(dirname(destination), { recursive: true })
@@ -64,6 +68,8 @@ async function addMarkdownTree(sourceDirectory, destinationDirectory) {
 
 const reportsDirectory = join(sourceDocs, 'reports')
 await addMarkdownTree(reportsDirectory, join(references, 'reports'))
+const adrDirectory = join(sourceDocs, 'adr')
+await addMarkdownTree(adrDirectory, join(references, 'adr'))
 
 await addFrontmatter(
   resolve(root, '../ARCHITECTURE_RULES.md'),

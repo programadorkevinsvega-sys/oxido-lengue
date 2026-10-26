@@ -17,6 +17,7 @@ Una sintaxis en español e inglés que busca generar Rust estándar y conservar 
 - [Modos de sintaxis](./syntax-modes)
 - [Matriz de compatibilidad](./compatibility)
 - [Roadmap](./roadmap)
+- [Decisiones de arquitectura (ADR)](./adr/)
 - [Casos de uso](./audiencias/casos-de-uso)
 
 ## Principio de documentación

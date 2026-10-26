@@ -28,4 +28,4 @@ La Fase 4 produce un AST estructural y fragmentos Rust validados, pero todavía 
 El estado y las tareas de la Fase 5 están en [roadmap](../roadmap.md#fase-5-primer-compilador-funcional); las reglas generales del flujo están en [pipeline](../compiler-pipeline.md).
 ## Evolución de la implementación
 
-En Fase 9, el backend añadió `rustfmt` 1.99.1 (edición 2024) después de `prettyplease` y antes de exportar. La matriz verifica igualdad carácter por carácter con esa salida para las producciones estructurales documentadas. Esto conserva la decisión de generar desde tokens y AST, sin concatenar texto de entrada.
+En Fase 9, el backend añadió `rustfmt` 1.99.1 (edición 2024) después de `prettyplease` y antes de exportar. La matriz verifica igualdad carácter por carácter con esa salida para las producciones estructurales documentadas. Esto conserva la decisión de generar desde tokens y AST, sin concatenar texto de entrada. El contrato específico entre formato `.ox` y Rust generado quedó formalizado en [ADR-0008](0008-contrato-de-formato.md).

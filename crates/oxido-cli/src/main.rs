@@ -529,6 +529,7 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
     let mut tokens_by_line = vec![Vec::new(); line_count];
     let mut block_depth = 0usize;
     let mut group_depth = 0usize;
+    let mut group_depth_stack = Vec::new();
     let mut opaque_macro_lines = Vec::<Option<usize>>::new();
     let mut last_significant_text = None;
     for token in &lexed.tokens {
@@ -563,8 +564,17 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
             *line_indent = Some(depth);
         }
         match token_text {
-            "(" | "[" | "{" => group_depth = group_depth.saturating_add(1),
-            ")" | "]" | "}" => group_depth = group_depth.saturating_sub(1),
+            "(" | "[" | "{" => {
+                group_depth_stack.push(group_depth);
+                group_depth = if token_text == "{" {
+                    1
+                } else {
+                    group_depth.saturating_add(1)
+                };
+            }
+            ")" | "]" | "}" => {
+                group_depth = group_depth_stack.pop().unwrap_or_default();
+            }
             _ => {}
         }
         if matches!(token.kind, TokenKind::Comment)
@@ -575,8 +585,9 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
         if matches!(
             token.kind,
             TokenKind::StringLiteral | TokenKind::CharacterLiteral
-        ) {
-            for line in start.line..=end.line {
+        ) && start.line != end.line
+        {
+            for line in start.line.saturating_add(1)..=end.line {
                 if let Some(preserve) = preserve_lines.get_mut(line.saturating_sub(1)) {
                     *preserve = true;
                 }
@@ -664,6 +675,15 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
                 ));
             } else if opaque_invocation_lines.get(index).copied().unwrap_or(false) {
                 formatted.push_str(body);
+            } else if let Some(formatted_prefix) = format_line_before_multiline_literal(
+                source,
+                source_line_start + leading.len(),
+                source_line_start + content.len(),
+                expected_depth,
+                ending,
+                &tokens_by_line[index],
+            ) {
+                formatted.push_str(&formatted_prefix);
             } else {
                 formatted.push_str(&format_indented_code_line(
                     body.trim_end_matches([' ', '\t']),
@@ -681,6 +701,54 @@ fn format_indented_source(source: &SourceFile, lexed: &LexOutput) -> String {
         formatted.push('\n');
     }
     formatted
+}
+
+fn format_line_before_multiline_literal(
+    source: &SourceFile,
+    content_start: usize,
+    content_end: usize,
+    expected_depth: usize,
+    line_ending: &str,
+    line_tokens: &[&oxido_language::domain::syntax::Token],
+) -> Option<String> {
+    let literal = line_tokens.iter().find(|token| {
+        matches!(
+            token.kind,
+            TokenKind::StringLiteral | TokenKind::CharacterLiteral
+        ) && source
+            .position(token.span.start())
+            .zip(source.position(token.span.end()))
+            .is_some_and(|(start, end)| start.line < end.line)
+    })?;
+    let prefix_tokens = line_tokens
+        .iter()
+        .copied()
+        .filter(|token| {
+            token.span.end() <= literal.span.start()
+                && !matches!(
+                    token.kind,
+                    TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent | TokenKind::Comment
+                )
+        })
+        .collect::<Vec<_>>();
+    let prefix = source
+        .text()
+        .get(content_start..literal.span.start())?
+        .trim_end_matches([' ', '\t']);
+    let literal_start = literal.span.start().max(content_start);
+    let literal_suffix = source.text().get(literal_start..content_end)?;
+    let formatted_prefix =
+        format_indented_code_line(prefix, source, expected_depth, line_ending, &prefix_tokens);
+    let literal_text = source.slice(literal.span);
+    let previous = prefix_tokens.last().map(|token| source.slice(token.span));
+    let before_previous = prefix_tokens
+        .len()
+        .checked_sub(2)
+        .map(|index| source.slice(prefix_tokens[index].span));
+    let spacing = previous.map_or("", |previous| {
+        canonical_token_spacing(before_previous, previous, literal_text, None, "")
+    });
+    Some(format!("{formatted_prefix}{spacing}{literal_suffix}"))
 }
 
 fn split_indentation(line: &str) -> (&str, &str) {
@@ -725,6 +793,7 @@ fn format_indented_code_line(
         line_ending
     };
     let mut groups = Vec::<&str>::new();
+    let mut brace_spacing = Vec::<bool>::new();
     let mut wrapped_after_comma = false;
     let mut generic_depth = 0usize;
     for (index, token) in tokens.iter().enumerate() {
@@ -737,6 +806,10 @@ fn format_indented_code_line(
             let before_previous = index.checked_sub(2).map(|prior| token_texts[prior]);
             let next = token_texts.get(index + 1).copied();
             let previous = token_texts[index - 1];
+            let space_before_brace_close = text == "}"
+                && groups.last() == Some(&"{")
+                && brace_spacing.last().copied().unwrap_or(false)
+                && previous != "{";
             if should_wrap && matches!(text, ")" | "]") && groups.len() == 1 {
                 while output.ends_with(' ') {
                     output.truncate(output.len().saturating_sub(1));
@@ -752,6 +825,21 @@ fn format_indented_code_line(
                 && (previous.chars().next().is_some_and(char::is_uppercase)
                     || previous == ">"
                     || previous == "::"
+                    || matches!(
+                        previous,
+                        "funcion"
+                            | "fn"
+                            | "estructura"
+                            | "struct"
+                            | "enumeracion"
+                            | "enum"
+                            | "impl"
+                            | "implementar"
+                            | "rasgo"
+                            | "trait"
+                            | "tipo"
+                            | "type"
+                    )
                     || before_previous.is_some_and(|word| {
                         matches!(
                             word,
@@ -769,7 +857,10 @@ fn format_indented_code_line(
                                 | "type"
                         )
                     }));
-            let spacing = if wrapped_after_comma
+            let spacing = if space_before_brace_close {
+                " "
+            } else if generic_opener
+                || wrapped_after_comma
                 || (generic_depth > 0 && text == ">")
                 || (generic_depth > 0 && matches!(previous, "<" | "::"))
             {
@@ -786,9 +877,14 @@ fn format_indented_code_line(
         }
         output.push_str(text);
         match text {
-            "(" | "[" | "{" => groups.push(text),
+            "(" | "[" | "{" => {
+                groups.push(text);
+                let prior = index.checked_sub(1).map(|prior| token_texts[prior]);
+                brace_spacing.push(text == "{" && prior != Some("::"));
+            }
             ")" | "]" | "}" => {
                 groups.truncate(groups.len().saturating_sub(1));
+                brace_spacing.truncate(brace_spacing.len().saturating_sub(1));
             }
             _ => {}
         }
@@ -869,10 +965,11 @@ fn canonical_token_spacing(
         return "";
     }
     if current == "(" {
-        return if matches!(
-            previous,
-            "si" | "if" | "mientras" | "while" | "coincidir" | "match"
-        ) {
+        return if matches!(previous, "=" | "=>" | "," | "->" | "return" | "retornar")
+            || matches!(
+                previous,
+                "si" | "if" | "mientras" | "while" | "coincidir" | "match"
+            ) {
             " "
         } else {
             ""
@@ -896,6 +993,16 @@ fn canonical_token_spacing(
         return "";
     }
     if previous == ">" && current == "(" {
+        return "";
+    }
+    if previous == "{" {
+        return if before_previous == Some("::") {
+            ""
+        } else {
+            " "
+        };
+    }
+    if previous == "*" && before_previous == Some("*") {
         return "";
     }
     if matches!(current, "<") {
@@ -977,11 +1084,36 @@ fn canonical_token_spacing(
             | "<"
             | ">"
     ) {
+        if previous == "*"
+            && current == "*"
+            && before_previous
+                .is_some_and(|token| matches!(token, "|" | "(" | "[" | "," | "=" | "=>"))
+        {
+            return "";
+        }
         if matches!(previous, "-" | "*" | "&")
             && before_previous.is_none_or(|token| {
                 matches!(
                     token,
-                    "=" | "(" | "[" | "," | ":" | "->" | "=>" | "retornar" | "return"
+                    "=" | "+="
+                        | "-="
+                        | "*="
+                        | "/="
+                        | "%="
+                        | "&="
+                        | "|="
+                        | "^="
+                        | "<<="
+                        | ">>="
+                        | "("
+                        | "["
+                        | ","
+                        | ":"
+                        | "->"
+                        | "=>"
+                        | "|"
+                        | "retornar"
+                        | "return"
                 )
             })
         {

@@ -654,6 +654,128 @@ fn formats_long_rust_expressions_into_wrapped_argument_groups() {
 }
 
 #[test]
+fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
+    let cases = [
+        (
+            "items-y-tipos",
+            "sintaxis indentacion\nusar std::collections::{HashMap,HashSet};\n#[derive(Clone,Debug)]\npub estructura Inventario<T:Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T:Clone>(valor:T)->Resultado<T,Cadena>:\n    dejar copia=valor.clone()\n    Bien(copia)\n",
+            "sintaxis indentacion\nusar std::collections::{HashMap, HashSet};\n#[derive(Clone,Debug)]\npub estructura Inventario<T: Clone> donde T: Clone:\n    publico elementos: Vector<T>\n    indice: HashMap<Cadena, T>\n\nenumeracion Estado:\n    Listo\n    Fallido(Cadena)\n\nfuncion convertir<T: Clone>(valor: T) -> Resultado<T, Cadena>:\n    dejar copia = valor.clone()\n    Bien(copia)\n",
+        ),
+        (
+            "contenedores-y-control",
+            "sintaxis indentacion\nrasgo Medible:\n    funcion medir(&mismo)->usize;\n\nimplementar<T:Clone> Caja<T> donde T: Clone:\n    publico funcion nuevo(valor:T)->Caja<T>:\n        Caja{valor:valor}\n\n    funcion obtener(&mismo)->&T:\n        &mismo.valor\n\nmodulo interno:\n    funcion sumar(valores:&Vector<i32>)->i32:\n        valores.iter().map(|valor|*valor).sum()\n\nfuncion evaluar(valor:i32)->i32:\n    coincidir valor:\n        0=>1\n        1=>\n            dejar resultado=2\n            resultado\n        _=>3\n",
+            "sintaxis indentacion\nrasgo Medible:\n    funcion medir(&mismo) -> usize;\n\nimplementar<T: Clone> Caja<T> donde T: Clone:\n    publico funcion nuevo(valor: T) -> Caja<T>:\n        Caja { valor: valor }\n\n    funcion obtener(&mismo) -> &T:\n        &mismo.valor\n\nmodulo interno:\n    funcion sumar(valores: &Vector<i32>) -> i32:\n        valores.iter().map(|valor| *valor).sum()\n\nfuncion evaluar(valor: i32) -> i32:\n    coincidir valor:\n        0 => 1\n        1 =>\n            dejar resultado = 2\n            resultado\n        _ => 3\n",
+        ),
+        (
+            "macros-comentarios-y-async",
+            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { $valor }; }\n\n#[inline]\nasincrono funcion llamada(valor:i32)->i32:\n    dejar texto=r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total=0\n    para valor en [1,2,3].iter():\n        total+=*valor\n    mientras total>0:\n        romper\n    imprimir!(\"{}\",total)\n",
+            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { $valor }; }\n\n#[inline]\nasincrono funcion llamada(valor: i32) -> i32:\n    dejar texto = r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total = 0\n    para valor en [1, 2, 3].iter():\n        total += *valor\n    mientras total > 0:\n        romper\n    imprimir!(\"{}\",total)\n",
+        ),
+        (
+            "expresiones-y-patrones",
+            "sintaxis indentacion\ntipo Par = (i32,i32);\nconst LIMITE:usize=3;\n\nfuncion evaluar(valores:&Vector<i32>,objetivo:i32)->Resultado<i32,Cadena>:\n    dejar suma=valores.iter().enumerate().fold(0,|acumulado,(indice,valor)|{\n        let compensado=*valor+indice as i32;\n        acumulado+compensado\n    });\n    si let Some(encontrado)=valores.iter().find(|valor|**valor==objetivo):\n        retornar Bien(*encontrado)\n    sino:\n        coincidir suma:\n            0=>Err(\"vacío\".to_owned())\n            numero=>Bien(numero)\n            _=>Err(\"sin resultado\".to_owned())\n",
+            "sintaxis indentacion\ntipo Par = (i32, i32);\nconst LIMITE: usize = 3;\n\nfuncion evaluar(valores: &Vector<i32>, objetivo: i32) -> Resultado<i32, Cadena>:\n    dejar suma = valores.iter().enumerate().fold(0, |acumulado, (indice, valor)| {\n        let compensado = *valor + indice as i32;\n        acumulado + compensado\n    });\n    si let Some(encontrado) = valores.iter().find(|valor| **valor == objetivo):\n        retornar Bien(*encontrado)\n    sino:\n        coincidir suma:\n            0 => Err(\"vacío\".to_owned())\n            numero => Bien(numero)\n            _ => Err(\"sin resultado\".to_owned())\n",
+        ),
+    ];
+
+    for (name, input, expected) in cases {
+        let temp = TestDirectory::new();
+        let source = temp.0.join(format!("{name}.ox"));
+        fs::write(&source, input).unwrap();
+        let before_rust = temp.0.join("before.rs");
+        let before_export = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args([
+                "exportar",
+                source.file_name().unwrap().to_str().unwrap(),
+                "--salida",
+                "before.rs",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            before_export.status.success(),
+            "caso {name}: {}",
+            String::from_utf8_lossy(&before_export.stderr)
+        );
+        let formatted_before = Command::new("rustfmt")
+            .env("RUSTUP_TOOLCHAIN", "1.99.1")
+            .current_dir(&temp.0)
+            .args(["--edition", "2024", "before.rs"])
+            .output()
+            .unwrap();
+        assert!(
+            formatted_before.status.success(),
+            "rustfmt caso {name}: {}",
+            String::from_utf8_lossy(&formatted_before.stderr)
+        );
+        let before_rustfmt = fs::read_to_string(&before_rust).unwrap();
+
+        let formatted_ox = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args(["formato", source.file_name().unwrap().to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(
+            formatted_ox.status.success(),
+            "caso {name}: {}",
+            String::from_utf8_lossy(&formatted_ox.stderr)
+        );
+        assert_eq!(
+            fs::read_to_string(&source).unwrap(),
+            expected,
+            "salida .ox del caso {name}"
+        );
+        let format_check = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args([
+                "formato",
+                source.file_name().unwrap().to_str().unwrap(),
+                "--comprobar",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            format_check.status.success(),
+            "formato no idempotente, caso {name}: {}",
+            String::from_utf8_lossy(&format_check.stderr)
+        );
+
+        let after_export = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(&temp.0)
+            .args([
+                "exportar",
+                source.file_name().unwrap().to_str().unwrap(),
+                "--salida",
+                "after.rs",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            after_export.status.success(),
+            "caso {name}: {}",
+            String::from_utf8_lossy(&after_export.stderr)
+        );
+        let formatted_after = Command::new("rustfmt")
+            .env("RUSTUP_TOOLCHAIN", "1.99.1")
+            .current_dir(&temp.0)
+            .args(["--edition", "2024", "after.rs"])
+            .output()
+            .unwrap();
+        assert!(
+            formatted_after.status.success(),
+            "rustfmt tras oxido formato, caso {name}: {}",
+            String::from_utf8_lossy(&formatted_after.stderr)
+        );
+        assert_eq!(
+            before_rustfmt,
+            fs::read_to_string(temp.0.join("after.rs")).unwrap(),
+            "`oxido formato` alteró el Rust normalizado por rustfmt, caso {name}"
+        );
+    }
+}
+
+#[test]
 fn exports_compiles_and_runs_the_hello_world_fixture() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");

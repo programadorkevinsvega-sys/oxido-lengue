@@ -65,11 +65,21 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 - `formats_indented_source_idempotently_without_moving_comments_or_literals` comprueba que `formato` mantenga `sintaxis indentacion`, sea idempotente y preserve comentarios, literales y tokens de macros opacos.
 - `formats_indented_source_with_rust_like_spacing_and_canonical_nested_indentation` comprueba sangría canónica de bloques y continuaciones, espaciado Rust-like, genéricos, macros preservadas, `--comprobar` y ejecución del programa formateado.
 - `formats_long_rust_expressions_into_wrapped_argument_groups` comprueba el ajuste de listas largas de argumentos/elementos a 100 columnas y la idempotencia del resultado.
+- `formatter_conformance_matrix_matches_rustfmt_after_rust_export` compara cuatro fixtures agrupados por construcciones:
+
+| Fixture | Cobertura concreta |
+|---|---|
+| `items-y-tipos` | `use` anidado, `derive`, visibilidad, struct genérico, campos, enum, función genérica y `where` |
+| `contenedores-y-control` | firma de trait, `impl` genérico, métodos asociados, módulo, closure, iteradores, `match` por brazos indentados y expresión tail |
+| `macros-comentarios-y-async` | `macro_rules!`, atributo, comentario, raw string multilínea, invocaciones de macros opacas, `async`/`.await`, binding mutable, array, `for`, `while` y `break` |
+| `expresiones-y-patrones` | alias de tipo, constante, tupla, referencias, cadenas de métodos, `enumerate`/`fold`, closure con parámetros destructurados, bloque Rust dentro de expresión, `if let`, `return`, `match` y patrones wildcard/binding |
+
+Cada fixture comprueba el texto `.ox` esperado, vuelve a pasar `oxido formato --comprobar` y exporta antes/después. Al normalizar ambos `.rs` con `rustfmt` del toolchain 1.99.1 (`--edition 2024`), exige que sean idénticos. Esto verifica estabilidad e integridad del Rust normalizado en esos casos y que `rustfmt` los parsea; no prueba que la presentación `.ox` sea idéntica a `rustfmt`, que esos fixtures compilen semánticamente ni que cubran exhaustivamente cada variante de la gramática Rust. La prueba necesita el componente `rustfmt` instalado, como lo configura CI.
 - `import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree` importa módulos `.rs`/`.ox` mezclados con `#[path]` relativo, ejecuta el proyecto importado y compila/ejecuta su exportación Rust.
 - `import_project_rejects_a_path_attribute_that_escapes_without_creating_output` y `import_project_rejects_a_symlink_output_destination` prueban los rechazos de ruta antes de escribir.
 - `cargo_commands_emit_structured_json_for_success_and_source_diagnostics` comprueba el esquema JSON v1 de `compilar`/`ejecutar`/`probar` (la prueba ejecuta `ejecutar` y `compilar`), stdout exclusivamente JSON, salida saneada y ruta/línea/columna del `.ox` para un error de tipos.
 
-`--json` se admite en `compilar`, `ejecutar` y `probar`. Un error temprano se representa con `OX0001`; un fallo de Cargo sin diagnóstico mapeable usa `OX5001`. Los comandos ajenos a Cargo no prometen salida estructurada de éxito. El formato indentado normaliza sangría, espaciado y grupos multilínea en el corpus probado; preserva grupos opacos de macros, comentarios y literales. La conformidad amplia frente al estilo de `rustfmt` sigue abierta y no se afirma que la salida sea idéntica.
+`--json` se admite en `compilar`, `ejecutar` y `probar`. Un error temprano se representa con `OX0001`; un fallo de Cargo sin diagnóstico mapeable usa `OX5001`. Los comandos ajenos a Cargo no prometen salida estructurada de éxito. El formato indentado normaliza sangría, espaciado y grupos multilínea en el corpus probado; preserva grupos opacos de macros, comentarios y literales. La matriz `formatter_conformance_matrix_matches_rustfmt_after_rust_export` especifica sus fixtures y compara el Rust normalizado antes/después con `rustfmt` 1.99.1. Es evidencia de conformidad para esos casos, no de equivalencia completa con `rustfmt`; ampliar la cobertura por todas las construcciones admitidas sigue siendo criterio pendiente de Fase 9.
 
 ## Parser, backend y diagnóstico
 

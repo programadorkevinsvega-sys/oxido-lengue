@@ -9,6 +9,8 @@ use std::{
 
 const FUZZ_TARGETS: [&str; 5] = ["lexer", "parser", "config", "backend", "lsp"];
 const FUZZ_TOOLCHAIN: &str = "nightly-2026-10-16";
+const DEFAULT_FUZZ_RUNS: usize = 1_000;
+const MAX_FUZZ_RUNS: usize = 10_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CheckState {
@@ -43,6 +45,15 @@ fn run() -> Result<(), String> {
         .map_err(|error| format!("no se pudo resolver la raíz del workspace: {error}"))?;
     let mut results = Vec::new();
     let fuzz_toolchain_argument = format!("+{FUZZ_TOOLCHAIN}");
+    let fuzz_runs_setting = match env::var("OXIDO_VALIDATION_FUZZ_RUNS") {
+        Ok(value) => Some(value),
+        Err(env::VarError::NotPresent) => None,
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err("OXIDO_VALIDATION_FUZZ_RUNS contiene bytes que no son Unicode".to_owned());
+        }
+    };
+    let fuzz_runs = configured_fuzz_runs(fuzz_runs_setting.as_deref())?;
+    let fuzz_runs_argument = format!("-runs={fuzz_runs}");
 
     results.push(run_check(
         &workspace,
@@ -151,14 +162,14 @@ fn run() -> Result<(), String> {
         true,
     ));
     for target in FUZZ_TARGETS {
-        let name = format!("Fuzz {target} (1000 iteraciones)");
+        let name = format!("Fuzz {target} ({fuzz_runs} iteraciones)");
         let arguments = [
             fuzz_toolchain_argument.as_str(),
             "fuzz",
             "run",
             target,
             "--",
-            "-runs=1000",
+            fuzz_runs_argument.as_str(),
             "-max_len=8192",
         ];
         results.push(run_check(&workspace, &name, "cargo", &arguments, true));
@@ -201,6 +212,21 @@ fn run() -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+fn configured_fuzz_runs(value: Option<&str>) -> Result<usize, String> {
+    let Some(value) = value else {
+        return Ok(DEFAULT_FUZZ_RUNS);
+    };
+    let runs = value
+        .parse::<usize>()
+        .map_err(|error| format!("OXIDO_VALIDATION_FUZZ_RUNS no es un entero válido: {error}"))?;
+    if !(DEFAULT_FUZZ_RUNS..=MAX_FUZZ_RUNS).contains(&runs) {
+        return Err(format!(
+            "OXIDO_VALIDATION_FUZZ_RUNS debe estar entre {DEFAULT_FUZZ_RUNS} y {MAX_FUZZ_RUNS}"
+        ));
+    }
+    Ok(runs)
 }
 
 fn run_check(
@@ -535,5 +561,14 @@ mod tests {
                 "documented test `{test_name}` must exist as a Rust function"
             );
         }
+    }
+
+    #[test]
+    fn fuzz_run_count_has_a_bounded_reproducible_override() {
+        assert_eq!(configured_fuzz_runs(None), Ok(DEFAULT_FUZZ_RUNS));
+        assert_eq!(configured_fuzz_runs(Some("50000")), Ok(50_000));
+        assert!(configured_fuzz_runs(Some("999")).is_err());
+        assert!(configured_fuzz_runs(Some("10000001")).is_err());
+        assert!(configured_fuzz_runs(Some("many")).is_err());
     }
 }

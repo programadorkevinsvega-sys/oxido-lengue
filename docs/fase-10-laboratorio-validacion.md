@@ -8,13 +8,13 @@
 |---|---|---|
 | 1. Matriz por componente | Implementación inicial | [`testing.md`](testing.md#matriz-de-trazabilidad-de-capacidades-anunciadas) enlaza áreas anunciadas con funciones de prueba. Una prueba del recolector valida que los identificadores documentados existen; todavía requiere revisión humana del alcance de cada evidencia. |
 | 2. Regresiones | Implementada en el corpus existente | Los defectos corregidos tienen pruebas en el crate afectado; fuzz crashes futuros deben añadirse como seed y regresión determinista. |
-| 3. Diferencial contra Rust | Parcial | Dos regresiones compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones y `struct`/`impl`/método/`match`; una tercera compara el rechazo `E0308` y el mapeo al `.ox`. Hace falta ampliar casos. |
+| 3. Diferencial contra Rust | Parcial | Tres regresiones compilan y ejecutan pares `.ox`/Rust para iteradores/colecciones, `struct`/`impl`/método/`match` y propagación `Result`/`?`; una cuarta compara el rechazo `E0308` y el mapeo al `.ox`. Es una muestra acotada. |
 | 4. Ida y vuelta | Implementada para subconjuntos probados | CLI verifica `.ox → .rs → .ox → .rs` y roundtrip de árboles mixtos; no equivale a roundtrip universal. |
-| 5. Fuzzing | Implementación inicial | Targets de lexer, parser, configuración TOML, backend/mapas y framing/dispatcher JSON-RPC LSP; corpus semilla y smoke CI. Las campañas siguen acotadas. |
-| 6. Límites y recuperación | Parcial | Hay pruebas de tamaños máximos, anidamiento, Unicode, spans, recuperación del parser y del LSP tras reemplazo completo del documento, y límites LSP de cabecera 8 KiB/frame 4 MiB. Faltan cambios incrementales por rango, cancelación LSP y reportes de límites medidos. |
+| 5. Fuzzing | Campaña extendida inicial aprobada | Cinco targets con corpus semilla y smoke CI de 1.000 casos; se ejecutó localmente una campaña de 10.000 casos por target y se generó el informe reproducible. Esto sigue siendo una campaña corta, no fuzzing prolongado. |
+| 6. Límites y recuperación | Parcial | Hay límites de tamaños/anidamiento, Unicode, spans y framing. El LSP anuncia sincronización incremental y tiene pruebas de ediciones en secuencia con UTF-16, versiones obsoletas, rangos inválidos y recuperación. Semantic tokens admite cancelación cooperativa mediante `$/cancelRequest`; los diagnósticos de edición permanecen síncronos. |
 | 7. Proyectos reutilizables | Parcial | `tests/README.md` define el contrato y un índice de referencias con raíz, modo, comandos/documentación y si la evidencia es automática o manual. Los READMEs de cada proyecto aún difieren en detalle; servicios externos y benchmarks no se ejecutan en cada CI. |
-| 8. Informes reproducibles | Implementación inicial | `tools/validation-report` ejecuta las suites, registra commit/entorno/estados y escribe un Markdown; sus tests comprueban además que la matriz de trazabilidad no cite pruebas inexistentes. Falta mantener muestras históricas de campañas prolongadas. No se inventan métricas de rendimiento. |
-| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing. El resultado remoto del cambio actual está pendiente hasta completar su PR. |
+| 8. Informes reproducibles | Implementación inicial | `tools/validation-report` ejecuta suites, registra commit/entorno/estados/duración y el comando exacto y escribe un Markdown; tests comprueban la matriz de trazabilidad y el límite de runs. La campaña de 10.000 por target se archivó en [`reports/fase-10/2026-10-26-10000-por-target.md`](reports/fase-10/2026-10-26-10000-por-target.md). El informe nuevo queda en `target/validation-report.md` (ignorado por Git) hasta que se archive explícitamente. No se inventan métricas de rendimiento. |
+| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing. PR #27 (`b4994b0`) pasó `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en push y PR; cada iteración futura requiere su propio resultado verde. |
 
 ## Harnesses de fuzzing
 
@@ -112,6 +112,19 @@ Comandos reproducibles del workspace y fuzzing están en [`tests/README.md`](../
 ## Criterio de cierre
 
 La fase seguirá abierta hasta que las características publicadas en la matriz tengan tests identificables, las limitaciones y campañas no ejecutadas figuren como pendientes, los diferenciales/roundtrips relevantes estén automatizados y el job de CI de fuzzing pase. No se exige demostrar exhaustivamente toda la gramática de Rust ni trasladar a este laboratorio la aceptación funcional de crates, macros, runtimes o `unsafe`; esa decisión corresponde a la Fase 8 según ADR-0007.
+
+## Iteración de diferenciales, sincronización LSP y campaña extendida
+
+| Dato | Valor |
+|---|---|
+| Base de Git para el informe local | `35bfd6c33c66ebfdcc773e897e2fad7741c0db4d`; el árbol estaba modificado durante la ejecución |
+| Diferencial nuevo | `differential_result_propagation_matches_native_rust`: compila y ejecuta `.ox` y Rust con `Result`, `?`, ramas y `match`; stdout idéntico |
+| LSP | El servidor anuncia sincronización incremental; aplica rangos UTF-16 en orden, rechaza rangos inválidos sin cambio parcial e ignora versiones obsoletas. Semantic tokens corre como trabajo cancelable y `$/cancelRequest` responde `-32800`; los diagnósticos de edición siguen síncronos. |
+| Proyectos de referencia | El índice central ahora anota modo, manifiestos/lockfiles, dependencias, instrucción/resultado y si la evidencia corre en CI o manualmente. Se corrigió el modo del proyecto de módulos a llaves. |
+| Verificación local | [`Informe integral archivado`](reports/fase-10/2026-10-26-10000-por-target.md): `cargo test --workspace --locked` aprobó 147 pruebas; 5 pruebas del recolector; fmt, Clippy, cargo-deny, build del portal y cinco harnesses aprobaron. Cada target fuzz completó 10.000 iteraciones con `-max_len=8192`, sin crash. |
+| Rendimiento | No medido por esta campaña |
+| CI remota | Aprobada en PR #27 (`b4994b0`): `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en ambos workflows |
+| Límites | La cancelación solo se aplica a semantic tokens; semantic tokens siguen siendo heurísticos. Los proyectos que levantan servicios y benchmarks continúan como procedimientos manuales; el índice no equivale a automatizarlos. La campaña 10k/target no acredita ausencia de defectos. |
 
 ## Iteración de trazabilidad y referencias
 

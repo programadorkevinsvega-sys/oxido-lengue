@@ -28,3 +28,18 @@ jobs:
           toolchain: 1.99.1
       - run: cargo install cargo-deny --locked
       - run: cargo deny check
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: nightly-2026-10-16
+          components: rustfmt
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - run: cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check
+      - run: cargo check --manifest-path fuzz/Cargo.toml --bins --locked
+      - run: cargo fuzz run lexer -- -runs=1000 -max_len=8192
+      - run: cargo fuzz run parser -- -runs=1000 -max_len=8192
+      - run: cargo fuzz run config -- -runs=1000 -max_len=8192
+      - run: cargo fuzz run backend -- -runs=1000 -max_len=8192

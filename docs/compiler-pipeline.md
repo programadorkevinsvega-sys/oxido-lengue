@@ -27,7 +27,7 @@ La meta es usar bibliotecas Rust sin modificar su fuente. El frontend traduce la
 
 Las invocaciones de macros externas y sus DSL se conservan para `rustc`; Óxido no implementa expansión propia de macros Rust. Las macros propias de Óxido solo se normalizan estructuralmente bajo pruebas de fidelidad de tokens. `async`/`await` genera Rust equivalente y usa el runtime escogido por el proyecto. `unsafe` conserva la semántica Rust; la auditoría/rechazo depende de una opción explícita del usuario.
 
-La [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md) fija este objetivo. La Fase 8 está cerrada para el corpus documentado; Fase 10 ampliará el laboratorio de conformidad, sin implicar soporte para construcciones que no figuran en la matriz.
+La [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md) fija este objetivo. La Fase 8 está cerrada para el corpus documentado; la Fase 10 está consolidando matrices, diferenciales, roundtrips y fuzzing, sin implicar soporte para construcciones que no figuran en la matriz.
 
 El parser Syn no es borrow checker ni type checker. `build.rs` y macros procedurales ejecutan código durante compilación; la CLI no sandboxa esos procesos y el usuario debe confiar el proyecto antes de resolver o compilar dependencias. El LSP debe respetar Workspace Trust antes de iniciar compilaciones.
 

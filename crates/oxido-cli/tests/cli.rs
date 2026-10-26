@@ -663,13 +663,13 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
         ),
         (
             "contenedores-y-control",
-            "sintaxis indentacion\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo)->usize;\n\nimplementar<T:Clone> Caja<T> donde T: Clone:\n    publico constante VERSION:u32=1;\n    publico funcion nuevo(valor:T)->Caja<T>:\n        Caja{valor:valor}\n\n    funcion obtener(&mismo)->&T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo,valor:T):\n        mismo.valor=valor\n\nmodulo interno:\n    funcion sumar(valores:&Vector<i32>)->i32:\n        valores.iter().map(|valor|*valor).sum()\n\nfuncion evaluar(valor:i32)->i32:\n    coincidir valor:\n        0=>1\n        1=>\n            dejar resultado=2\n            resultado\n        _=>3\n",
-            "sintaxis indentacion\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo) -> usize;\n\nimplementar<T: Clone> Caja<T> donde T: Clone:\n    publico constante VERSION: u32 = 1;\n    publico funcion nuevo(valor: T) -> Caja<T>:\n        Caja { valor: valor }\n\n    funcion obtener(&mismo) -> &T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo, valor: T):\n        mismo.valor = valor\n\nmodulo interno:\n    funcion sumar(valores: &Vector<i32>) -> i32:\n        valores.iter().map(|valor| *valor).sum()\n\nfuncion evaluar(valor: i32) -> i32:\n    coincidir valor:\n        0 => 1\n        1 =>\n            dejar resultado = 2\n            resultado\n        _ => 3\n",
+            "sintaxis indentacion\nestructura Contenedor<T>:\n    valor:T\n\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo)->usize;\n\nimplementar<T:Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION:u32=1;\n    publico funcion nuevo(valor:T)->Contenedor<T>:\n        Contenedor{valor:valor}\n\n    funcion obtener(&mismo)->&T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo,valor:T):\n        mismo.valor=valor\n\nmodulo interno:\n    funcion sumar(valores:&Vector<i32>)->i32:\n        valores.iter().map(|valor|*valor).sum()\n\nfuncion evaluar(valor:i32)->i32:\n    coincidir valor:\n        0=>1\n        1=>\n            dejar resultado=2\n            resultado\n        _=>3\n",
+            "sintaxis indentacion\nestructura Contenedor<T>:\n    valor: T\n\nrasgo Medible:\n    tipo Medida;\n    funcion medir(&mismo) -> usize;\n\nimplementar<T: Clone> Contenedor<T> donde T: Clone:\n    publico constante VERSION: u32 = 1;\n    publico funcion nuevo(valor: T) -> Contenedor<T>:\n        Contenedor { valor: valor }\n\n    funcion obtener(&mismo) -> &T:\n        &mismo.valor\n\n    funcion reemplazar(&mutable mismo, valor: T):\n        mismo.valor = valor\n\nmodulo interno:\n    funcion sumar(valores: &Vector<i32>) -> i32:\n        valores.iter().map(|valor| *valor).sum()\n\nfuncion evaluar(valor: i32) -> i32:\n    coincidir valor:\n        0 => 1\n        1 =>\n            dejar resultado = 2\n            resultado\n        _ => 3\n",
         ),
         (
             "macros-comentarios-y-async",
-            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { $valor }; }\n\n#[inline]\nasincrono funcion llamada(valor:i32)->i32:\n    dejar texto=r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total=0\n    para valor en [1,2,3].iter():\n        total+=*valor\n    mientras total>0:\n        romper\n    imprimir!(\"{}\",total)\n",
-            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { $valor }; }\n\n#[inline]\nasincrono funcion llamada(valor: i32) -> i32:\n    dejar texto = r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total = 0\n    para valor en [1, 2, 3].iter():\n        total += *valor\n    mientras total > 0:\n        romper\n    imprimir!(\"{}\",total)\n",
+            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor:i32)->i32:\n    dejar texto=r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total=0\n    para valor en [1,2,3].iter():\n        total+=*valor\n    mientras total>0:\n        romper\n    imprimir!(\"{}\",total)\n",
+            "sintaxis indentacion\n// comentario de archivo   \nmacro_rules! identidad { ($valor:expr) => { async { $valor } }; }\n\n#[inline]\nasincrono funcion llamada(valor: i32) -> i32:\n    dejar texto = r#\"línea 1  \n    línea 2\"#\n    imprimir!(\"{}\",texto)\n    identidad!(valor).await\n\nfuncion principal():\n    dejar mutable total = 0\n    para valor en [1, 2, 3].iter():\n        total += *valor\n    mientras total > 0:\n        romper\n    imprimir!(\"{}\",total)\n",
         ),
         (
             "expresiones-y-patrones",
@@ -678,8 +678,8 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
         ),
         (
             "control-y-bloques",
-            "sintaxis indentacion\nfuncion ciclo(limite:bool)->i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n    0\n\nfuncion seleccionar(valor:bool)->i32:\n    si valor:\n        1\n    sino:\n        2\n",
-            "sintaxis indentacion\nfuncion ciclo(limite: bool) -> i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n    0\n\nfuncion seleccionar(valor: bool) -> i32:\n    si valor:\n        1\n    sino:\n        2\n",
+            "sintaxis indentacion\nfuncion ciclo(limite:bool)->i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion seleccionar(valor:bool)->i32:\n    si valor:\n        1\n    sino:\n        2\n",
+            "sintaxis indentacion\nfuncion ciclo(limite: bool) -> i32:\n    bucle:\n        si limite:\n            romper 3\n        continuar\n\nfuncion seleccionar(valor: bool) -> i32:\n    si valor:\n        1\n    sino:\n        2\n",
         ),
     ];
 
@@ -777,6 +777,46 @@ fn formatter_conformance_matrix_matches_rustfmt_after_rust_export() {
             fs::read_to_string(temp.0.join("after.rs")).unwrap(),
             "`oxido formato` alteró el Rust normalizado por rustfmt, caso {name}"
         );
+
+        for rust_file in ["before.rs", "after.rs"] {
+            let compiled = Command::new("rustc")
+                .env("RUSTUP_TOOLCHAIN", "1.99.1")
+                .current_dir(&temp.0)
+                .args([
+                    "--edition",
+                    "2024",
+                    "--crate-type",
+                    "lib",
+                    "--crate-name",
+                    &name.replace('-', "_"),
+                    rust_file,
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                compiled.status.success(),
+                "rustc {rust_file}, caso {name}: {}",
+                String::from_utf8_lossy(&compiled.stderr)
+            );
+        }
+
+        if name == "macros-comentarios-y-async" {
+            let binary = temp.0.join("macros-y-async");
+            let compiled = Command::new("rustc")
+                .env("RUSTUP_TOOLCHAIN", "1.99.1")
+                .current_dir(&temp.0)
+                .args(["--edition", "2024", "after.rs", "-o", "macros-y-async"])
+                .output()
+                .unwrap();
+            assert!(
+                compiled.status.success(),
+                "rustc ejecutable del caso {name}: {}",
+                String::from_utf8_lossy(&compiled.stderr)
+            );
+            let execution = Command::new(binary).output().unwrap();
+            assert!(execution.status.success());
+            assert_eq!(execution.stdout, b"6\n");
+        }
     }
 }
 

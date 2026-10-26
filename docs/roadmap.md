@@ -233,7 +233,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** entregar comandos estables y seguros para tareas habituales.
 
-**Estado actual:** en curso. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, y que `formato` sea idempotente y conserve comentarios en modo llaves. Faltan contratos y regresiones para `importar-proyecto`, formato indentado, roundtrip de árboles y diagnósticos estructurados antes de cerrar la fase.
+**Estado actual:** en curso. Las pruebas CLI verifican que `nuevo` cree un proyecto ejecutable, que `probar` ejecute una prueba real y propague fallos, que `formato` sea idempotente en modo llaves y que un árbol Rust convencional pase por importar `.rs` → `.ox` → exportar `.rs` y se compile/ejecute. Faltan los casos `#[path]` y fuentes mixtas en la importación de árboles, formato indentado y diagnósticos estructurados antes de cerrar la fase.
 
 ### Subfases
 
@@ -242,9 +242,9 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 3. **Compilación y ejecución:** `compilar` y `ejecutar` están disponibles. Las pruebas CLI validan `nuevo` de extremo a extremo y que `probar` ejecute un ítem `#[test]`, propague el resultado fallido y rechace `--release`. Sin ítems `#[test]`, Cargo informa cero pruebas. Un comando `verificar` separado no existe.
 4. **Formato:** `oxido formato <archivo.ox> [--comprobar]` tiene regresión CLI de idempotencia y conservación de comentarios para modo llaves. El reimportador genera modo llaves y no preserva fuentes indentadas; implementar ese modo antes de ampliar el soporte.
 5. **Diagnósticos CLI:** los mensajes humanos existen; un contrato de salida estructurada estable para CI sigue pendiente.
-6. **Importación/exportación:** exportación recursiva e importación inicial de árboles existen; falta una regresión de ida y vuelta para árboles, especialmente con `#[path]` y fuentes mixtas.
+6. **Importación/exportación:** una prueba CLI importa y vuelve a exportar un árbol convencional de módulos `.rs`, conserva comentarios y ejecuta el binario Rust resultante. Faltan casos de `#[path]`, fuentes mixtas y sus errores negativos.
 7. Implementar informe de superficie de riesgo (`unsafe`, `build.rs`, macros procedurales y llamadas externas detectables); ya hay una prueba CLI que verifica el informe y que no expone rutas absolutas.
-8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos; las rutas de módulos compilados/exportados tienen pruebas, pero falta cubrir las operaciones de importación y formato.
+8. Endurecer rutas, enlaces simbólicos, configuración y ejecución de procesos; la importación de árboles rechaza un destino existente, pero falta cubrir rutas y enlaces simbólicos en importación y formato.
 
 **Entregables:** CLI documentada y pruebas de integración de comandos.
 

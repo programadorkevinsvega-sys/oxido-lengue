@@ -133,6 +133,98 @@ fn test_command_runs_a_real_rust_test_and_rejects_release_mode() {
 }
 
 #[test]
+fn import_project_preserves_a_runnable_tree_and_export_roundtrips_it() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir_all(&rust_source).unwrap();
+    fs::write(
+        rust_source.join("main.rs"),
+        "// raíz Rust\nmod utilidades;\nfn main() { println!(\"{}\", utilidades::mensaje()); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("utilidades.rs"),
+        "// comentario conservado\npub fn mensaje() -> &'static str { \"árbol importado\" }\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    let imported_main = fs::read_to_string(ox_source.join("main.ox")).unwrap();
+    let imported_module = fs::read_to_string(ox_source.join("utilidades.ox")).unwrap();
+    assert!(imported_main.starts_with("sintaxis llaves\n// raíz Rust"));
+    assert!(imported_module.contains("// comentario conservado"));
+    assert!(imported_module.contains("funcion mensaje()"));
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["ejecutar", "oxido/main.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("árbol importado"));
+
+    fs::create_dir(temp.0.join("exportado")).unwrap();
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["exportar", "oxido/main.ox", "--salida", "exportado/main.rs"])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let exported_main = fs::read_to_string(temp.0.join("exportado/main.rs")).unwrap();
+    let exported_module = fs::read_to_string(temp.0.join("exportado/utilidades.rs")).unwrap();
+    assert!(exported_main.contains("// raíz Rust"));
+    assert!(exported_module.contains("// comentario conservado"));
+
+    let compiled = Command::new("rustc")
+        .current_dir(&temp.0)
+        .args(["exportado/main.rs", "-o", "exportado/programa"])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let exported_run = Command::new(temp.0.join("exportado/programa"))
+        .output()
+        .unwrap();
+    assert!(exported_run.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&exported_run.stdout),
+        "árbol importado\n"
+    );
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert_eq!(
+        fs::read_to_string(ox_source.join("main.ox")).unwrap(),
+        imported_main
+    );
+}
+
+#[test]
 fn formats_braced_source_idempotently_without_losing_comments() {
     let temp = TestDirectory::new();
     let work = temp.0.join("project");

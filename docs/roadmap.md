@@ -284,24 +284,24 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** construir una experiencia de edición que comparte análisis con el compilador.
 
-**Estado actual:** la integración de VS Code de esta fase no se ha iniciado. Ya existe un prototipo LSP en Rust, ejercitado como infraestructura de pruebas de la Fase 10: stdio, ciclo de vida básico, sincronización incremental, diagnósticos léxicos y semantic tokens heurísticos, más límites del framing y cancelación del cálculo de semantic tokens. Eso cubre prerrequisitos parciales de las subfases 2, 3 y 9, pero no equivale a una extensión funcional. No hay integración con `rust-analyzer`, tipos/hover/inlay hints/autocompletado, Workspace Trust ni acciones de editor; los diagnósticos actuales no los produce Cargo.
+**Estado actual:** en curso, según [el informe de Fase 11](fase-11-vscode-lsp.md) y [ADR 0010](adr/0010-frontera-lsp-y-confianza-editor.md). Ya existe una extensión mínima que asocia `.ox`, inicia el crate `oxido-lsp`, registra configuración/comando de reinicio y declara Workspace Trust `limited`. El LSP usa `parse_ox` y el lexer compartido para diagnósticos estructurales y semantic tokens, convierte spans a UTF-16 y lee el modo de `oxido.toml` desde la raíz sin ejecutar procesos. La prueba de host abre un `.ox` y recibe `OX1002` tanto en VS Code 1.143.1 con workspace confiable como en Restricted Mode; no es una validación exhaustiva de la extensión. No hay bridge `rust-analyzer`, diagnósticos Cargo, tipos/hover/inlay hints/autocompletado, navegación ni formato integrado; los diagnósticos de edición aún son síncronos. La extensión no inicia Cargo ni `rust-analyzer`, ni siquiera en workspaces confiables.
 
 ### Subfases
 
-1. **Extensión mínima — pendiente:** no existe extensión funcional que asocie `.ox`, contribuya configuración o registre comandos.
-2. **Semantic tokens — prototipo parcial:** el servidor actual emite tokens heurísticos; falta resaltado validado contra el análisis del compilador y la experiencia VS Code.
-3. **Servidor LSP — base parcial:** existe `crates/oxido-lsp` con stdio, ciclo de vida, documentos incrementales y tolerancia a algunas entradas incompletas. Falta completar la integración y aceptar el protocolo contra un cliente/editor real.
-4. **Diagnósticos de compilador/Cargo — pendiente:** hoy se publican diagnósticos léxicos; no se inicia Cargo desde el LSP ni se mapean diagnósticos de Cargo al `.ox`.
-5. **`rust-analyzer` — pendiente:** no hay bridge para tipos inferidos, hover, inlay hints o autocompletado sobre el Rust generado ni mapeo de sus posiciones.
-6. **Navegación y refactorizaciones — pendiente:** símbolos, definición, referencias y renombrado requieren análisis y pruebas que eviten resultados inventados.
-7. **Formato y acciones — pendiente en el editor:** existe `oxido formato` en CLI, pero no hay proveedor LSP ni acciones de código integradas en VS Code.
-8. **Workspace Trust — pendiente:** antes de invocar compilación o análisis que active `build.rs`/macros, la extensión debe exigir confianza explícita del workspace.
-9. **Cancelación y recursos — parcial:** `$/cancelRequest` detiene cooperativamente semantic tokens; diagnósticos de edición siguen síncronos. Faltan límites/medidas de latencia y memoria desde el editor y pruebas de cargas/cancelación para el flujo integrado.
-10. **Protocolo e instalación — parcial:** hay pruebas de stdio/framing y README de estado; faltan pruebas de extensión instalada y guía de uso de una integración funcional.
+1. **Extensión mínima — parcial:** asociación `.ox`, `oxido.serverPath`, comando de reinicio y cliente LSP están en `editors/vscode-oxido`; pruebas de paquete cubren manifiesto y límites de ejecución, y una prueba host confirma activación. Falta empaquetado/publicación VSIX y cobertura de comandos/settings.
+2. **Semantic tokens — parcial:** generados desde los tokens reales del lexer, con rangos UTF-16; la clase de algunos identificadores se infiere léxicamente y no es resolución semántica.
+3. **Servidor LSP — parcial:** stdio, sincronización incremental, parser compartido y recuperación están probados; una prueba host valida apertura `.ox` y diagnóstico real. Faltan más casos de protocolo en editor y diagnóstico asíncrono.
+4. **Diagnósticos — parcial:** `parse_ox` publica errores de lexer/parser con URI `.ox`, código y spans UTF-16. Cargo/rustc no se invocan ni se mapean desde el LSP.
+5. **`rust-analyzer` — pendiente:** sin bridge para tipos inferidos, hover, inlay hints o autocompletado sobre Rust generado.
+6. **Navegación y refactorizaciones — pendiente:** no se publican símbolos, definición, referencias ni renombrado.
+7. **Formato y acciones — pendiente en el editor:** `oxido formato` existe en CLI, sin proveedor LSP ni acciones VS Code.
+8. **Workspace Trust — parcial:** el manifiesto declara `limited` y restringe `oxido.serverPath`; las pruebas de host verifican estado confiable y Restricted Mode y reciben diagnóstico estático en ambos. No existe ruta de Cargo/rust-analyzer; cualquier futura acción de ejecución necesita su propia prueba de confianza.
+9. **Cancelación y recursos — parcial:** `$/cancelRequest` cancela semantic tokens y el framing tiene límites. Los diagnósticos siguen síncronos; no hay medición de latencia/memoria desde el editor.
+10. **Protocolo e instalación — parcial:** `cargo test -p oxido-lsp --offline`, `npm test --prefix editors/vscode-oxido` y `npm run test:host --prefix editors/vscode-oxido` cubren el protocolo, manifiesto y flujo básico en host. Falta empaquetar/publicar VSIX y validar instalación distribuida.
 
 **Entregables:** extensión/LSP probados contra compilador real.
 
-**Criterio de salida:** los diagnósticos y tokens coinciden con el análisis del compilador; el editor permanece receptivo ante código incompleto y proyectos no confiables.
+**Criterio de salida:** pendiente. La implementación parcial comparte lexer/parser y spans; aún falta demostrar integración completa, respuesta ante cargas y documentos incompletos en el host, experiencia confiable/no confiable y las capacidades declaradas para `rust-analyzer`.
 
 **Dependencia:** Fases 3–5; capacidades avanzadas dependen de Fases 6–9.
 

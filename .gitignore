@@ -2,6 +2,7 @@
 /prueba/crud_sqlite/.ci-export/
 **/target/
 node_modules/
+**/.vscode-test/
 **/dist/
 **/.astro/
 **/*.rs.bk

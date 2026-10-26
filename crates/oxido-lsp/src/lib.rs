@@ -1,27 +1,39 @@
 #![forbid(unsafe_code)]
 
+use oxido_language::{
+    SourceFile,
+    domain::ast::{File as OxFile, Item},
+    domain::syntax::{LexOptions, TokenKind, lex},
+};
 use serde_json::{Value, json};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     io::{self, BufRead, BufReader, Read, Write},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc,
+        mpsc::{self, SyncSender, TrySendError},
     },
     thread,
 };
 
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_HEADER_LINE_BYTES: usize = 8 * 1024;
-const MAX_PENDING_SEMANTIC_REQUESTS: usize = 16;
+const MAX_PENDING_SEMANTIC_REQUESTS: usize = 4;
 const MAX_QUEUED_LSP_EVENTS: usize = 8;
+const MAX_OPEN_DOCUMENTS: usize = 64;
+const MAX_OPEN_DOCUMENT_BYTES: usize = 16 * 1024 * 1024;
+const MAX_SINGLE_DOCUMENT_BYTES: usize = 4 * 1024 * 1024;
+const MAX_QUEUED_DIAGNOSTIC_TASKS: usize = 1;
 const CANCELED_ERROR_CODE: i64 = -32800;
 const CONTENT_MODIFIED_ERROR_CODE: i64 = -32801;
 
 #[derive(Default)]
 pub struct ServerState {
     documents: BTreeMap<String, TextDocument>,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    total_document_bytes: usize,
 }
 
 struct TextDocument {
@@ -37,9 +49,31 @@ struct PendingSemanticRequest {
     cancellation: Arc<AtomicBool>,
 }
 
+struct DiagnosticTask {
+    uri: String,
+    version: Option<i64>,
+    text: String,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    cancellation: Arc<AtomicBool>,
+}
+
+struct PendingDiagnostic {
+    version: Option<i64>,
+    cancellation: Arc<AtomicBool>,
+}
+
 enum ServerEvent {
     Frame(Vec<u8>),
-    AsyncResponse { key: String, response: Value },
+    AsyncResponse {
+        key: String,
+        response: Value,
+    },
+    DiagnosticReady {
+        uri: String,
+        version: Option<i64>,
+        cancellation: Arc<AtomicBool>,
+        notification: Option<Value>,
+    },
     InputEnded,
     InputFailed(io::Error),
 }
@@ -75,8 +109,38 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
             }
         })?;
 
+    let (diagnostics_tx, diagnostics_rx) =
+        mpsc::sync_channel::<DiagnosticTask>(MAX_QUEUED_DIAGNOSTIC_TASKS);
+    let diagnostics_events_tx = events_tx.clone();
+    let diagnostics_worker = thread::Builder::new()
+        .name("oxido-lsp-diagnostics".to_owned())
+        .spawn(move || {
+            while let Ok(task) = diagnostics_rx.recv() {
+                let notification = if task.cancellation.load(Ordering::Relaxed) {
+                    None
+                } else {
+                    Some(diagnostic_notification(
+                        &task.uri,
+                        &task.text,
+                        task.project_mode,
+                    ))
+                };
+                if let Err(error) = diagnostics_events_tx.send(ServerEvent::DiagnosticReady {
+                    uri: task.uri,
+                    version: task.version,
+                    cancellation: task.cancellation,
+                    notification,
+                }) {
+                    eprintln!("LSP diagnostic event receiver closed: {error}");
+                    break;
+                }
+            }
+        })?;
+
     let mut state = ServerState::default();
     let mut pending = HashMap::<String, PendingSemanticRequest>::new();
+    let mut pending_diagnostics = HashMap::<String, PendingDiagnostic>::new();
+    let mut dirty_diagnostics = BTreeSet::<String>::new();
     let mut input_error = None;
     let mut input_ended = false;
     while let Ok(event) = events_rx.recv() {
@@ -119,11 +183,13 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                     let worker_text = document_text.clone();
                     let worker_id = id.clone();
                     let worker_key = key.clone();
+                    let project_mode = state.project_mode;
                     let worker = thread::Builder::new()
                         .name("oxido-lsp-semantic-tokens".to_owned())
                         .spawn(move || {
                             let response = match semantic_tokens_cancellable(
                                 &worker_text,
+                                project_mode,
                                 &worker_cancellation,
                             ) {
                                 Some(data) => {
@@ -158,8 +224,59 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                     }
                     continue;
                 }
-                for response in handle(request, &mut state) {
+                let changed_uri = request
+                    .pointer("/params/textDocument/uri")
+                    .and_then(Value::as_str)
+                    .filter(|_| {
+                        matches!(
+                            request.get("method").and_then(Value::as_str),
+                            Some("textDocument/didOpen" | "textDocument/didChange")
+                        )
+                    })
+                    .map(str::to_owned);
+                let closed_uri = request
+                    .pointer("/params/textDocument/uri")
+                    .and_then(Value::as_str)
+                    .filter(|_| {
+                        request.get("method").and_then(Value::as_str)
+                            == Some("textDocument/didClose")
+                    })
+                    .map(str::to_owned);
+                let responses = handle(request, &mut state);
+                let rejected_for_resources = responses.iter().any(|response| {
+                    response
+                        .pointer("/params/diagnostics/0/code")
+                        .and_then(Value::as_str)
+                        .is_some_and(|code| matches!(code, "OX6001" | "OX6002" | "OX6003"))
+                });
+                for response in responses {
                     write_lsp_message(&mut output, &response)?;
+                }
+                if let Some(uri) = closed_uri {
+                    if let Some(previous) = pending_diagnostics.remove(&uri) {
+                        previous.cancellation.store(true, Ordering::Relaxed);
+                    }
+                    dirty_diagnostics.remove(&uri);
+                    write_lsp_message(
+                        &mut output,
+                        &json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":[]}}),
+                    )?;
+                }
+                if let Some(uri) = changed_uri {
+                    if let Some(previous) = pending_diagnostics.remove(&uri) {
+                        previous.cancellation.store(true, Ordering::Relaxed);
+                    }
+                    if rejected_for_resources {
+                        dirty_diagnostics.remove(&uri);
+                    } else {
+                        dirty_diagnostics.insert(uri);
+                        dispatch_diagnostic(
+                            &diagnostics_tx,
+                            &state,
+                            &mut dirty_diagnostics,
+                            &mut pending_diagnostics,
+                        );
+                    }
                 }
             }
             ServerEvent::AsyncResponse { key, response } => {
@@ -175,7 +292,47 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                         write_lsp_message(&mut output, &final_response)?;
                     }
                 }
-                if input_ended && pending.is_empty() {
+                if input_ended && pending.is_empty() && pending_diagnostics.is_empty() {
+                    break;
+                }
+            }
+            ServerEvent::DiagnosticReady {
+                uri,
+                version,
+                cancellation,
+                notification,
+            } => {
+                let is_current_task = pending_diagnostics.get(&uri).is_some_and(|diagnostic| {
+                    diagnostic.version == version
+                        && Arc::ptr_eq(&diagnostic.cancellation, &cancellation)
+                });
+                if is_current_task {
+                    let diagnostic = pending_diagnostics.remove(&uri);
+                    let is_canceled = diagnostic
+                        .as_ref()
+                        .is_none_or(|item| item.cancellation.load(Ordering::Relaxed));
+                    let document_is_current = state
+                        .documents
+                        .get(&uri)
+                        .is_some_and(|document| document.version == version);
+                    if !input_ended
+                        && !is_canceled
+                        && document_is_current
+                        && let Some(notification) = notification
+                    {
+                        write_lsp_message(&mut output, &notification)?;
+                    }
+                }
+                if !input_ended && state.documents.contains_key(&uri) {
+                    dirty_diagnostics.insert(uri);
+                    dispatch_diagnostic(
+                        &diagnostics_tx,
+                        &state,
+                        &mut dirty_diagnostics,
+                        &mut pending_diagnostics,
+                    );
+                }
+                if input_ended && pending.is_empty() && pending_diagnostics.is_empty() {
                     break;
                 }
             }
@@ -184,7 +341,11 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 for request in pending.values() {
                     request.cancellation.store(true, Ordering::Relaxed);
                 }
-                if pending.is_empty() {
+                for diagnostic in pending_diagnostics.values() {
+                    diagnostic.cancellation.store(true, Ordering::Relaxed);
+                }
+                dirty_diagnostics.clear();
+                if pending.is_empty() && pending_diagnostics.is_empty() {
                     break;
                 }
             }
@@ -194,7 +355,11 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 for request in pending.values() {
                     request.cancellation.store(true, Ordering::Relaxed);
                 }
-                if pending.is_empty() {
+                for diagnostic in pending_diagnostics.values() {
+                    diagnostic.cancellation.store(true, Ordering::Relaxed);
+                }
+                dirty_diagnostics.clear();
+                if pending.is_empty() && pending_diagnostics.is_empty() {
                     break;
                 }
             }
@@ -206,6 +371,10 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
     reader
         .join()
         .map_err(|_| io::Error::other("el hilo lector LSP terminó inesperadamente"))?;
+    drop(diagnostics_tx);
+    diagnostics_worker
+        .join()
+        .map_err(|_| io::Error::other("el worker de diagnósticos LSP terminó inesperadamente"))?;
     if let Some(error) = input_error {
         return Err(error);
     }
@@ -242,6 +411,53 @@ fn document_was_modified(state: &ServerState, request: &PendingSemanticRequest) 
     state.documents.get(uri).is_none_or(|document| {
         document.version != request.document_version || document.text != request.document_text
     })
+}
+
+fn dispatch_diagnostic(
+    sender: &SyncSender<DiagnosticTask>,
+    state: &ServerState,
+    dirty: &mut BTreeSet<String>,
+    pending: &mut HashMap<String, PendingDiagnostic>,
+) {
+    if pending.len() >= MAX_QUEUED_DIAGNOSTIC_TASKS {
+        return;
+    }
+    while let Some(uri) = dirty.iter().next().cloned() {
+        let Some(document) = state.documents.get(&uri) else {
+            dirty.remove(&uri);
+            continue;
+        };
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let task = DiagnosticTask {
+            uri: uri.clone(),
+            version: document.version,
+            text: document.text.clone(),
+            project_mode: state.project_mode,
+            cancellation: Arc::clone(&cancellation),
+        };
+        match sender.try_send(task) {
+            Ok(()) => {
+                dirty.remove(&uri);
+                pending.insert(
+                    uri,
+                    PendingDiagnostic {
+                        version: document.version,
+                        cancellation,
+                    },
+                );
+                return;
+            }
+            Err(TrySendError::Full(task)) => {
+                drop(task);
+                return;
+            }
+            Err(TrySendError::Disconnected(task)) => {
+                drop(task);
+                eprintln!("LSP diagnostic worker disconnected before scheduling a task");
+                return;
+            }
+        }
+    }
 }
 
 pub fn validate_frame_length(length: usize) -> io::Result<()> {
@@ -322,7 +538,22 @@ fn read_bounded_header_line(input: &mut impl BufRead, line: &mut Vec<u8>) -> io:
 /// Decodes one JSON-RPC payload and dispatches it through the LSP state machine.
 pub fn handle_json(body: &[u8], state: &mut ServerState) -> Result<Vec<Value>, serde_json::Error> {
     let request: Value = serde_json::from_slice(body)?;
-    Ok(handle(request, state))
+    let mut messages = handle(request.clone(), state);
+    if matches!(
+        request.get("method").and_then(Value::as_str),
+        Some("textDocument/didOpen" | "textDocument/didChange")
+    ) && let Some(uri) = request
+        .pointer("/params/textDocument/uri")
+        .and_then(Value::as_str)
+        && let Some(document) = state.documents.get(uri)
+    {
+        messages.push(diagnostic_notification(
+            uri,
+            &document.text,
+            state.project_mode,
+        ));
+    }
+    Ok(messages)
 }
 
 fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
@@ -330,71 +561,319 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
         return Vec::new();
     };
     let id = request.get("id").cloned();
+    let mut extra_messages = Vec::new();
     let response = match method {
-        "initialize" => id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword"],"tokenModifiers":[]}}}}})),
+        "initialize" => {
+            state.project_mode = project_syntax_mode(&request);
+            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true}}}))
+        },
         "shutdown" => id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":null})),
         "textDocument/semanticTokens/full" => id.map(|id| semantic_response(id, request.get("params"), state)),
-        "textDocument/didOpen" => { open_document(&request, state); None }
-        "textDocument/didChange" => { change_document(&request, state); None }
+        "textDocument/completion" => id.map(|id| completion_response(id, request.get("params"), state)),
+        "textDocument/hover" => id.map(|id| hover_response(id, request.get("params"), state)),
+        "textDocument/documentSymbol" => id.map(|id| document_symbols_response(id, request.get("params"), state)),
+        "textDocument/definition" => id.map(|id| definition_response(id, request.get("params"), state)),
+        "textDocument/references" => id.map(|id| references_response(id, request.get("params"), state)),
+        "textDocument/didOpen" => { extra_messages.extend(open_document(&request, state)); None }
+        "textDocument/didChange" => { extra_messages.extend(change_document(&request, state)); None }
+        "textDocument/didClose" => { close_document(&request, state); None }
         "exit" => None,
         _ => id.map(|id| json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":"método LSP no soportado"}})),
     };
     let mut messages = response.into_iter().collect::<Vec<_>>();
-    if matches!(method, "textDocument/didOpen" | "textDocument/didChange")
-        && let Some(uri) = request
-            .pointer("/params/textDocument/uri")
-            .and_then(Value::as_str)
-        && let Some(document) = state.documents.get(uri)
-    {
-        messages.push(diagnostic_notification(uri, &document.text));
-    }
+    messages.append(&mut extra_messages);
     messages
 }
 
-fn diagnostic_notification(uri: &str, text: &str) -> Value {
-    let source = oxido_language::SourceFile::new(text);
-    let result = oxido_language::domain::syntax::lex(
-        &source,
-        oxido_language::domain::syntax::LexOptions {
-            project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
-        },
-    );
+fn diagnostic_notification(
+    uri: &str,
+    text: &str,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+) -> Value {
+    let source = SourceFile::new(text);
+    let result = oxido_compiler::parse_ox(&source, LexOptions { project_mode });
     let diagnostics = result.diagnostics.into_iter().filter_map(|diagnostic| {
-        let start = source.position(diagnostic.primary_span.start())?;
-        let end = source.position(diagnostic.primary_span.end()).unwrap_or(start);
-        Some(json!({"range":{"start":{"line":start.line.saturating_sub(1),"character":start.column.saturating_sub(1)},"end":{"line":end.line.saturating_sub(1),"character":end.column.saturating_sub(1)}},"severity":1,"message":diagnostic.message,"code":diagnostic.code}))
+        let start = lsp_position(text, diagnostic.primary_span.start())?;
+        let end = lsp_position(text, diagnostic.primary_span.end()).unwrap_or(start.clone());
+        let severity = match diagnostic.severity {
+            oxido_language::domain::diagnostics::Severity::Error => 1,
+            oxido_language::domain::diagnostics::Severity::Warning => 2,
+            oxido_language::domain::diagnostics::Severity::Info => 3,
+            oxido_language::domain::diagnostics::Severity::Hint => 4,
+        };
+        Some(json!({"range":{"start":start,"end":end},"severity":severity,"message":diagnostic.message,"code":diagnostic.code,"source":"oxido"}))
     }).collect::<Vec<_>>();
     json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":diagnostics}})
 }
 
-fn open_document(request: &Value, state: &mut ServerState) {
+fn completion_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let uri = params
+        .and_then(|params| params.pointer("/textDocument/uri"))
+        .and_then(Value::as_str);
+    let text = uri
+        .and_then(|uri| state.documents.get(uri))
+        .map_or("", |document| document.text.as_str());
+    let mut labels = BTreeSet::new();
+    for (alias, _, _) in oxido_language::domain::syntax::token::KEYWORD_ALIASES {
+        labels.insert(*alias);
+    }
+    for alias in [
+        "imprimir!",
+        "imprimir_sin_salto!",
+        "formatear!",
+        "vector!",
+        "afirmar!",
+        "estructura",
+        "enumeracion",
+        "rasgo",
+        "implementar",
+        "modulo",
+        "usar",
+    ] {
+        labels.insert(alias);
+    }
+    let mut items = labels
+        .into_iter()
+        .map(|label| json!({"label":label,"kind":14,"detail":"Palabra clave o alias de Óxido"}))
+        .collect::<Vec<_>>();
+    if let Some(file) = parsed_file(text, state.project_mode) {
+        for (name, _, _) in declared_functions(&file, text) {
+            items.push(
+                json!({"label":name,"kind":3,"detail":"Función declarada en este documento"}),
+            );
+        }
+    }
+    json!({"jsonrpc":"2.0","id":id,"result":{"isIncomplete":false,"items":items}})
+}
+
+fn hover_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let Some((_uri, text, offset)) = request_document_position(params, state) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":null});
+    };
+    let Some(token) = lex_token_at(text, offset, state.project_mode) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":null});
+    };
+    let token_text = &text[token.span.start()..token.span.end()];
+    let contents = match &token.kind {
+        TokenKind::Keyword { rust_keyword, .. } => Some(format!(
+            "`{token_text}` es el alias Óxido de Rust `{rust_keyword}`."
+        )),
+        TokenKind::Identifier { .. } => parsed_file(text, state.project_mode).and_then(|file| {
+            declared_functions(&file, text)
+                .into_iter()
+                .find(|(name, _, _)| name == token_text)
+                .map(|(_, _, range)| {
+                    format!(
+                        "Función `{token_text}` declarada en este documento.\n\nRango: `{}`–`{}`.",
+                        range["start"], range["end"]
+                    )
+                })
+        }),
+        _ => None,
+    };
+    let Some(contents) = contents else {
+        return json!({"jsonrpc":"2.0","id":id,"result":null});
+    };
+    let start = lsp_position(text, token.span.start()).unwrap_or(json!({"line":0,"character":0}));
+    let end = lsp_position(text, token.span.end()).unwrap_or(start.clone());
+    json!({"jsonrpc":"2.0","id":id,"result":{"contents":{"kind":"markdown","value":contents},"range":{"start":start,"end":end}}})
+}
+
+fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let Some(uri) = params
+        .and_then(|params| params.pointer("/textDocument/uri"))
+        .and_then(Value::as_str)
+    else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let Some(document) = state.documents.get(uri) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let symbols = parsed_file(&document.text, state.project_mode)
+        .map(|file| {
+            declared_functions(&file, &document.text).into_iter().map(|(name, selection, range)| {
+            json!({"name":name,"kind":12,"range":range,"selectionRange":selection,"detail":"Óxido"})
+        }).collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({"jsonrpc":"2.0","id":id,"result":symbols})
+}
+
+fn definition_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let Some((uri, text, offset)) = request_document_position(params, state) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let Some(token) = lex_token_at(text, offset, state.project_mode) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let name = &text[token.span.start()..token.span.end()];
+    let Some(file) = parsed_file(text, state.project_mode) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let location = declared_functions(&file, text)
+        .into_iter()
+        .find(|(declared, _, _)| declared == name)
+        .map(|(_, selection, _)| json!({"uri":uri,"range":selection}));
+    json!({"jsonrpc":"2.0","id":id,"result":location.into_iter().collect::<Vec<_>>()})
+}
+
+fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let Some((uri, text, offset)) = request_document_position(params, state) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let Some(selected) = lex_token_at(text, offset, state.project_mode) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let selected_text = &text[selected.span.start()..selected.span.end()];
+    let lexed = lex(
+        &SourceFile::new(text),
+        LexOptions {
+            project_mode: state.project_mode,
+        },
+    );
+    let locations = lexed
+        .tokens
+        .into_iter()
+        .filter(|token| {
+            matches!(token.kind, TokenKind::Identifier { .. })
+                && &text[token.span.start()..token.span.end()] == selected_text
+        })
+        .filter_map(|token| {
+            let start = lsp_position(text, token.span.start())?;
+            let end = lsp_position(text, token.span.end())?;
+            Some(json!({"uri":uri,"range":{"start":start,"end":end}}))
+        })
+        .collect::<Vec<_>>();
+    json!({"jsonrpc":"2.0","id":id,"result":locations})
+}
+
+fn parsed_file(
+    text: &str,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+) -> Option<OxFile> {
+    let parsed = oxido_compiler::parse_ox(&SourceFile::new(text), LexOptions { project_mode });
+    if parsed.has_errors() {
+        return None;
+    }
+    parsed.file
+}
+
+fn declared_functions(file: &OxFile, text: &str) -> Vec<(String, Value, Value)> {
+    fn visit(items: &[Item], text: &str, output: &mut Vec<(String, Value, Value)>) {
+        for item in items {
+            match item {
+                Item::Function(function) => {
+                    let start = function.span.start();
+                    let end = function.span.end().min(text.len());
+                    if let Some(relative) = text
+                        .get(start..end)
+                        .and_then(|source| source.find(&function.name))
+                    {
+                        let name_start = start + relative;
+                        let name_end = name_start + function.name.len();
+                        if let (
+                            Some(selection_start),
+                            Some(selection_end),
+                            Some(range_start),
+                            Some(range_end),
+                        ) = (
+                            lsp_position(text, name_start),
+                            lsp_position(text, name_end),
+                            lsp_position(text, start),
+                            lsp_position(text, end),
+                        ) {
+                            output.push((
+                                function.name.clone(),
+                                json!({"start":selection_start,"end":selection_end}),
+                                json!({"start":range_start,"end":range_end}),
+                            ));
+                        }
+                    }
+                }
+                Item::IndentedContainer(container) => visit(&container.members, text, output),
+                _ => {}
+            }
+        }
+    }
+    let mut output = Vec::new();
+    visit(&file.items, text, &mut output);
+    output
+}
+
+fn request_document_position<'a>(
+    params: Option<&Value>,
+    state: &'a ServerState,
+) -> Option<(String, &'a str, usize)> {
+    let uri = params?.pointer("/textDocument/uri")?.as_str()?.to_owned();
+    let document = state.documents.get(&uri)?;
+    let offset = offset_at_position(&document.text, params?.get("position")?)?;
+    Some((uri, &document.text, offset))
+}
+
+fn lex_token_at(
+    text: &str,
+    offset: usize,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+) -> Option<oxido_language::domain::syntax::Token> {
+    let lexed = lex(&SourceFile::new(text), LexOptions { project_mode });
+    lexed
+        .tokens
+        .into_iter()
+        .find(|token| token.span.start() <= offset && offset < token.span.end())
+}
+
+fn open_document(request: &Value, state: &mut ServerState) -> Vec<Value> {
     let Some(document) = request.pointer("/params/textDocument") else {
-        return;
+        return Vec::new();
     };
     let (Some(uri), Some(text)) = (
         document.get("uri").and_then(Value::as_str),
         document.get("text").and_then(Value::as_str),
     ) else {
-        return;
+        return Vec::new();
     };
+    let uri = uri.to_owned();
+    let text = text.to_owned();
+    let previous_size = state.documents.get(&uri).map_or(0, |item| item.text.len());
+    let projected_total = state
+        .total_document_bytes
+        .saturating_sub(previous_size)
+        .saturating_add(text.len());
+    let issue = if text.len() > MAX_SINGLE_DOCUMENT_BYTES {
+        Some(("OX6001", "el documento supera el límite de 4 MiB"))
+    } else if !state.documents.contains_key(&uri) && state.documents.len() >= MAX_OPEN_DOCUMENTS {
+        Some(("OX6002", "se alcanzó el límite de 64 documentos abiertos"))
+    } else if projected_total > MAX_OPEN_DOCUMENT_BYTES {
+        Some((
+            "OX6003",
+            "los documentos abiertos superan el límite total de 16 MiB",
+        ))
+    } else {
+        None
+    };
+    if let Some((code, message)) = issue {
+        return vec![resource_diagnostic(&uri, code, message)];
+    }
+    state.total_document_bytes = projected_total;
     state.documents.insert(
-        uri.to_owned(),
+        uri,
         TextDocument {
             version: document.get("version").and_then(Value::as_i64),
-            text: text.to_owned(),
+            text,
         },
     );
+    Vec::new()
 }
 
-fn change_document(request: &Value, state: &mut ServerState) {
+fn change_document(request: &Value, state: &mut ServerState) -> Vec<Value> {
     let Some(uri) = request
         .pointer("/params/textDocument/uri")
         .and_then(Value::as_str)
     else {
-        return;
+        return Vec::new();
     };
     let Some(document) = state.documents.get(uri) else {
-        return;
+        return Vec::new();
     };
     let incoming_version = request
         .pointer("/params/textDocument/version")
@@ -402,23 +881,61 @@ fn change_document(request: &Value, state: &mut ServerState) {
     if let (Some(current), Some(incoming)) = (document.version, incoming_version)
         && incoming <= current
     {
-        return;
+        return Vec::new();
     }
     let Some(changes) = request
         .pointer("/params/contentChanges")
         .and_then(Value::as_array)
     else {
-        return;
+        return Vec::new();
     };
     let Some(updated_text) = apply_content_changes(&document.text, changes) else {
-        return;
+        return Vec::new();
     };
+    if updated_text.len() > MAX_SINGLE_DOCUMENT_BYTES {
+        return vec![resource_diagnostic(
+            uri,
+            "OX6001",
+            "el documento supera el límite de 4 MiB",
+        )];
+    }
+    let projected_total = state
+        .total_document_bytes
+        .saturating_sub(document.text.len())
+        .saturating_add(updated_text.len());
+    if projected_total > MAX_OPEN_DOCUMENT_BYTES {
+        return vec![resource_diagnostic(
+            uri,
+            "OX6003",
+            "los documentos abiertos superan el límite total de 16 MiB",
+        )];
+    }
     if let Some(document) = state.documents.get_mut(uri) {
+        state.total_document_bytes = projected_total;
         document.text = updated_text;
         if incoming_version.is_some() {
             document.version = incoming_version;
         }
     }
+    Vec::new()
+}
+
+fn close_document(request: &Value, state: &mut ServerState) {
+    let Some(uri) = request
+        .pointer("/params/textDocument/uri")
+        .and_then(Value::as_str)
+    else {
+        return;
+    };
+    if let Some(document) = state.documents.remove(uri) {
+        state.total_document_bytes = state
+            .total_document_bytes
+            .saturating_sub(document.text.len());
+    }
+}
+
+fn resource_diagnostic(uri: &str, code: &str, message: &str) -> Value {
+    json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":[{"range":{"start":{"line":0,"character":0},"end":{"line":0,"character":0}},"severity":1,"code":code,"source":"oxido-lsp","message":message}]}})
 }
 
 fn apply_content_changes(current: &str, changes: &[Value]) -> Option<String> {
@@ -469,41 +986,233 @@ fn semantic_response(id: Value, params: Option<&Value>, state: &ServerState) -> 
         .and_then(Value::as_str);
     let data = uri
         .and_then(|uri| state.documents.get(uri))
-        .map(|document| semantic_tokens(&document.text))
+        .map(|document| semantic_tokens(&document.text, state.project_mode))
         .unwrap_or_default();
     json!({"jsonrpc":"2.0","id":id,"result":{"data":data}})
 }
 
-fn semantic_tokens(text: &str) -> Vec<u32> {
+fn semantic_tokens(
+    text: &str,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+) -> Vec<u32> {
     let cancellation = AtomicBool::new(false);
-    semantic_tokens_cancellable(text, &cancellation).unwrap_or_default()
+    semantic_tokens_cancellable(text, project_mode, &cancellation).unwrap_or_default()
 }
 
-fn semantic_tokens_cancellable(text: &str, cancellation: &AtomicBool) -> Option<Vec<u32>> {
-    let mut data = Vec::new();
-    for (line, current) in text.lines().enumerate() {
+fn semantic_tokens_cancellable(
+    text: &str,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    cancellation: &AtomicBool,
+) -> Option<Vec<u32>> {
+    let source = SourceFile::new(text);
+    let lexed = lex(&source, LexOptions { project_mode });
+    let mut semantic = Vec::<(usize, usize, usize, usize)>::new();
+    let mut previous_significant = None;
+    for (index, token) in lexed.tokens.iter().enumerate() {
         if cancellation.load(Ordering::Relaxed) {
             return None;
         }
-        let trimmed = current.trim_start();
-        let indent = current.len().saturating_sub(trimmed.len()) as u32;
-        if trimmed.starts_with("funcion ")
-            || trimmed.starts_with("fn ")
-            || trimmed.starts_with("estructura ")
-        {
-            data.extend([line as u32, indent, 2, 0, 0]);
+        let is_trivia = matches!(
+            &token.kind,
+            TokenKind::Comment
+                | TokenKind::Newline
+                | TokenKind::Indent
+                | TokenKind::Dedent
+                | TokenKind::ModeHeader(_)
+        );
+        if token.opaque {
+            continue;
+        }
+        let Some(kind) = semantic_kind(
+            token,
+            previous_significant,
+            lexed.tokens.get(index + 1),
+            &source,
+        ) else {
+            continue;
+        };
+        let Some(start) = lsp_position(text, token.span.start()) else {
+            continue;
+        };
+        let Some(end) = lsp_position(text, token.span.end()) else {
+            continue;
+        };
+        if start["line"] != end["line"] {
+            continue;
+        }
+        let line = usize::try_from(start["line"].as_u64()?).ok()?;
+        let character = usize::try_from(start["character"].as_u64()?).ok()?;
+        let end_character = usize::try_from(end["character"].as_u64()?).ok()?;
+        let length = end_character.checked_sub(character)?;
+        if length > 0 {
+            semantic.push((line, character, length, kind));
+        }
+        if !is_trivia {
+            previous_significant = Some(token);
         }
     }
+    semantic.sort_unstable();
+    let mut data = Vec::with_capacity(semantic.len().saturating_mul(5));
+    let (mut previous_line, mut previous_character) = (0_usize, 0_usize);
+    for (line, character, length, kind) in semantic {
+        let delta_line = line.checked_sub(previous_line)?;
+        let delta_character = if delta_line == 0 {
+            character.checked_sub(previous_character)?
+        } else {
+            character
+        };
+        data.extend([
+            u32::try_from(delta_line).ok()?,
+            u32::try_from(delta_character).ok()?,
+            u32::try_from(length).ok()?,
+            u32::try_from(kind).ok()?,
+            0,
+        ]);
+        previous_line = line;
+        previous_character = character;
+    }
     (!cancellation.load(Ordering::Relaxed)).then_some(data)
+}
+
+fn project_syntax_mode(request: &Value) -> Option<oxido_language::domain::syntax::SyntaxMode> {
+    if let Some(mode) = request
+        .pointer("/params/initializationOptions/syntaxMode")
+        .and_then(Value::as_str)
+    {
+        return parse_syntax_mode(mode);
+    }
+    let root_uri = request.pointer("/params/rootUri").and_then(Value::as_str)?;
+    project_mode_for_uri(root_uri)
+}
+
+fn parse_syntax_mode(mode: &str) -> Option<oxido_language::domain::syntax::SyntaxMode> {
+    match mode {
+        "indentation" => Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
+        "braces" => Some(oxido_language::domain::syntax::SyntaxMode::Braces),
+        _ => None,
+    }
+}
+
+fn project_mode_for_uri(uri: &str) -> Option<oxido_language::domain::syntax::SyntaxMode> {
+    let root = PathBuf::from(file_uri_path(uri)?);
+    let root = std::fs::canonicalize(root).ok()?;
+    if !root.is_dir() {
+        return None;
+    }
+    let config_path = root.join("oxido.toml");
+    let canonical_config = std::fs::canonicalize(&config_path).ok()?;
+    if canonical_config.parent()? != root
+        || std::fs::metadata(&canonical_config).ok()?.len() > 64 * 1024
+    {
+        return None;
+    }
+    let contents = std::fs::read_to_string(canonical_config).ok()?;
+    let config = oxido_compiler::config::ProjectConfig::parse(&contents).ok()?;
+    config.language.syntax.map(|mode| match mode {
+        oxido_compiler::config::SyntaxMode::Indentation => {
+            oxido_language::domain::syntax::SyntaxMode::Indentation
+        }
+        oxido_compiler::config::SyntaxMode::Braces => {
+            oxido_language::domain::syntax::SyntaxMode::Braces
+        }
+    })
+}
+
+fn file_uri_path(uri: &str) -> Option<String> {
+    let encoded = uri.strip_prefix("file://")?;
+    if !encoded.starts_with('/') {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(encoded.len());
+    let input = encoded.as_bytes();
+    let mut index = 0;
+    while index < input.len() {
+        if input[index] == b'%' {
+            let high = *input.get(index + 1)?;
+            let low = *input.get(index + 2)?;
+            bytes.push((hex_value(high)? << 4) | hex_value(low)?);
+            index += 3;
+        } else {
+            bytes.push(input[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(bytes).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn semantic_kind(
+    token: &oxido_language::domain::syntax::Token,
+    previous: Option<&oxido_language::domain::syntax::Token>,
+    next: Option<&oxido_language::domain::syntax::Token>,
+    source: &SourceFile,
+) -> Option<usize> {
+    match &token.kind {
+        TokenKind::Keyword { .. } => Some(0),
+        TokenKind::StringLiteral | TokenKind::CharacterLiteral => Some(3),
+        TokenKind::Number => Some(4),
+        TokenKind::Comment => Some(5),
+        TokenKind::Punctuation => Some(7),
+        TokenKind::Identifier { .. } => {
+            let word = source.slice(token.span);
+            if let Some(oxido_language::domain::syntax::Token {
+                kind: TokenKind::Keyword { rust_keyword, .. },
+                ..
+            }) = previous
+            {
+                if *rust_keyword == "fn" {
+                    return Some(1);
+                }
+                if matches!(*rust_keyword, "struct" | "enum" | "trait" | "type") {
+                    return Some(6);
+                }
+            }
+            let next_text = next.map(|token| source.slice(token.span));
+            if next_text == Some("(") {
+                Some(1)
+            } else if word.chars().next().is_some_and(char::is_uppercase) {
+                Some(6)
+            } else {
+                Some(2)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn lsp_position(text: &str, offset: usize) -> Option<Value> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let prefix = &text[..offset];
+    let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
+    let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
+    let character = text[line_start..offset].encode_utf16().count();
+    Some(json!({"line":line,"character":character}))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn configured_test_state() -> ServerState {
+        ServerState {
+            project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
+            ..ServerState::default()
+        }
+    }
+
     #[test]
     fn handles_lifecycle_and_rejects_malformed_json_without_panicking() {
-        let mut state = ServerState::default();
+        let mut state = configured_test_state();
         let result = handle_json(
             br#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#,
             &mut state,
@@ -517,8 +1226,63 @@ mod tests {
     }
 
     #[test]
-    fn publishes_lexer_diagnostics_after_document_open() {
+    fn initialize_uses_explicit_project_syntax_mode() {
         let mut state = ServerState::default();
+        handle_json(
+            br#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"initializationOptions":{"syntaxMode":"braces"}}}"#,
+            &mut state,
+        )
+        .expect("valid initialize request");
+        assert_eq!(
+            state.project_mode,
+            Some(oxido_language::domain::syntax::SyntaxMode::Braces)
+        );
+    }
+
+    #[test]
+    fn initialize_reads_the_project_mode_as_data_from_the_workspace_root() {
+        let mut state = ServerState::default();
+        let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../prueba/modulos_jerarquicos")
+            .canonicalize()
+            .expect("reference project root exists");
+        let request = json!({
+            "jsonrpc":"2.0",
+            "id":1,
+            "method":"initialize",
+            "params":{"rootUri":format!("file://{}", project_root.display())}
+        });
+        let encoded = serde_json::to_vec(&request).expect("initialize JSON serializes");
+        handle_json(&encoded, &mut state).expect("valid initialize request");
+        assert_eq!(
+            state.project_mode,
+            Some(oxido_language::domain::syntax::SyntaxMode::Braces)
+        );
+    }
+
+    #[test]
+    fn maps_compiler_spans_to_utf16_and_keeps_the_original_ox_uri() {
+        let mut state = configured_test_state();
+        let request = json!({
+            "jsonrpc":"2.0",
+            "method":"textDocument/didOpen",
+            "params":{"textDocument":{"uri":"file:///workspace/principal.ox","text":format!("// 😀{}\n", '\u{202e}')}}
+        });
+        let encoded = serde_json::to_vec(&request).expect("didOpen JSON serializes");
+        let response = handle_json(&encoded, &mut state).expect("valid didOpen notification");
+        assert_eq!(
+            response[0]["params"]["uri"],
+            "file:///workspace/principal.ox"
+        );
+        let diagnostic = &response[0]["params"]["diagnostics"][0];
+        assert_eq!(diagnostic["code"], "OX1002");
+        assert_eq!(diagnostic["range"]["start"]["line"], 0);
+        assert_eq!(diagnostic["range"]["start"]["character"], 5);
+    }
+
+    #[test]
+    fn publishes_frontend_diagnostics_after_document_open() {
+        let mut state = configured_test_state();
         let response = handle_json(
             br#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"funcion main():\n\tpass\n"}}}"#,
             &mut state,
@@ -535,8 +1299,99 @@ mod tests {
     }
 
     #[test]
-    fn recovers_diagnostics_after_a_full_document_change() {
+    fn enforces_open_document_and_total_memory_limits() {
         let mut state = ServerState::default();
+        for index in 0..MAX_OPEN_DOCUMENTS {
+            let request = json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":format!("file:///doc-{index}.ox"),"text":""}}
+            });
+            assert!(handle(request, &mut state).is_empty());
+        }
+        let rejected = handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///overflow.ox","text":""}}
+            }),
+            &mut state,
+        );
+        assert_eq!(rejected[0]["params"]["diagnostics"][0]["code"], "OX6002");
+        assert_eq!(state.documents.len(), MAX_OPEN_DOCUMENTS);
+
+        let mut memory_state = ServerState::default();
+        let document_text = "a".repeat(MAX_SINGLE_DOCUMENT_BYTES);
+        for index in 0..4 {
+            handle(
+                json!({
+                    "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                    "params":{"textDocument":{"uri":format!("file:///accepted-{index}.ox"),"text":document_text.clone()}}
+                }),
+                &mut memory_state,
+            );
+        }
+        let rejected = handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///over-budget.ox","text":"x"}}
+            }),
+            &mut memory_state,
+        );
+        assert_eq!(rejected[0]["params"]["diagnostics"][0]["code"], "OX6003");
+        assert_eq!(memory_state.documents.len(), 4);
+        assert_eq!(memory_state.total_document_bytes, MAX_OPEN_DOCUMENT_BYTES);
+    }
+
+    #[test]
+    fn closing_a_document_releases_its_memory_budget() {
+        let mut state = ServerState::default();
+        handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///main.ox","text":"contenido"}}
+            }),
+            &mut state,
+        );
+        assert_eq!(state.total_document_bytes, "contenido".len());
+        handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didClose",
+                "params":{"textDocument":{"uri":"file:///main.ox"}}
+            }),
+            &mut state,
+        );
+        assert!(state.documents.is_empty());
+        assert_eq!(state.total_document_bytes, 0);
+    }
+
+    #[test]
+    fn diagnostics_are_queued_from_a_document_snapshot_and_version() {
+        let mut state = configured_test_state();
+        let opened = handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///main.ox","version":7,"text":"funcion main():\n\tpass\n"}}
+            }),
+            &mut state,
+        );
+        assert!(opened.is_empty());
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let mut dirty = BTreeSet::from(["file:///main.ox".to_owned()]);
+        let mut pending = HashMap::new();
+        dispatch_diagnostic(&sender, &state, &mut dirty, &mut pending);
+        let task = receiver.try_recv().expect("diagnostic task was queued");
+        assert_eq!(task.version, Some(7));
+        assert!(task.text.contains("pass"));
+        assert!(
+            !pending["file:///main.ox"]
+                .cancellation
+                .load(Ordering::Relaxed)
+        );
+        assert!(dirty.is_empty());
+    }
+
+    #[test]
+    fn recovers_diagnostics_after_a_full_document_change() {
+        let mut state = configured_test_state();
         let opened = handle_json(
             br#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"funcion main():\n\tdejar valor = 1\n"}}}"#,
             &mut state,
@@ -566,7 +1421,7 @@ mod tests {
 
     #[test]
     fn applies_sequential_incremental_changes_using_utf16_positions() {
-        let mut state = ServerState::default();
+        let mut state = configured_test_state();
         handle_json(
             br#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","version":1,"text":"funcion main():\n\tdejar valor = 1\n"}}}"#,
             &mut state,
@@ -591,7 +1446,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_incremental_ranges_without_corrupting_the_document() {
-        let mut state = ServerState::default();
+        let mut state = configured_test_state();
         handle_json(
             r#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","version":1,"text":"// 😀x\nfuncion main():\n    dejar valor = 1\n"}}}"#.as_bytes(),
             &mut state,
@@ -613,7 +1468,7 @@ mod tests {
 
     #[test]
     fn ignores_stale_document_versions() {
-        let mut state = ServerState::default();
+        let mut state = configured_test_state();
         handle_json(
             br#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","version":4,"text":"funcion main():\n    dejar valor = 1\n"}}}"#,
             &mut state,
@@ -633,7 +1488,7 @@ mod tests {
 
     #[test]
     fn returns_semantic_tokens_for_an_open_document() {
-        let mut state = ServerState::default();
+        let mut state = configured_test_state();
         handle_json(
             br#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"funcion main():\n    pass\n"}}}"#,
             &mut state,
@@ -644,7 +1499,78 @@ mod tests {
             &mut state,
         )
         .expect("valid semantic tokens request");
-        assert_eq!(response[0]["result"]["data"], json!([0, 0, 2, 0, 0]));
+        assert_eq!(response[0]["result"]["data"][0], 0);
+        assert_eq!(response[0]["result"]["data"][1], 0);
+        assert_eq!(response[0]["result"]["data"][2], 7);
+        assert_eq!(response[0]["result"]["data"][3], 0);
+    }
+
+    #[test]
+    fn provides_syntax_based_hover_completion_symbols_and_navigation() {
+        let mut state = configured_test_state();
+        let text = "sintaxis indentacion\nfuncion saludo():\n    imprimir!(\"hola\")\nfuncion principal():\n    saludo()\n";
+        handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///main.ox","version":1,"text":text}}
+            }),
+            &mut state,
+        );
+
+        let hover = handle(
+            json!({
+                "jsonrpc":"2.0", "id":2, "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":"file:///main.ox"},"position":{"line":1,"character":1}}
+            }),
+            &mut state,
+        );
+        assert!(
+            hover[0]["result"]["contents"]["value"]
+                .as_str()
+                .unwrap()
+                .contains("`funcion`")
+        );
+
+        let completion = handle(
+            json!({
+                "jsonrpc":"2.0", "id":3, "method":"textDocument/completion",
+                "params":{"textDocument":{"uri":"file:///main.ox"},"position":{"line":4,"character":10}}
+            }),
+            &mut state,
+        );
+        assert!(
+            completion[0]["result"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["label"] == "saludo")
+        );
+
+        let symbols = handle(
+            json!({"jsonrpc":"2.0","id":4,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///main.ox"}}}),
+            &mut state,
+        );
+        assert!(!symbols[0]["result"].as_array().unwrap().is_empty());
+        assert_eq!(symbols[0]["result"][0]["name"], "saludo");
+
+        let definition = handle(
+            json!({
+                "jsonrpc":"2.0", "id":5, "method":"textDocument/definition",
+                "params":{"textDocument":{"uri":"file:///main.ox"},"position":{"line":4,"character":6}}
+            }),
+            &mut state,
+        );
+        assert_eq!(definition[0]["result"][0]["uri"], "file:///main.ox");
+        assert_eq!(definition[0]["result"][0]["range"]["start"]["line"], 1);
+
+        let references = handle(
+            json!({
+                "jsonrpc":"2.0", "id":6, "method":"textDocument/references",
+                "params":{"textDocument":{"uri":"file:///main.ox"},"position":{"line":4,"character":6}}
+            }),
+            &mut state,
+        );
+        assert_eq!(references[0]["result"].as_array().unwrap().len(), 2);
     }
 
     #[test]
@@ -678,7 +1604,11 @@ mod tests {
     fn canceled_semantic_token_work_stops_and_returns_request_cancelled() {
         let cancellation = AtomicBool::new(true);
         assert_eq!(
-            semantic_tokens_cancellable("funcion a():\nfuncion b():\n", &cancellation),
+            semantic_tokens_cancellable(
+                "funcion a():\nfuncion b():\n",
+                Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
+                &cancellation
+            ),
             None
         );
         assert_eq!(

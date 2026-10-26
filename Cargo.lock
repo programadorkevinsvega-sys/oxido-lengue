@@ -79,6 +79,7 @@ dependencies = [
 name = "oxido-lsp"
 version = "0.1.0"
 dependencies = [
+ "oxido-compiler",
  "oxido-language",
  "serde_json",
 ]

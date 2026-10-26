@@ -1,0 +1,68 @@
+{
+  "name": "oxido-language-support",
+  "displayName": "Óxido Language Support",
+  "description": "Language support for .ox files using the Óxido compiler frontend.",
+  "version": "0.1.0",
+  "publisher": "oxido-language",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:oxido"
+  ],
+  "extensionDependencies": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "oxido",
+        "aliases": [
+          "Óxido",
+          "oxido"
+        ],
+        "extensions": [
+          ".ox"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "oxido.restartLanguageServer",
+        "title": "Óxido: Reiniciar servidor de lenguaje"
+      }
+    ],
+    "configuration": {
+      "title": "Óxido",
+      "properties": {
+        "oxido.serverPath": {
+          "type": "string",
+          "default": "oxido-lsp",
+          "description": "Ruta al ejecutable oxido-lsp. Solo se usa la configuración de usuario en Restricted Mode."
+        }
+      }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "El análisis léxico y sintáctico estático funciona en modo restringido. La extensión no inicia Cargo ni rust-analyzer.",
+      "restrictedConfigurations": [
+        "oxido.serverPath"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:host": "node test/run-host.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "^3.1.0"
+  }
+}

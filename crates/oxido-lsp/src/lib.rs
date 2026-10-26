@@ -16,6 +16,7 @@ use std::{
         mpsc::{self, SyncSender, TrySendError},
     },
     thread,
+    time::Instant,
 };
 
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
@@ -33,7 +34,10 @@ const CONTENT_MODIFIED_ERROR_CODE: i64 = -32801;
 pub struct ServerState {
     documents: BTreeMap<String, TextDocument>,
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    project_root: Option<PathBuf>,
     total_document_bytes: usize,
+    diagnostic_runs: u64,
+    last_diagnostic_ms: Option<u128>,
 }
 
 struct TextDocument {
@@ -73,6 +77,7 @@ enum ServerEvent {
         version: Option<i64>,
         cancellation: Arc<AtomicBool>,
         notification: Option<Value>,
+        elapsed_ms: u128,
     },
     InputEnded,
     InputFailed(io::Error),
@@ -116,6 +121,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
         .name("oxido-lsp-diagnostics".to_owned())
         .spawn(move || {
             while let Ok(task) = diagnostics_rx.recv() {
+                let started = Instant::now();
                 let notification = if task.cancellation.load(Ordering::Relaxed) {
                     None
                 } else {
@@ -130,6 +136,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                     version: task.version,
                     cancellation: task.cancellation,
                     notification,
+                    elapsed_ms: started.elapsed().as_millis(),
                 }) {
                     eprintln!("LSP diagnostic event receiver closed: {error}");
                     break;
@@ -153,6 +160,14 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 if request.get("method").and_then(Value::as_str) == Some("oxido/check") {
                     let response = cargo_check_response(&request, &state);
                     write_lsp_message(&mut output, &response)?;
+                    continue;
+                }
+                if request.get("method").and_then(Value::as_str) == Some("oxido/stats") {
+                    let id = request.get("id").cloned().unwrap_or(Value::Null);
+                    write_lsp_message(
+                        &mut output,
+                        &json!({"jsonrpc":"2.0","id":id,"result":{"openDocuments":state.documents.len(),"documentBytes":state.total_document_bytes,"diagnosticRuns":state.diagnostic_runs,"lastDiagnosticMs":state.last_diagnostic_ms}}),
+                    )?;
                     continue;
                 }
                 if request.get("method").and_then(Value::as_str)
@@ -306,7 +321,10 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 version,
                 cancellation,
                 notification,
+                elapsed_ms,
             } => {
+                state.diagnostic_runs = state.diagnostic_runs.saturating_add(1);
+                state.last_diagnostic_ms = Some(elapsed_ms);
                 let is_current_task = pending_diagnostics.get(&uri).is_some_and(|diagnostic| {
                     diagnostic.version == version
                         && Arc::ptr_eq(&diagnostic.cancellation, &cancellation)
@@ -570,7 +588,14 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
     let response = match method {
         "initialize" => {
             state.project_mode = project_syntax_mode(&request);
-            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true}}}))
+            state.project_root = request
+                .pointer("/params/rootUri")
+                .and_then(Value::as_str)
+                .and_then(file_uri_path)
+                .map(PathBuf::from)
+                .and_then(|path| std::fs::canonicalize(path).ok())
+                .filter(|path| path.is_dir());
+            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"documentFormattingProvider":true}}}))
         },
         "shutdown" => id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":null})),
         "textDocument/semanticTokens/full" => id.map(|id| semantic_response(id, request.get("params"), state)),
@@ -579,6 +604,7 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
         "textDocument/documentSymbol" => id.map(|id| document_symbols_response(id, request.get("params"), state)),
         "textDocument/definition" => id.map(|id| definition_response(id, request.get("params"), state)),
         "textDocument/references" => id.map(|id| references_response(id, request.get("params"), state)),
+        "textDocument/formatting" => id.map(|id| formatting_response(id, request.get("params"), state)),
         "textDocument/didOpen" => { extra_messages.extend(open_document(&request, state)); None }
         "textDocument/didChange" => { extra_messages.extend(change_document(&request, state)); None }
         "textDocument/didClose" => { close_document(&request, state); None }
@@ -626,14 +652,57 @@ fn cargo_check_response(request: &Value, state: &ServerState) -> Value {
     let Some(document) = state.documents.get(uri) else {
         return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"el documento no está abierto"}});
     };
-    let source = SourceFile::new(&document.text);
-    let result = oxido_compiler::build_ox(
-        &source,
-        LexOptions {
-            project_mode: state.project_mode,
-        },
-        oxido_compiler::application::cargo::CargoAction::CheckTrusted,
+    let source_path = file_uri_path(uri).map(PathBuf::from);
+    let source = source_path.as_deref().map_or_else(
+        || SourceFile::new(&document.text),
+        |path| SourceFile::with_path(path, &document.text),
     );
+    let result = if let Some(project_root) = state.project_root.as_deref() {
+        let config_path = project_root.join("oxido.toml");
+        let config_text = std::fs::read_to_string(&config_path).map_err(|error| error.to_string());
+        match config_text.and_then(|text| {
+            oxido_compiler::config::ProjectConfig::parse(&text).map_err(|error| error.to_string())
+        }) {
+            Ok(config) => match config.resolve_dependencies(project_root) {
+                Ok(dependencies) => oxido_compiler::build_ox_project_in_project(
+                    &source,
+                    LexOptions {
+                        project_mode: state.project_mode,
+                    },
+                    &dependencies,
+                    Some(&project_root.join("Cargo.lock")),
+                    oxido_compiler::application::cargo::CargoAction::CheckTrusted,
+                    project_root,
+                ),
+                Err(error) => Err(vec![
+                    oxido_language::domain::diagnostics::Diagnostic::error(
+                        "OX7003",
+                        error,
+                        source
+                            .span(0, 0)
+                            .unwrap_or_else(oxido_language::domain::source::Span::empty),
+                    ),
+                ]),
+            },
+            Err(error) => Err(vec![
+                oxido_language::domain::diagnostics::Diagnostic::error(
+                    "OX7003",
+                    format!("no se pudo leer oxido.toml: {error}"),
+                    source
+                        .span(0, 0)
+                        .unwrap_or_else(oxido_language::domain::source::Span::empty),
+                ),
+            ]),
+        }
+    } else {
+        oxido_compiler::build_ox(
+            &source,
+            LexOptions {
+                project_mode: state.project_mode,
+            },
+            oxido_compiler::application::cargo::CargoAction::CheckTrusted,
+        )
+    };
     let diagnostics = match result {
         Ok(result) => result
             .diagnostics
@@ -796,6 +865,39 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
         })
         .collect::<Vec<_>>();
     json!({"jsonrpc":"2.0","id":id,"result":locations})
+}
+
+fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let Some(uri) = params
+        .and_then(|value| value.pointer("/textDocument/uri"))
+        .and_then(Value::as_str)
+    else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let Some(document) = state.documents.get(uri) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    if state.project_mode == Some(oxido_language::domain::syntax::SyntaxMode::Indentation) {
+        return json!({"jsonrpc":"2.0","id":id,"error":{"code":-32004,"message":"el formateador del editor para sintaxis indentada aún requiere compartir la implementación de `oxido formato`"}});
+    }
+    let source = SourceFile::new(&document.text);
+    let Ok(generated) = oxido_compiler::generate_ox(
+        &source,
+        LexOptions {
+            project_mode: state.project_mode,
+        },
+    ) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    let Ok(formatted) = oxido_compiler::import_rust(&SourceFile::new(generated.rust)) else {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    };
+    if formatted == document.text {
+        return json!({"jsonrpc":"2.0","id":id,"result":[]});
+    }
+    let end = lsp_position(&document.text, document.text.len())
+        .unwrap_or(json!({"line":0,"character":0}));
+    json!({"jsonrpc":"2.0","id":id,"result":[{"range":{"start":{"line":0,"character":0},"end":end},"newText":formatted}]})
 }
 
 fn parsed_file(
@@ -1635,6 +1737,20 @@ mod tests {
             &state,
         );
         assert_eq!(response["error"]["code"], -32003);
+    }
+
+    #[test]
+    fn exposes_resource_stats_and_rejects_unshared_indented_formatting() {
+        let mut state = configured_test_state();
+        handle(
+            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.ox","text":"sintaxis indentacion\nfuncion principal():\n    pass\n"}}}),
+            &mut state,
+        );
+        let formatting = handle(
+            json!({"jsonrpc":"2.0","id":11,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file:///main.ox"}}}),
+            &mut state,
+        );
+        assert_eq!(formatting[0]["error"]["code"], -32004);
     }
 
     #[test]

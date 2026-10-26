@@ -37,6 +37,10 @@
       {
         "command": "oxido.checkCargo",
         "title": "Óxido: Comprobar con Cargo"
+      },
+      {
+        "command": "oxido.showResourceStats",
+        "title": "Óxido: Ver estadísticas del editor"
       }
     ],
     "configuration": {

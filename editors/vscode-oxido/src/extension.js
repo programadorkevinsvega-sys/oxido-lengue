@@ -69,6 +69,22 @@ async function activate(context) {
       await vscode.window.showErrorMessage(`Óxido: ${message}`);
     }
   }));
+  context.subscriptions.push(vscode.commands.registerCommand('oxido.showResourceStats', async () => {
+    if (!client) return;
+    const started = Date.now();
+    try {
+      const stats = await client.sendRequest('oxido/stats', {});
+      const roundTripMs = Date.now() - started;
+      await vscode.window.showInformationMessage(
+        `Óxido: ${stats.openDocuments} documento(s), ${stats.documentBytes} bytes, ` +
+        `${stats.diagnosticRuns} diagnóstico(s), último cálculo ${stats.lastDiagnosticMs ?? 'n/d'} ms, ` +
+        `respuesta ${roundTripMs} ms.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'no se pudieron leer las estadísticas';
+      await vscode.window.showErrorMessage(`Óxido: ${message}`);
+    }
+  }));
 }
 
 async function restartAfterProjectConfigChange() {

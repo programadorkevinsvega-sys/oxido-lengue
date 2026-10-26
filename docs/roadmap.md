@@ -262,19 +262,19 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ### Subfases
 
-1. Matriz de fixtures por lexer, parser, modos, alias, macros, backend y diagnósticos.
-2. Pruebas de regresión de defectos previos.
-3. Pruebas diferenciales frente a Rust para construcciones equivalentes.
-4. Pruebas de ida y vuelta/exportación-importación.
-5. Fuzzing con `cargo-fuzz`, corpus y regresiones.
-6. Pruebas de tamaño, profundidad, Unicode, recuperación y cancelación.
-7. Mantener proyectos de referencia y harnesses reutilizables para las fases que los necesiten. La aprobación de integración con crates, macros, runtimes o `unsafe` pertenece a la fase funcional correspondiente (Fase 8 para los criterios de ADR 0007), no se traslada a este laboratorio.
-8. Informes reproducibles con versiones, commit, entorno, pruebas aprobadas/fallidas/pendientes y rendimiento medido.
-9. Integración de suites en CI y detección de regresiones.
+1. **Matriz de fixtures por componente:** `docs/testing.md` relaciona lexer y límites, parser/modos/recuperación, aliases, backend, macros externas, configuración, módulos, formato, diagnósticos y LSP con pruebas nombradas. La matriz indica qué demuestra cada grupo y sus límites; no infiere soporte por similitud con otro caso.
+2. **Regresiones de defectos previos:** el workspace conserva casos deterministas para semántica del `;` final, colisiones de aliases, comentarios/formato, rutas `#[path]`, checksums Cargo, spans/diagnósticos y framing/cambios LSP. Un fallo descubierto por fuzzing se revisa, minimiza y agrega como seed y regresión antes de incorporarlo al corpus aceptado.
+3. **Diferencial frente a Rust:** siete pares `.ox`/Rust compilan y ejecutan, y comparan stdout para colecciones/iteradores, `struct`/`impl`/`match`, `Result`/`?`, patrones de enum, préstamos mutables, async y genéricos/traits/closures. Un caso negativo verifica `E0308` y el mapeo a la línea `.ox`. Estos casos prueban solo las construcciones del corpus, no equivalencia general.
+4. **Ida y vuelta y árboles:** las regresiones CLI prueban `.ox → .rs → .ox → .rs`, árboles jerárquicos y mixtos `.ox`/`.rs`, `#[path]` relativo, comentarios y ejecución del export fuera del árbol de origen. La importación rechaza construcciones no reversibles o rutas inseguras con errores explícitos; no se afirma roundtrip universal.
+5. **Fuzzing:** `fuzz/` mantiene cinco harnesses —lexer, parser, `oxido.toml`, backend y transporte/dispatcher LSP— con corpus versionado. Push y PR ejecutan 1.000 iteraciones por target (máximo 8 KiB); el job semanal ejecuta 10.000. La campaña archivada de 2026-10-26 registra 10.000 por target sin crash/spans inválidos reportados; los conteos no representan cobertura ni ausencia de defectos.
+6. **Límites, Unicode y recuperación:** hay regresiones de fuente de hasta 4 MiB, profundidad de grupos 256, indentación 128, un millón de tokens, bidi/confusables y spans UTF-8. El prototipo `oxido-lsp` prueba rangos UTF-16 incrementales, versiones obsoletas, rechazo de rangos inválidos sin mutación parcial y cancelación cooperativa de semantic tokens; el framing limita cabeceras a 8 KiB y mensajes a 4 MiB. Estas son pruebas del laboratorio de Fase 10, no una integración de editor completada: los diagnósticos de `didOpen`/`didChange` siguen síncronos y semantic tokens no son todavía un análisis semántico completo.
+7. **Proyectos de referencia reutilizables:** `reference-regressions` ejecuta interoperabilidad con `std`, módulos jerárquicos, tests de terminal `.ox`/Rust con stdin compartido, CRUD concurrente y overflow, APIs SQLite secuenciales y persistencia del árbol exportado tras reinicios. Servicios se levantan y detienen de forma secuencial; las regresiones funcionales no se presentan como pruebas de rendimiento.
+8. **Informes reproducibles:** `oxido-validation-report` registra commit, rama/estado del árbol, host, toolchains, comandos, resultados, duración y suites aprobadas/fallidas/no evaluadas; CI conserva el Markdown como artefacto por 30 días sin copiar logs crudos ni rutas absolutas. Fuzzing y benchmark tienen informes separados. El informe de benchmark registra carga, calentamiento, perfil release, rondas, QPS/latencias/errores y variación, conforme a [ADR-0009](adr/0009-politica-de-evidencia-y-benchmarks.md).
+9. **CI y regresión continua:** en cada push/PR se ejecutan fmt, Clippy, tests, `cargo-deny`, fuzz smoke, informe y regresiones de referencia. La CI de cierre pasó en PR #29 (push y PR, commit `dd1f07c`). El benchmark se ejecuta en el horario semanal o manualmente; el run `40318401833` probó cinco rondas release, cuyo resultado exploratorio está archivado. El benchmark se omite en los workflows ordinarios de PR y esa omisión no cuenta como una medición.
 
 **Entregables:** laboratorio ejecutable y reportes sin métricas inventadas.
 
-**Criterio de salida:** cada característica anunciada está cubierta por pruebas identificables; pendientes y fallos se muestran explícitamente.
+**Criterio de salida:** cada capacidad publicada está vinculada a pruebas identificables; los pares diferenciales y roundtrips declarados están automatizados; fuzz, pruebas de límites y referencias tienen harnesses reproducibles; los informes distinguen estados y no filtran rutas absolutas; y la CI de cierre está verde. El benchmark de referencia está medido y archivado, pero solo describe esa carga y ese runner: no acredita rendimiento del compilador, ventaja frente a Rust ni capacidad de producción. Los límites pendientes (diagnósticos LSP síncronos, corpus diferencial finito y fuzz sin garantía de cobertura) se mantienen visibles.
 
 **Dependencia:** el laboratorio base inicia en Fase 2; esta fase consolida capacidades avanzadas.
 
@@ -284,18 +284,20 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** construir una experiencia de edición que comparte análisis con el compilador.
 
+**Estado actual:** la integración de VS Code de esta fase no se ha iniciado. Ya existe un prototipo LSP en Rust, ejercitado como infraestructura de pruebas de la Fase 10: stdio, ciclo de vida básico, sincronización incremental, diagnósticos léxicos y semantic tokens heurísticos, más límites del framing y cancelación del cálculo de semantic tokens. Eso cubre prerrequisitos parciales de las subfases 2, 3 y 9, pero no equivale a una extensión funcional. No hay integración con `rust-analyzer`, tipos/hover/inlay hints/autocompletado, Workspace Trust ni acciones de editor; los diagnósticos actuales no los produce Cargo.
+
 ### Subfases
 
-1. Extensión mínima: asociación de `.ox`, configuración y comandos.
-2. Semantic tokens del lexer/parser de Óxido.
-3. Servidor LSP en Rust con tolerancia a archivos incompletos.
-4. Diagnósticos del compilador y Cargo con mapeo al `.ox`.
-5. Integración con `rust-analyzer` para tipos inferidos, hover, inlay hints y autocompletado sobre Rust generado; mapear todas las posiciones al `.ox` y no inventar tipos desde el LSP.
-6. Navegación, símbolos, referencias y renombrado solo cuando puedan verificarse.
-7. Formateador y acciones de código.
-8. Workspace Trust: no ejecutar compilación/análisis que ejecute código sin confianza explícita.
-9. Cancelación, límites de solicitudes, memoria y latencia.
-10. Pruebas del protocolo y documentación de instalación.
+1. **Extensión mínima — pendiente:** no existe extensión funcional que asocie `.ox`, contribuya configuración o registre comandos.
+2. **Semantic tokens — prototipo parcial:** el servidor actual emite tokens heurísticos; falta resaltado validado contra el análisis del compilador y la experiencia VS Code.
+3. **Servidor LSP — base parcial:** existe `crates/oxido-lsp` con stdio, ciclo de vida, documentos incrementales y tolerancia a algunas entradas incompletas. Falta completar la integración y aceptar el protocolo contra un cliente/editor real.
+4. **Diagnósticos de compilador/Cargo — pendiente:** hoy se publican diagnósticos léxicos; no se inicia Cargo desde el LSP ni se mapean diagnósticos de Cargo al `.ox`.
+5. **`rust-analyzer` — pendiente:** no hay bridge para tipos inferidos, hover, inlay hints o autocompletado sobre el Rust generado ni mapeo de sus posiciones.
+6. **Navegación y refactorizaciones — pendiente:** símbolos, definición, referencias y renombrado requieren análisis y pruebas que eviten resultados inventados.
+7. **Formato y acciones — pendiente en el editor:** existe `oxido formato` en CLI, pero no hay proveedor LSP ni acciones de código integradas en VS Code.
+8. **Workspace Trust — pendiente:** antes de invocar compilación o análisis que active `build.rs`/macros, la extensión debe exigir confianza explícita del workspace.
+9. **Cancelación y recursos — parcial:** `$/cancelRequest` detiene cooperativamente semantic tokens; diagnósticos de edición siguen síncronos. Faltan límites/medidas de latencia y memoria desde el editor y pruebas de cargas/cancelación para el flujo integrado.
+10. **Protocolo e instalación — parcial:** hay pruebas de stdio/framing y README de estado; faltan pruebas de extensión instalada y guía de uso de una integración funcional.
 
 **Entregables:** extensión/LSP probados contra compilador real.
 

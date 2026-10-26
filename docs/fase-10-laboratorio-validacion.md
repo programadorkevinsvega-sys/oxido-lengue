@@ -14,7 +14,7 @@
 | 6. Límites y recuperación | Parcial | Hay límites de tamaños/anidamiento, Unicode, spans y framing. El LSP anuncia sincronización incremental y tiene pruebas de ediciones en secuencia con UTF-16, versiones obsoletas, rangos inválidos y recuperación. Semantic tokens admite cancelación cooperativa mediante `$/cancelRequest`; los diagnósticos de edición permanecen síncronos. |
 | 7. Proyectos reutilizables | Parcial | `tests/README.md` define el contrato y un índice de referencias con raíz, modo, comandos/documentación y si la evidencia es automática o manual. Los READMEs de cada proyecto aún difieren en detalle; servicios externos y benchmarks no se ejecutan en cada CI. |
 | 8. Informes reproducibles | Implementación inicial | `tools/validation-report` ejecuta suites, registra commit/entorno/estados/duración y el comando exacto y escribe un Markdown; tests comprueban la matriz de trazabilidad y el límite de runs. La campaña de 10.000 por target se archivó en [`reports/fase-10/2026-10-26-10000-por-target.md`](reports/fase-10/2026-10-26-10000-por-target.md). El informe nuevo queda en `target/validation-report.md` (ignorado por Git) hasta que se archive explícitamente. No se inventan métricas de rendimiento. |
-| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing. El resultado remoto del cambio actual está pendiente hasta completar su PR. |
+| 9. CI | En progreso | CI valida fmt, Clippy y tests del recolector, además del workspace, cargo-deny y smoke de fuzzing. PR #27 (`b4994b0`) pasó `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en push y PR; cada iteración futura requiere su propio resultado verde. |
 
 ## Harnesses de fuzzing
 
@@ -123,7 +123,7 @@ La fase seguirá abierta hasta que las características publicadas en la matriz 
 | Proyectos de referencia | El índice central ahora anota modo, manifiestos/lockfiles, dependencias, instrucción/resultado y si la evidencia corre en CI o manualmente. Se corrigió el modo del proyecto de módulos a llaves. |
 | Verificación local | [`Informe integral archivado`](reports/fase-10/2026-10-26-10000-por-target.md): `cargo test --workspace --locked` aprobó 147 pruebas; 5 pruebas del recolector; fmt, Clippy, cargo-deny, build del portal y cinco harnesses aprobaron. Cada target fuzz completó 10.000 iteraciones con `-max_len=8192`, sin crash. |
 | Rendimiento | No medido por esta campaña |
-| CI remota | Pendiente para esta iteración |
+| CI remota | Aprobada en PR #27 (`b4994b0`): `rust`, `dependencies`, `fuzz-smoke` y Cloudflare Pages en ambos workflows |
 | Límites | La cancelación solo se aplica a semantic tokens; semantic tokens siguen siendo heurísticos. Los proyectos que levantan servicios y benchmarks continúan como procedimientos manuales; el índice no equivale a automatizarlos. La campaña 10k/target no acredita ausencia de defectos. |
 
 ## Iteración de trazabilidad y referencias

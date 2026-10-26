@@ -70,9 +70,10 @@ Estos criterios pertenecen a las fases de implementación indicadas en [roadmap.
 | Fixture | Cobertura concreta |
 |---|---|
 | `items-y-tipos` | `use` anidado, `derive`, visibilidad, struct genérico, campos, enum, función genérica y `where` |
-| `contenedores-y-control` | firma de trait, `impl` genérico, métodos asociados, módulo, closure, iteradores, `match` por brazos indentados y expresión tail |
+| `contenedores-y-control` | firma y tipo asociado de trait, `impl` genérico, constante asociada, métodos asociados (incluido receiver mutable), módulo, closure, iteradores, `match` por brazos indentados y expresión tail |
 | `macros-comentarios-y-async` | `macro_rules!`, atributo, comentario, raw string multilínea, invocaciones de macros opacas, `async`/`.await`, binding mutable, array, `for`, `while` y `break` |
 | `expresiones-y-patrones` | alias de tipo, constante, tupla, referencias, cadenas de métodos, `enumerate`/`fold`, closure con parámetros destructurados, bloque Rust dentro de expresión, `if let`, `return`, `match` y patrones wildcard/binding |
+| `control-y-bloques` | `loop`, `if`/`else`, `break` con valor, `continue`, tail expression y ramas con valor |
 
 Cada fixture comprueba el texto `.ox` esperado, vuelve a pasar `oxido formato --comprobar` y exporta antes/después. Al normalizar ambos `.rs` con `rustfmt` del toolchain 1.99.1 (`--edition 2024`), exige que sean idénticos. Esto verifica estabilidad e integridad del Rust normalizado en esos casos y que `rustfmt` los parsea; no prueba que la presentación `.ox` sea idéntica a `rustfmt`, que esos fixtures compilen semánticamente ni que cubran exhaustivamente cada variante de la gramática Rust. La prueba necesita el componente `rustfmt` instalado, como lo configura CI.
 - `import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree` importa módulos `.rs`/`.ox` mezclados con `#[path]` relativo, ejecuta el proyecto importado y compila/ejecuta su exportación Rust.

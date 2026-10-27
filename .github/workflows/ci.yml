@@ -69,9 +69,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
         with:
           toolchain: 1.99.1
-          components: rust-analyzer
+          components: rustfmt, rust-analyzer
       - run: cargo build --release -p oxido-lsp --locked
       - run: rust-analyzer --version
+      - run: rustfmt --version
       - run: echo "$GITHUB_WORKSPACE/target/release" >> "$GITHUB_PATH"
       - run: node --version
       - run: npm ci --prefix editors/vscode-oxido

@@ -24,7 +24,13 @@ fn generates_a_rust_program_with_a_serializable_source_map() {
         .map_generated(2, 5)
         .expect("el call site de la macro debe volver al .ox");
     let original = source.span(mapped.start, mapped.end).unwrap();
-    assert!(source.slice(original).contains("println!"));
+    let call_start = source.text().find("println!").expect("la llamada existe");
+    let call_end = call_start + "println!(\"Hola, mundo.\")".len();
+    assert!(
+        call_start <= mapped.start && mapped.end <= call_end,
+        "la correspondencia cae dentro de la llamada: {mapped:?}"
+    );
+    assert!(source.slice(original).contains("println"));
     let serialized = serde_json::to_string(&generated.source_map).unwrap();
     assert!(serialized.contains("generatedStartLine"));
 }

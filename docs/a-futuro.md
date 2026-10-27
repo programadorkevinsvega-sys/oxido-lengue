@@ -46,7 +46,7 @@ Generar un informe de características de Rust usadas, compatibilidad conocida, 
 
 ### 1.11. Refactorización e índice incremental
 
-Añadir renombrado seguro y un índice incremental persistente para el editor, de modo que la navegación y la clasificación de tokens no dependan solo de los documentos abiertos. El renombrado deberá rechazar cambios ambiguos o no demostrables y conservar la semántica Rust; el índice persistente necesitará invalidación por versión, límites de tamaño y pruebas de recuperación. Son objetivos futuros: Fase 11 cierra sin estas capacidades.
+La Fase 11.1 incorporó un renombrado acotado y un índice incremental persistente para el editor. El renombrado delega en `rust-analyzer` en workspace confiable, solo aplica ediciones con correspondencia exacta al `.ox` y recurre a un fallback local que rechaza ambigüedad y nombres reservados. El índice vive fuera del workspace, se versiona y se invalida por fecha, tamaño y contenido. Siguen como objetivos futuros la refactorización sobre expresiones sin correspondencia, los cambios que cruzan fragmentos opacos o macros, la resolución de tipos completa y la validación de la caché en Windows/macOS. No se presenta el alcance actual como refactorización universal.
 
 ## 2. Óxido como puente de aprendizaje
 

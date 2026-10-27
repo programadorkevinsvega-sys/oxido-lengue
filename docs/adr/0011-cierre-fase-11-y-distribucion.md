@@ -2,6 +2,7 @@
 
 - **Estado:** aceptado
 - **Fecha:** 2026-10-26
+- **Actualización:** 2026-10-27, ampliado por [ADR 0012](0012-ambitos-locales-rename-e-indice-persistente.md) (Fase 11.1)
 - **Contexto:** cierre de Fase 11
 
 ## Contexto
@@ -18,10 +19,14 @@ La tercera categoría no se puede cerrar sin cuentas, credenciales, autorizació
 
 1. La Fase 11 se cierra técnicamente cuando las capacidades del editor/LSP están cubiertas por pruebas del crate y por la suite host real de VS Code. La evidencia host debe comprobar contenido semántico, no solo que una solicitud devuelva una forma válida.
 2. La clasificación de semantic tokens usa el índice de declaraciones de los documentos abiertos. Los nombres declarados, sus referencias cualificadas y los módulos abiertos reciben la clase correspondiente; lo que no se puede resolver conserva el fallback léxico. Los archivos cerrados siguen disponibles para definición, hover, referencias y símbolos, pero no se recorren en cada edición para colorear tokens.
-3. No se declara resolución de tipos universal. Un parámetro o un enlace local sin declaración indexada conserva una clase léxica; los tipos y firmas profundos siguen delegados en `rust-analyzer` cuando el workspace es confiable. El índice tampoco modela ámbitos locales: si un enlace local comparte nombre con una declaración indexada, el token puede recibir la clase de esa declaración. Esta limitación se documenta y no se presenta como resolución de tipos.
-4. `rename` y un índice incremental persistente quedan fuera de Fase 11. Un nombre ambiguo sigue devolviendo todas las candidatas y no se elige una arbitrariamente.
+3. No se declara resolución de tipos universal. Un parámetro o un enlace local sin declaración indexada conserva una clase léxica; los tipos y firmas profundos siguen delegados en `rust-analyzer` cuando el workspace es confiable. El índice tampoco modela ámbitos locales: si un enlace local comparte nombre con una declaración indexada, el token puede recibir la clase de esa declaración. Esta limitación se documenta y no se presenta como resolución de tipos. *(La limitación sobre ámbitos locales se supera en [ADR 0012](0012-ambitos-locales-rename-e-indice-persistente.md); la ausencia de resolución de tipos universal sigue vigente.)*
+4. `rename` y un índice incremental persistente quedan fuera de Fase 11. Un nombre ambiguo sigue devolviendo todas las candidatas y no se elige una arbitrariamente. *(Superado por [ADR 0012](0012-ambitos-locales-rename-e-indice-persistente.md): la Fase 11.1 incorpora ambas capacidades con rechazo de ambigüedad.)*
 5. La distribución, la firma, la notarización, la publicación, el SBOM, los builds reproducibles y los benchmarks de latencia/memoria fuera de Linux pasan a Fase 12. El workflow de release existente es preparación, no evidencia de ejecución multiplataforma.
 6. `rust-analyzer` sigue siendo un servicio auxiliar: un error transitorio o una respuesta vacía de navegación no reemplaza el resultado local acotado cuando el índice puede resolverlo.
+
+## Vigencia de la extensión 11.1
+
+El cierre técnico y el traslado de la distribución a Fase 12 siguen vigentes. [ADR 0012](0012-ambitos-locales-rename-e-indice-persistente.md) amplía esta decisión en tres puntos: el índice modela ámbitos locales acotados, los archivos cerrados participan en semantic tokens mediante una caché persistente fuera del workspace y se incorporan `prepareRename`/`rename` con delegación en `rust-analyzer` y fallback local conservador. Por tanto, el punto 3 se actualiza en su limitación sobre ámbitos y el punto 4 deja de describir el estado actual: `rename` e índice persistente forman parte de la Fase 11.1. Las limitaciones sobre resolución de tipos universal y sobre el traslado de la distribución a Fase 12 no cambian.
 
 ## Consecuencias
 

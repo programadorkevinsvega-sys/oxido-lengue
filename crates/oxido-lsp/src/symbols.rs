@@ -11,8 +11,10 @@ use oxido_language::{
         syntax::{LexOptions, SyntaxMode, TokenKind, lex},
     },
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) enum SymbolKind {
     Function,
     Method,
@@ -596,6 +598,287 @@ fn line_end(text: &str, offset: usize) -> Option<usize> {
     })
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LocalBindingKind {
+    Variable,
+    Parameter,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LocalBinding {
+    pub name: String,
+    pub kind: LocalBindingKind,
+    pub name_start: usize,
+    pub name_end: usize,
+    pub scope_start: usize,
+    pub scope_end: usize,
+}
+
+impl LocalBinding {
+    #[must_use]
+    pub fn contains(&self, offset: usize) -> bool {
+        self.scope_start <= offset && offset < self.scope_end
+    }
+}
+
+/// Ámbitos léxicos acotados del archivo `.ox`.
+///
+/// No infiere tipos ni evalúa expresiones: registra parámetros y enlaces
+/// `dejar`/`let`/`para` para que el fallback local no confunda una variable con
+/// una declaración del workspace. La resolución de tipos sigue delegada en
+/// `rust-analyzer`.
+pub(crate) fn local_bindings(text: &str, mode: Option<SyntaxMode>) -> Vec<LocalBinding> {
+    let lexed = lex(&SourceFile::new(text), LexOptions { project_mode: mode });
+    let tokens = lexed.tokens;
+    let mut blocks = vec![(0_usize, text.len())];
+    let mut braces = Vec::new();
+    let mut indents = Vec::new();
+    for token in &tokens {
+        match &token.kind {
+            TokenKind::Punctuation => match text.get(token.span.start()..token.span.end()) {
+                Some("{") => braces.push(token.span.end()),
+                Some("}") => {
+                    if let Some(start) = braces.pop() {
+                        blocks.push((start, token.span.start()));
+                    }
+                }
+                _ => {}
+            },
+            TokenKind::Indent => indents.push(token.span.end()),
+            TokenKind::Dedent => {
+                if let Some(start) = indents.pop() {
+                    blocks.push((start, token.span.start()));
+                }
+            }
+            _ => {}
+        }
+    }
+    let significant = tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, token)| {
+            !matches!(
+                token.kind,
+                TokenKind::Comment
+                    | TokenKind::Newline
+                    | TokenKind::Indent
+                    | TokenKind::Dedent
+                    | TokenKind::ModeHeader(_)
+            )
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let mut bindings = Vec::new();
+    for (position, index) in significant.iter().copied().enumerate() {
+        let token = &tokens[index];
+        let word = text
+            .get(token.span.start()..token.span.end())
+            .unwrap_or_default();
+        match word {
+            "funcion" | "fn" => {
+                if let Some(binding) =
+                    function_bindings(text, &tokens, &significant, position, &blocks)
+                {
+                    bindings.extend(binding);
+                }
+            }
+            "dejar" | "let" | "para" | "for" => {
+                if let Some(binding) =
+                    declared_binding(text, &tokens, &significant, position, &blocks, word)
+                {
+                    bindings.push(binding);
+                }
+            }
+            _ => {}
+        }
+    }
+    bindings.sort_by_key(|binding| (binding.scope_start, binding.name_start));
+    bindings
+}
+
+#[must_use]
+pub(crate) fn local_binding_at<'a>(
+    bindings: &'a [LocalBinding],
+    name: &str,
+    offset: usize,
+) -> Option<&'a LocalBinding> {
+    bindings
+        .iter()
+        .filter(|binding| binding.name == name && binding.contains(offset))
+        .max_by_key(|binding| binding.scope_start)
+}
+
+fn declared_binding(
+    text: &str,
+    tokens: &[oxido_language::domain::syntax::Token],
+    significant: &[usize],
+    position: usize,
+    blocks: &[(usize, usize)],
+    keyword: &str,
+) -> Option<LocalBinding> {
+    let mut next = position.checked_add(1)?;
+    while let Some(index) = significant.get(next).copied() {
+        let word = word_at(text, &tokens[index]);
+        if matches!(word, "mutable" | "mut") {
+            next = next.checked_add(1)?;
+            continue;
+        }
+        break;
+    }
+    let index = *significant.get(next)?;
+    let token = &tokens[index];
+    if !matches!(token.kind, TokenKind::Identifier { .. }) {
+        return None;
+    }
+    let name = word_at(text, token).to_owned();
+    if name == "_" {
+        return None;
+    }
+    if keyword == "dejar" || keyword == "let" {
+        let following = significant
+            .get(next + 1)
+            .and_then(|index| tokens.get(*index))
+            .and_then(|token| text.get(token.span.start()..token.span.end()));
+        if following.is_some_and(|following| !matches!(following, ":" | "=" | "," | ";" | ")")) {
+            return None;
+        }
+    }
+    let (scope_start, scope_end) = innermost_block(blocks, token.span.start())?;
+    Some(LocalBinding {
+        name,
+        kind: LocalBindingKind::Variable,
+        name_start: token.span.start(),
+        name_end: token.span.end(),
+        scope_start,
+        scope_end,
+    })
+}
+
+fn function_bindings(
+    text: &str,
+    tokens: &[oxido_language::domain::syntax::Token],
+    significant: &[usize],
+    position: usize,
+    blocks: &[(usize, usize)],
+) -> Option<Vec<LocalBinding>> {
+    let parameters_start = significant
+        .iter()
+        .skip(position + 1)
+        .copied()
+        .find(|index| word_at(text, &tokens[*index]) == "(")?;
+    let parameters_end = matching_paren(text, tokens, significant, parameters_start)?;
+    let body_marker = significant
+        .iter()
+        .skip_while(|index| **index <= parameters_end)
+        .copied()
+        .find(|index| matches!(word_at(text, &tokens[*index]), "{" | ":"))?;
+    let body_start = significant
+        .iter()
+        .copied()
+        .find(|index| *index > body_marker)
+        .and_then(|index| tokens.get(index))
+        .map(|token| token.span.start())?;
+    let (_, scope_end) = innermost_block(blocks, body_start)?;
+    let bindings = parameter_tokens(text, tokens, significant, parameters_start, parameters_end)
+        .into_iter()
+        .map(|(index, kind)| {
+            let token = &tokens[index];
+            let start = token.span.start();
+            LocalBinding {
+                name: word_at(text, token).to_owned(),
+                kind,
+                name_start: start,
+                name_end: token.span.end(),
+                scope_start: start,
+                scope_end,
+            }
+        })
+        .collect::<Vec<_>>();
+    Some(bindings)
+}
+
+fn parameter_tokens(
+    text: &str,
+    tokens: &[oxido_language::domain::syntax::Token],
+    significant: &[usize],
+    parameters_start: usize,
+    parameters_end: usize,
+) -> Vec<(usize, LocalBindingKind)> {
+    let mut output = Vec::new();
+    let mut depth = 0_usize;
+    for index in significant
+        .iter()
+        .copied()
+        .skip_while(|index| *index <= parameters_start)
+        .take_while(|index| *index < parameters_end)
+    {
+        let word = word_at(text, &tokens[index]);
+        match word {
+            "(" | "[" => depth = depth.saturating_add(1),
+            ")" | "]" => depth = depth.saturating_sub(1),
+            _ if depth == 0 && matches!(tokens[index].kind, TokenKind::Identifier { .. }) => {
+                let previous = significant
+                    .iter()
+                    .copied()
+                    .take_while(|candidate| *candidate < index)
+                    .last()
+                    .map(|candidate| word_at(text, &tokens[candidate]));
+                let next = significant
+                    .iter()
+                    .copied()
+                    .find(|candidate| *candidate > index)
+                    .map(|candidate| word_at(text, &tokens[candidate]));
+                let declares = matches!(next, Some(":" | "," | ")"))
+                    && !matches!(previous, Some(":" | "::" | "."));
+                if declares {
+                    output.push((index, LocalBindingKind::Parameter));
+                }
+            }
+            _ => {}
+        }
+    }
+    output
+}
+
+fn matching_paren(
+    text: &str,
+    tokens: &[oxido_language::domain::syntax::Token],
+    significant: &[usize],
+    open: usize,
+) -> Option<usize> {
+    let mut depth = 0_usize;
+    for index in significant
+        .iter()
+        .copied()
+        .skip_while(|index| *index < open)
+    {
+        match word_at(text, &tokens[index]) {
+            "(" => depth = depth.checked_add(1)?,
+            ")" => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn innermost_block(blocks: &[(usize, usize)], offset: usize) -> Option<(usize, usize)> {
+    blocks
+        .iter()
+        .copied()
+        .filter(|(start, end)| *start <= offset && offset <= *end)
+        .min_by_key(|(start, end)| end.saturating_sub(*start))
+}
+
+fn word_at<'a>(text: &'a str, token: &oxido_language::domain::syntax::Token) -> &'a str {
+    text.get(token.span.start()..token.span.end())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -664,5 +947,70 @@ mod tests {
         assert_eq!(impl_type_name("Mostrar for Alumno"), Some("Alumno".into()));
         assert_eq!(impl_type_name("Alumno"), Some("Alumno".into()));
         assert_eq!(impl_type_name("<T> Caja<T>").as_deref(), Some("Caja"));
+    }
+
+    #[test]
+    fn tracks_parameters_local_bindings_and_inner_shadowing() {
+        let text = concat!(
+            "sintaxis indentacion\n",
+            "funcion suma(valor: i32):\n",
+            "    dejar copia = valor\n",
+            "    si copia > 0:\n",
+            "        dejar valor = copia\n",
+            "        retornar valor\n",
+            "    retornar copia\n",
+        );
+        let bindings = local_bindings(text, Some(SyntaxMode::Indentation));
+        let parameter = bindings
+            .iter()
+            .find(|binding| binding.name == "valor" && binding.kind == LocalBindingKind::Parameter)
+            .expect("el parámetro se registra");
+        assert_eq!(
+            parameter.name_start,
+            text.find("valor: i32").expect("parámetro en la firma")
+        );
+        let copia = bindings
+            .iter()
+            .find(|binding| binding.name == "copia")
+            .expect("la variable local se registra");
+        assert!(copia.scope_start > parameter.scope_start);
+        let shadow = bindings
+            .iter()
+            .find(|binding| binding.name == "valor" && binding.kind == LocalBindingKind::Variable)
+            .expect("el enlace interno sombrea al parámetro");
+        let inner_use = text.rfind("retornar valor").expect("uso interno") + "retornar ".len();
+        let resolved = local_binding_at(&bindings, "valor", inner_use)
+            .expect("el uso interno se resuelve al enlace más cercano");
+        assert_eq!(resolved.name_start, shadow.name_start);
+        assert_eq!(resolved.kind, LocalBindingKind::Variable);
+        let outer_use = text.find("= valor").expect("uso en el inicializador") + 2;
+        let resolved = local_binding_at(&bindings, "valor", outer_use)
+            .expect("el uso externo se resuelve al parámetro");
+        assert_eq!(resolved.kind, LocalBindingKind::Parameter);
+    }
+
+    #[test]
+    fn tracks_braced_let_and_for_bindings() {
+        let text = concat!(
+            "sintaxis llaves\n",
+            "fn principal() {\n",
+            "    let valor = 1;\n",
+            "    for item in 0..2 {\n",
+            "        let total = item + valor;\n",
+            "    }\n",
+            "}\n",
+        );
+        let bindings = local_bindings(text, Some(SyntaxMode::Braces));
+        for name in ["valor", "item", "total"] {
+            assert!(
+                bindings.iter().any(|binding| binding.name == name),
+                "falta el enlace {name}: {bindings:?}"
+            );
+        }
+        let total = bindings
+            .iter()
+            .find(|binding| binding.name == "total")
+            .expect("el enlace del bucle interno");
+        assert!(total.scope_start > text.find("for item").expect("bucle"));
     }
 }

@@ -15,3 +15,4 @@ Los ADR registran decisiones con consecuencias duraderas para el compilador, sus
 - [0009 — Evidencia reproducible y alcance de benchmarks](0009-politica-de-evidencia-y-benchmarks.md): evidencia de pruebas, fuzz y mediciones (Fase 10).
 - [0010 — Frontera del LSP y confianza del editor](0010-frontera-lsp-y-confianza-editor.md): análisis estático, Workspace Trust y ejecución de herramientas editoriales (Fase 11).
 - [0011 — Cierre técnico de Fase 11 y traslado de la distribución](0011-cierre-fase-11-y-distribucion.md): alcance cerrado del editor/LSP, límites de semantic tokens y distribución en Fase 12.
+- [0012 — Ámbitos locales, renombrado e índice persistente](0012-ambitos-locales-rename-e-indice-persistente.md): extensión 11.1, delegación en `rust-analyzer`, fallback local y caché versionada fuera del workspace.

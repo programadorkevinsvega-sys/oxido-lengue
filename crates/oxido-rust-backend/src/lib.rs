@@ -53,6 +53,11 @@ pub struct GeneratedRust {
 struct PendingMapping {
     source: Span,
     tokens: Vec<String>,
+    /// Desplazamientos relativos al inicio del fragmento para cada token de
+    /// `tokens`. Solo se rellena cuando la tokenización de origen y la del
+    /// `TokenStream` normalizado coinciden posición a posición; en otro caso el
+    /// mapa conserva únicamente la correspondencia del fragmento completo.
+    token_offsets: Vec<Option<(usize, usize)>>,
 }
 
 thread_local! {
@@ -158,6 +163,28 @@ pub fn generate(file: &File, source: &SourceFile) -> Result<GeneratedRust, SynEr
             target[end].1.end(),
         ) {
             mappings.push(mapping);
+        }
+        for (offset, relative) in entry.token_offsets.iter().enumerate() {
+            let Some((relative_start, relative_end)) = *relative else {
+                continue;
+            };
+            let Some(generated) = target.get(start + offset) else {
+                break;
+            };
+            let (Some(source_start), Some(source_end)) = (
+                entry.source.start().checked_add(relative_start),
+                entry.source.start().checked_add(relative_end),
+            ) else {
+                continue;
+            };
+            let Some(source_span) = source.span(source_start, source_end) else {
+                continue;
+            };
+            if let Some(mapping) =
+                make_mapping(source, source_span, generated.1.start(), generated.1.end())
+            {
+                mappings.push(mapping);
+            }
         }
         cursor = end + 1;
     }
@@ -1443,11 +1470,103 @@ fn register_fragment(
 ) -> Result<(), SynError> {
     let mut tokens = Vec::new();
     flatten_tokens(parse_tokens(&fragment.text)?, &mut tokens);
+    let token_offsets = fragment_token_offsets(fragment, &tokens);
     mappings.push(PendingMapping {
         source: fragment.span,
         tokens: tokens.into_iter().map(|(token, _)| token).collect(),
+        token_offsets,
     });
     Ok(())
+}
+
+fn fragment_token_offsets(
+    fragment: &RustFragment,
+    generated: &[(String, RustSpan)],
+) -> Vec<Option<(usize, usize)>> {
+    let lexed = lex(
+        &SourceFile::new(fragment.text.clone()),
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    let source = lexed
+        .tokens
+        .iter()
+        .filter(|token| {
+            !matches!(
+                token.kind,
+                TokenKind::Comment
+                    | TokenKind::Newline
+                    | TokenKind::Indent
+                    | TokenKind::Dedent
+                    | TokenKind::ModeHeader(_)
+            )
+        })
+        .map(|token| {
+            let text = fragment
+                .text
+                .get(token.span.start()..token.span.end())
+                .unwrap_or_default();
+            (text, token.span.start(), token.span.end())
+        })
+        .collect::<Vec<_>>();
+    if source.len() != generated.len() {
+        return vec![None; generated.len()];
+    }
+    generated
+        .iter()
+        .zip(source)
+        .map(|((token, _), (text, start, end))| {
+            fragment_token_matches(token, text).then_some((start, end))
+        })
+        .collect()
+}
+
+fn fragment_token_matches(generated: &str, source: &str) -> bool {
+    if let Some(delimiter) = generated.strip_prefix("open:") {
+        return match delimiter {
+            "paren" => source == "(",
+            "brace" => source == "{",
+            "bracket" => source == "[",
+            "none" => false,
+            _ => false,
+        };
+    }
+    if let Some(delimiter) = generated.strip_prefix("close:") {
+        return match delimiter {
+            "paren" => source == ")",
+            "brace" => source == "}",
+            "bracket" => source == "]",
+            "none" => false,
+            _ => false,
+        };
+    }
+    if generated == source {
+        return true;
+    }
+    if source
+        .strip_prefix("r#")
+        .is_some_and(|raw| generated == raw || generated == source)
+    {
+        return true;
+    }
+    let translated = [
+        oxido_language::domain::syntax::keyword_translation(source),
+        oxido_language::domain::syntax::type_translation(source),
+        oxido_language::domain::syntax::macro_translation(source),
+        oxido_language::domain::syntax::method_translation(source),
+        oxido_language::domain::syntax::prelude_translation(source),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|translation| translation == generated);
+    if translated {
+        return true;
+    }
+    // Los literales conservan su ubicación aunque `proc_macro2` normalice la
+    // representación textual de un escape.
+    (source.starts_with('"') && generated.starts_with('"'))
+        || (source.starts_with('\'') && generated.starts_with('\''))
 }
 
 fn flatten_tokens(stream: TokenStream, output: &mut Vec<(String, RustSpan)>) {
@@ -1751,6 +1870,32 @@ mod generation_tests {
             }),
             "{:?}",
             generated.mappings
+        );
+    }
+
+    #[test]
+    fn maps_individual_fragment_tokens_for_precise_rename_ranges() {
+        let source = SourceFile::new(
+            "sintaxis llaves\nfn identidad(valor: i32) -> i32 {\n    let copia = valor;\n    copia\n}\n",
+        );
+        let parsed = parse(&source, LexOptions::default());
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+        let generated = generate(&parsed.file.unwrap(), &source).unwrap();
+        let copia = source.text().find("copia = valor").expect("copia exists");
+        let mapping = generated
+            .mappings
+            .iter()
+            .find(|mapping| {
+                mapping.source_start == copia && mapping.source_end == copia + "copia".len()
+            })
+            .expect("el token copia tiene una correspondencia propia");
+        assert_eq!(
+            mapping.generated_end_column,
+            mapping.generated_start_column + "copia".len()
+        );
+        assert_eq!(
+            mapping.source_end - mapping.source_start,
+            mapping.generated_end_column - mapping.generated_start_column
         );
     }
 

@@ -59,9 +59,20 @@ impl SourceMap {
     /// Resuelve una columna generada 1-based al fragmento fuente más específico.
     #[must_use]
     pub fn map_generated(&self, line: usize, column: usize) -> Option<SourceLocation> {
+        let mapping = self.mapping_for_generated(line, column)?;
+        Some(SourceLocation {
+            line: mapping.source_start_line,
+            column: mapping.source_start_column,
+            start: mapping.source_start,
+            end: mapping.source_end,
+        })
+    }
+
+    /// Devuelve la correspondencia completa que contiene una posición generada.
+    #[must_use]
+    pub fn mapping_for_generated(&self, line: usize, column: usize) -> Option<&SpanMapping> {
         let column = column.checked_sub(1)?;
-        let mapping = self
-            .mappings
+        self.mappings
             .iter()
             .filter(|mapping| {
                 let starts_before = (line, column)
@@ -70,13 +81,7 @@ impl SourceMap {
                     (line, column) < (mapping.generated_end_line, mapping.generated_end_column);
                 starts_before && ends_after
             })
-            .min_by_key(|mapping| mapping.source_end.saturating_sub(mapping.source_start))?;
-        Some(SourceLocation {
-            line: mapping.source_start_line,
-            column: mapping.source_start_column,
-            start: mapping.source_start,
-            end: mapping.source_end,
-        })
+            .min_by_key(|mapping| mapping.source_end.saturating_sub(mapping.source_start))
     }
 }
 

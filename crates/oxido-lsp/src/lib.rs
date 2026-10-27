@@ -1,12 +1,15 @@
 #![forbid(unsafe_code)]
 
+mod index;
 mod symbols;
 
+use index::WorkspaceIndex;
 use oxido_compiler::application::source_map::SourceMap;
 use oxido_language::{
     SourceFile,
     domain::syntax::{LexOptions, TokenKind, lex},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -21,7 +24,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use symbols::{SymbolKind, declared_symbols};
+use symbols::{LocalBinding, SymbolKind, declared_symbols, local_binding_at, local_bindings};
 
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_HEADER_LINE_BYTES: usize = 8 * 1024;
@@ -50,6 +53,7 @@ struct RustAnalyzerSession {
     output: Receiver<Value>,
     root: PathBuf,
     files: BTreeMap<PathBuf, String>,
+    legend: Vec<String>,
     next_id: i64,
 }
 
@@ -67,7 +71,8 @@ struct RustAnalyzerSourceMap {
     map: SourceMap,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct WorkspaceSymbol {
     uri: String,
     name: String,
@@ -82,7 +87,7 @@ struct RaWork {
     workspace: RustAnalyzerWorkspace,
     method: String,
     params: Value,
-    reply: Sender<Option<Value>>,
+    reply: Sender<Option<RaQueryResult>>,
 }
 
 #[derive(Default)]
@@ -94,6 +99,8 @@ pub struct ServerState {
     total_document_bytes: usize,
     diagnostic_runs: u64,
     last_diagnostic_ms: Option<u128>,
+    index: WorkspaceIndex,
+    index_cache_dir: Option<PathBuf>,
 }
 
 struct TextDocument {
@@ -229,7 +236,10 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
             }
         })?;
 
-    let mut state = ServerState::default();
+    let mut state = ServerState {
+        index_cache_dir: index::default_cache_dir(),
+        ..ServerState::default()
+    };
     let mut pending = HashMap::<String, PendingSemanticRequest>::new();
     let mut pending_cargo = HashMap::<String, PendingCargoRequest>::new();
     let mut pending_diagnostics = HashMap::<String, PendingDiagnostic>::new();
@@ -303,9 +313,10 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                 }
                 if request.get("method").and_then(Value::as_str) == Some("oxido/stats") {
                     let id = request.get("id").cloned().unwrap_or(Value::Null);
+                    let index_stats = state.index.stats();
                     write_lsp_message(
                         &mut output,
-                        &json!({"jsonrpc":"2.0","id":id,"result":{"openDocuments":state.documents.len(),"documentBytes":state.total_document_bytes,"diagnosticRuns":state.diagnostic_runs,"lastDiagnosticMs":state.last_diagnostic_ms,"residentMemoryKiB":resident_memory_kib(),"rustAnalyzerResponses":RA_RESPONSES.load(Ordering::Relaxed)}}),
+                        &json!({"jsonrpc":"2.0","id":id,"result":{"openDocuments":state.documents.len(),"documentBytes":state.total_document_bytes,"diagnosticRuns":state.diagnostic_runs,"lastDiagnosticMs":state.last_diagnostic_ms,"residentMemoryKiB":resident_memory_kib(),"rustAnalyzerResponses":RA_RESPONSES.load(Ordering::Relaxed),"indexFiles":index_stats.files,"indexCacheReused":index_stats.reused,"indexCacheReindexed":index_stats.reindexed,"indexCacheRemoved":index_stats.removed,"indexCacheWritten":index_stats.cache_written,"indexGeneration":index_stats.generation}}),
                     )?;
                     continue;
                 }
@@ -357,21 +368,59 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                         })
                         .collect::<Vec<_>>();
                     let worker_project_root = state.project_root.clone();
+                    state.index.refresh_if_stale(
+                        state.project_root.as_deref(),
+                        state.project_mode,
+                        index::STALE_AFTER,
+                    );
+                    let worker_index = state.index.clone();
+                    let worker_trusted = state.trusted_workspace;
+                    let worker_params = request.get("params").cloned();
                     let worker = thread::Builder::new()
                         .name("oxido-lsp-semantic-tokens".to_owned())
                         .spawn(move || {
-                            let symbols = workspace_symbols_from_documents(
-                                &worker_documents,
+                            let open_snapshot = worker_documents
+                                .iter()
+                                .map(|(uri, text, _, _)| (uri.clone(), text.clone()))
+                                .collect::<Vec<_>>();
+                            let symbols = worker_index.symbols(
+                                &open_snapshot,
                                 worker_project_root.as_deref(),
                                 project_mode,
                             );
-                            let response = match semantic_tokens_with_symbols(
-                                &worker_text,
-                                project_mode,
-                                worker_uri.as_deref().unwrap_or(""),
-                                &symbols,
-                                &worker_cancellation,
-                            ) {
+                            let worker_uri_ref = worker_uri.as_deref().unwrap_or("");
+                            let data = (|| {
+                                let local = semantic_token_list(
+                                    &worker_text,
+                                    project_mode,
+                                    worker_uri_ref,
+                                    &symbols,
+                                    &worker_cancellation,
+                                )?;
+                                let delegated = if worker_trusted {
+                                    let auxiliary = ServerState {
+                                        trusted_workspace: true,
+                                        project_root: worker_project_root.clone(),
+                                        project_mode,
+                                        ..ServerState::default()
+                                    };
+                                    rust_analyzer_semantic_tokens(
+                                        &worker_id,
+                                        worker_params.as_ref(),
+                                        &auxiliary,
+                                        &worker_text,
+                                        &worker_cancellation,
+                                    )
+                                    .unwrap_or_default()
+                                } else {
+                                    Vec::new()
+                                };
+                                let data = encode_semantic_tokens(merge_semantic_tokens(
+                                    local, delegated,
+                                ))?;
+                                (!worker_cancellation.load(Ordering::Relaxed)).then_some(data)
+                            })();
+                            let response = match data {
                                 Some(data) => {
                                     json!({"jsonrpc":"2.0","id":worker_id,"result":{"data":data}})
                                 }
@@ -441,6 +490,7 @@ pub fn serve_stdio(input: impl Read + Send + 'static, mut output: impl Write) ->
                         &mut output,
                         &json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":[]}}),
                     )?;
+                    state.index.refresh_uri(&uri, state.project_mode);
                 }
                 if let Some(uri) = changed_uri {
                     if let Some(previous) = pending_diagnostics.remove(&uri) {
@@ -803,6 +853,23 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
     };
     let id = request.get("id").cloned();
     let mut extra_messages = Vec::new();
+    if matches!(
+        method,
+        "textDocument/completion"
+            | "textDocument/hover"
+            | "textDocument/documentSymbol"
+            | "textDocument/definition"
+            | "textDocument/references"
+            | "textDocument/inlayHint"
+            | "textDocument/prepareRename"
+            | "textDocument/rename"
+    ) {
+        state.index.refresh_if_stale(
+            state.project_root.as_deref(),
+            state.project_mode,
+            index::STALE_AFTER,
+        );
+    }
     let response = match method {
         "initialize" => {
             state.project_mode = project_syntax_mode(&request);
@@ -817,7 +884,12 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
                 .map(PathBuf::from)
                 .and_then(|path| std::fs::canonicalize(path).ok())
                 .filter(|path| path.is_dir());
-            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator","namespace"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"inlayHintProvider":true,"documentFormattingProvider":true}}}))
+            state.index = WorkspaceIndex::load(
+                state.project_root.clone(),
+                state.project_mode,
+                state.index_cache_dir.clone(),
+            );
+            id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":{"capabilities":{"textDocumentSync":{"openClose":true,"change":2},"semanticTokensProvider":{"full":true,"legend":{"tokenTypes":["keyword","function","variable","string","number","comment","type","operator","namespace"],"tokenModifiers":[]}},"completionProvider":{"triggerCharacters":[".",":"]},"hoverProvider":true,"documentSymbolProvider":true,"definitionProvider":true,"referencesProvider":true,"inlayHintProvider":true,"documentFormattingProvider":true,"renameProvider":{"prepareProvider":true}}}}))
         },
         "shutdown" => id.map(|id| json!({"jsonrpc":"2.0","id":id,"result":null})),
         "textDocument/semanticTokens/full" => id.map(|id| semantic_response(id, request.get("params"), state)),
@@ -828,6 +900,8 @@ fn handle(request: Value, state: &mut ServerState) -> Vec<Value> {
         "textDocument/references" => id.map(|id| references_response(id, request.get("params"), state)),
         "textDocument/formatting" => id.map(|id| formatting_response(id, request.get("params"), state)),
         "textDocument/inlayHint" => id.map(|id| inlay_hint_response(id, request.get("params"), state)),
+        "textDocument/prepareRename" => id.map(|id| prepare_rename_response(id, request.get("params"), state)),
+        "textDocument/rename" => id.map(|id| rename_response(id, request.get("params"), state)),
         "textDocument/didOpen" => { extra_messages.extend(open_document(&request, state)); None }
         "textDocument/didChange" => { extra_messages.extend(change_document(&request, state)); None }
         "textDocument/didClose" => { close_document(&request, state); None }
@@ -1310,7 +1384,10 @@ fn document_symbols_response(id: Value, params: Option<&Value>, state: &ServerSt
             state,
             &document.text,
         )
-        && rust_analyzer_succeeded(&response)
+        && response
+            .get("result")
+            .and_then(Value::as_array)
+            .is_some_and(|symbols| !symbols.is_empty())
     {
         return response;
     }
@@ -1479,8 +1556,21 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     let selected_text = &text[selected.span.start()..selected.span.end()];
-    let candidates =
-        resolve_symbol_candidates(state, &uri, text, selected.span.start(), selected_text);
+    let locations = reference_locations(state, &uri, text, selected.span.start(), selected_text)
+        .into_iter()
+        .map(|(module_uri, start, end)| json!({"uri":module_uri,"range":{"start":start,"end":end}}))
+        .collect::<Vec<_>>();
+    json!({"jsonrpc":"2.0","id":id,"result":locations})
+}
+
+fn reference_locations(
+    state: &ServerState,
+    uri: &str,
+    text: &str,
+    token_start: usize,
+    selected_text: &str,
+) -> Vec<(String, Value, Value)> {
+    let candidates = resolve_symbol_candidates(state, uri, text, token_start, selected_text);
     let target_uris = candidates
         .iter()
         .map(|symbol| symbol.uri.as_str())
@@ -1521,10 +1611,343 @@ fn references_response(id: Value, params: Option<&Value>, state: &ServerState) -
             ) else {
                 continue;
             };
-            locations.push(json!({"uri":module_uri,"range":{"start":start,"end":end}}));
+            locations.push((module_uri.clone(), start, end));
         }
     }
-    json!({"jsonrpc":"2.0","id":id,"result":locations})
+    locations.dedup();
+    locations
+}
+
+/// Comprueba que un nombre pueda escribirse como identificador `.ox`. El lexer
+/// es la fuente de verdad: rechaza palabras reservadas, nombres vacíos y
+/// secuencias que no formen un único identificador.
+fn valid_oxido_identifier(name: &str) -> bool {
+    let lexed = lex(&SourceFile::new(name), LexOptions { project_mode: None });
+    let significant = lexed
+        .tokens
+        .iter()
+        .filter(|token| {
+            !matches!(
+                token.kind,
+                TokenKind::Comment
+                    | TokenKind::Newline
+                    | TokenKind::Indent
+                    | TokenKind::Dedent
+                    | TokenKind::ModeHeader(_)
+            )
+        })
+        .collect::<Vec<_>>();
+    significant.len() == 1
+        && matches!(significant[0].kind, TokenKind::Identifier { raw: false })
+        && significant[0].span.start() == 0
+        && significant[0].span.end() == name.len()
+}
+
+fn prepare_rename_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let rejected = json!({"jsonrpc":"2.0","id":id,"result":null});
+    let Some((uri, text, offset)) = request_document_position(params, state) else {
+        return rejected;
+    };
+    let Some(token) = lex_token_at(text, offset, state.project_mode) else {
+        return rejected;
+    };
+    if !matches!(token.kind, TokenKind::Identifier { .. }) {
+        return rejected;
+    }
+    let Some(name) = text.get(token.span.start()..token.span.end()) else {
+        return rejected;
+    };
+    if !valid_oxido_identifier(name) {
+        return rejected;
+    }
+    if state.trusted_workspace
+        && let Some(answer) =
+            rust_analyzer_exchange("textDocument/prepareRename", &id, params, state, text)
+        && answer.response.get("error").is_none()
+        && let Some(result) = answer.response.get("result")
+        && !result.is_null()
+        && let Some(source) = answer
+            .workspace
+            .source_maps
+            .get(&answer.workspace.requested_path)
+        && let Some(mapped) = map_rust_analyzer_prepare_rename(result, source)
+    {
+        return json!({"jsonrpc":"2.0","id":id,"result":mapped});
+    }
+    let bindings = local_bindings(text, state.project_mode);
+    let is_local = local_binding_at(&bindings, name, token.span.start()).is_some();
+    let candidates = resolve_symbol_candidates(state, &uri, text, token.span.start(), name);
+    let unique = candidates
+        .iter()
+        .map(|symbol| (symbol.uri.clone(), symbol.selection.to_string()))
+        .collect::<BTreeSet<_>>();
+    if !is_local && unique.len() != 1 {
+        return rejected;
+    }
+    let (Some(start), Some(end)) = (
+        lsp_position(text, token.span.start()),
+        lsp_position(text, token.span.end()),
+    ) else {
+        return rejected;
+    };
+    json!({"jsonrpc":"2.0","id":id,"result":{"range":{"start":start,"end":end},"placeholder":name}})
+}
+
+fn rename_response(id: Value, params: Option<&Value>, state: &ServerState) -> Value {
+    let rejected = json!({"jsonrpc":"2.0","id":id,"result":null});
+    let Some((uri, text, offset)) = request_document_position(params, state) else {
+        return rejected;
+    };
+    let Some(new_name) = params
+        .and_then(|value| value.get("newName"))
+        .and_then(Value::as_str)
+    else {
+        return rejected;
+    };
+    if !valid_oxido_identifier(new_name) {
+        return rejected;
+    }
+    if state.trusted_workspace
+        && let Some(answer) =
+            rust_analyzer_exchange("textDocument/rename", &id, params, state, text)
+        && answer.response.get("error").is_none()
+        && let Some(result) = answer.response.get("result")
+        && !result.is_null()
+    {
+        return map_rust_analyzer_workspace_edit(result, &answer.workspace, &answer.root).map_or(
+            rejected,
+            |edit| json!({"jsonrpc":"2.0","id":id,"result":edit}),
+        );
+    }
+    let Some(locations) = local_rename_locations(state, &uri, text, offset) else {
+        return rejected;
+    };
+    let Some(edit) = workspace_edit_from_locations(locations, new_name) else {
+        return rejected;
+    };
+    json!({"jsonrpc":"2.0","id":id,"result":edit})
+}
+
+fn local_rename_locations(
+    state: &ServerState,
+    uri: &str,
+    text: &str,
+    offset: usize,
+) -> Option<Vec<(String, Value, Value)>> {
+    let token = lex_token_at(text, offset, state.project_mode)?;
+    if !matches!(token.kind, TokenKind::Identifier { .. }) {
+        return None;
+    }
+    let name = text.get(token.span.start()..token.span.end())?.to_owned();
+    let bindings = local_bindings(text, state.project_mode);
+    if let Some(binding) = local_binding_at(&bindings, &name, token.span.start()) {
+        let ranges = local_binding_ranges(text, state.project_mode, binding, &bindings)?;
+        let mut locations = Vec::with_capacity(ranges.len());
+        for (start, end) in ranges {
+            locations.push((
+                uri.to_owned(),
+                lsp_position(text, start)?,
+                lsp_position(text, end)?,
+            ));
+        }
+        return Some(locations);
+    }
+    let candidates = resolve_symbol_candidates(state, uri, text, token.span.start(), &name);
+    let unique = candidates
+        .iter()
+        .map(|symbol| (symbol.uri.clone(), symbol.selection.to_string()))
+        .collect::<BTreeSet<_>>();
+    if unique.len() != 1 {
+        return None;
+    }
+    let locations = reference_locations(state, uri, text, token.span.start(), &name);
+    (!locations.is_empty()).then_some(locations)
+}
+
+fn local_binding_ranges(
+    text: &str,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    binding: &LocalBinding,
+    bindings: &[LocalBinding],
+) -> Option<Vec<(usize, usize)>> {
+    let lexed = lex(&SourceFile::new(text), LexOptions { project_mode });
+    let mut previous_significant = None::<String>;
+    let mut ranges = Vec::new();
+    for token in lexed.tokens {
+        let is_trivia = matches!(
+            token.kind,
+            TokenKind::Comment
+                | TokenKind::Newline
+                | TokenKind::Indent
+                | TokenKind::Dedent
+                | TokenKind::ModeHeader(_)
+        );
+        if is_trivia {
+            continue;
+        }
+        let word = text.get(token.span.start()..token.span.end())?;
+        if matches!(token.kind, TokenKind::Identifier { .. })
+            && word == binding.name
+            && binding.scope_start <= token.span.start()
+            && token.span.end() <= binding.scope_end
+            && previous_significant.as_deref() != Some(".")
+            && previous_significant.as_deref() != Some("::")
+            && local_binding_at(bindings, &binding.name, token.span.start())
+                .is_some_and(|active| active.name_start == binding.name_start)
+        {
+            ranges.push((token.span.start(), token.span.end()));
+        }
+        previous_significant = Some(word.to_owned());
+    }
+    (!ranges.is_empty()).then_some(ranges)
+}
+
+fn workspace_edit_from_locations(
+    locations: Vec<(String, Value, Value)>,
+    new_name: &str,
+) -> Option<Value> {
+    let mut changes = BTreeMap::<String, Vec<Value>>::new();
+    for (uri, start, end) in locations {
+        changes
+            .entry(uri)
+            .or_default()
+            .push(json!({"range":{"start":start,"end":end},"newText":new_name}));
+    }
+    if changes.is_empty() {
+        return None;
+    }
+    Some(json!({"changes": changes}))
+}
+
+/// Traduce un rango generado exigiendo que sus extremos coincidan exactamente
+/// con una correspondencia token a token. Un fragmento completo no sirve para
+/// renombrar: editaría más texto que el identificador seleccionado.
+fn try_map_rust_analyzer_range(range: &Value, source: &RustAnalyzerSourceMap) -> Option<Value> {
+    let start = try_map_generated_start(range.get("start")?, source)?;
+    let end = try_map_generated_end(range.get("end")?, source)?;
+    Some(json!({"start":start,"end":end}))
+}
+
+fn try_map_generated_start(position: &Value, source: &RustAnalyzerSourceMap) -> Option<Value> {
+    let line = usize::try_from(position.get("line")?.as_u64()?)
+        .ok()?
+        .checked_add(1)?;
+    let character = usize::try_from(position.get("character")?.as_u64()?).ok()?;
+    let mapping = source
+        .map
+        .mapping_for_generated(line, character.checked_add(1)?)?;
+    if mapping.generated_start_line != line || mapping.generated_start_column != character {
+        return None;
+    }
+    lsp_position(&source.text, mapping.source_start)
+}
+
+fn try_map_generated_end(position: &Value, source: &RustAnalyzerSourceMap) -> Option<Value> {
+    let line = usize::try_from(position.get("line")?.as_u64()?)
+        .ok()?
+        .checked_add(1)?;
+    let character = usize::try_from(position.get("character")?.as_u64()?).ok()?;
+    let mapping = source
+        .map
+        .mappings
+        .iter()
+        .filter(|mapping| {
+            mapping.generated_end_line == line && mapping.generated_end_column == character
+        })
+        .min_by_key(|mapping| mapping.source_end.saturating_sub(mapping.source_start))?;
+    lsp_position(&source.text, mapping.source_end)
+}
+
+fn map_rust_analyzer_prepare_rename(
+    result: &Value,
+    source: &RustAnalyzerSourceMap,
+) -> Option<Value> {
+    let range = result.get("range").unwrap_or(result);
+    let mapped = try_map_rust_analyzer_range(range, source)?;
+    let placeholder = result
+        .get("placeholder")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| generated_range_source_text(range, source))?;
+    Some(json!({"range":mapped,"placeholder":placeholder}))
+}
+
+fn generated_range_source_text(range: &Value, source: &RustAnalyzerSourceMap) -> Option<String> {
+    let line = usize::try_from(range.get("start")?.get("line")?.as_u64()?)
+        .ok()?
+        .checked_add(1)?;
+    let character = usize::try_from(range.get("start")?.get("character")?.as_u64()?).ok()?;
+    let mapping = source
+        .map
+        .mapping_for_generated(line, character.checked_add(1)?)?;
+    if mapping.generated_start_line != line || mapping.generated_start_column != character {
+        return None;
+    }
+    source
+        .text
+        .get(mapping.source_start..mapping.source_end)
+        .map(str::to_owned)
+}
+
+/// Convierte un `WorkspaceEdit` de `rust-analyzer` al `.ox`. Rechaza el edit
+/// completo si alguna URI o algún rango no tiene correspondencia exacta.
+fn map_rust_analyzer_workspace_edit(
+    result: &Value,
+    workspace: &RustAnalyzerWorkspace,
+    generated_root: &std::path::Path,
+) -> Option<Value> {
+    let mut changes = BTreeMap::<String, Vec<Value>>::new();
+    if let Some(raw_changes) = result.get("changes").and_then(Value::as_object) {
+        for (uri, edits) in raw_changes {
+            let path = generated_source_path(uri, generated_root)?;
+            let source = workspace.source_maps.get(&path)?;
+            let mapped = mapped_text_edits(edits, source)?;
+            if !mapped.is_empty() {
+                changes.insert(source.uri.clone(), mapped);
+            }
+        }
+    }
+    if let Some(document_changes) = result.get("documentChanges").and_then(Value::as_array) {
+        for change in document_changes {
+            if change.get("kind").is_some() {
+                return None;
+            }
+            let uri = change
+                .pointer("/textDocument/uri")
+                .and_then(Value::as_str)?;
+            let path = generated_source_path(uri, generated_root)?;
+            let source = workspace.source_maps.get(&path)?;
+            let edits = change.get("edits")?;
+            let mapped = mapped_text_edits(edits, source)?;
+            if !mapped.is_empty() {
+                changes
+                    .entry(source.uri.clone())
+                    .or_default()
+                    .extend(mapped);
+            }
+        }
+    }
+    if changes.is_empty() {
+        return None;
+    }
+    Some(json!({"changes": changes}))
+}
+
+fn mapped_text_edits(edits: &Value, source: &RustAnalyzerSourceMap) -> Option<Vec<Value>> {
+    let mut mapped = Vec::new();
+    for edit in edits.as_array()? {
+        let range = try_map_rust_analyzer_range(edit.get("range")?, source)?;
+        let new_text = edit.get("newText")?.as_str()?;
+        mapped.push(json!({"range":range,"newText":new_text}));
+    }
+    Some(mapped)
+}
+
+fn generated_source_path(uri: &str, generated_root: &std::path::Path) -> Option<PathBuf> {
+    let path = PathBuf::from(file_uri_path(uri)?);
+    path.strip_prefix(generated_root.join("src"))
+        .ok()
+        .map(PathBuf::from)
 }
 
 fn document_imports_candidate(text: &str, name: &str, candidates: &[WorkspaceSymbol]) -> bool {
@@ -1621,7 +2044,7 @@ fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -
     if state.trusted_workspace
         && let Some(response) =
             rust_analyzer_response("textDocument/inlayHint", &id, params, state, &document.text)
-        && rust_analyzer_succeeded(&response)
+        && response.get("result").and_then(Value::as_array).is_some()
     {
         return response;
     }
@@ -1652,6 +2075,13 @@ fn inlay_hint_response(id: Value, params: Option<&Value>, state: &ServerState) -
     json!({"jsonrpc":"2.0","id":id,"result":hints})
 }
 
+struct RaQueryResult {
+    response: Value,
+    legend: Vec<String>,
+    root: PathBuf,
+    workspace: RustAnalyzerWorkspace,
+}
+
 fn rust_analyzer_response(
     method: &str,
     id: &Value,
@@ -1659,6 +2089,16 @@ fn rust_analyzer_response(
     state: &ServerState,
     text: &str,
 ) -> Option<Value> {
+    rust_analyzer_exchange(method, id, params, state, text).map(|answer| answer.response)
+}
+
+fn rust_analyzer_exchange(
+    method: &str,
+    id: &Value,
+    params: Option<&Value>,
+    state: &ServerState,
+    text: &str,
+) -> Option<RaQueryResult> {
     if !state.trusted_workspace {
         return None;
     }
@@ -1681,9 +2121,10 @@ fn rust_analyzer_response(
     .ok()?;
     let workspace = rust_analyzer_workspace(state, uri, &source, generated)?;
     let requested_rust = workspace.files.get(&workspace.requested_path)?;
-    let generated_position = params
-        .and_then(|value| value.get("position"))
-        .and_then(|position| position_at_generated(text, requested_rust, position))?;
+    let generated_position = match params.and_then(|value| value.get("position")) {
+        Some(position) => Some(position_at_generated(text, requested_rust, position)?),
+        None => None,
+    };
     let mut request_params = params.cloned().unwrap_or_else(|| json!({}));
     if let Some(document) = request_params.get_mut("textDocument") {
         *document =
@@ -1709,13 +2150,13 @@ fn rust_analyzer_response(
             }
         })
         .ok()?;
-    let mut response = reply_rx
+    let mut result = reply_rx
         .recv_timeout(RUST_ANALYZER_RESPONSE_TIMEOUT)
         .ok()??;
-    if let Some(object) = response.as_object_mut() {
+    if let Some(object) = result.response.as_object_mut() {
         object.insert("id".to_owned(), id.clone());
     }
-    Some(response)
+    Some(result)
 }
 
 fn rust_analyzer_workspace(
@@ -1788,7 +2229,7 @@ fn rust_analyzer_workspace(
     })
 }
 
-fn position_at_generated(source: &str, generated: &str, position: &Value) -> Option<Option<Value>> {
+fn position_at_generated(source: &str, generated: &str, position: &Value) -> Option<Value> {
     let offset = offset_at_position(source, position)?;
     let mut token_start = offset;
     while token_start > 0
@@ -1819,15 +2260,15 @@ fn position_at_generated(source: &str, generated: &str, position: &Value) -> Opt
         .nth(occurrence)
         .map(|(offset, _)| offset)
         .or_else(|| generated.find(token))?;
-    Some(lsp_position(generated, generated_offset))
+    lsp_position(generated, generated_offset)
 }
 
 fn run_rust_analyzer(
     workspace: RustAnalyzerWorkspace,
     method: &str,
-    id: &Value,
+    _id: &Value,
     params: Value,
-) -> Option<Value> {
+) -> Option<RaQueryResult> {
     let worker_lock = RA_WORKER.get_or_init(|| Mutex::new(None));
     let sender = {
         let mut guard = worker_lock.lock().ok()?;
@@ -1850,14 +2291,11 @@ fn run_rust_analyzer(
             reply: reply_tx,
         })
         .ok()?;
-    let mut response = reply_rx
+    let result = reply_rx
         .recv_timeout(RUST_ANALYZER_RESPONSE_TIMEOUT)
         .ok()??;
     RA_RESPONSES.fetch_add(1, Ordering::Relaxed);
-    if let Some(object) = response.as_object_mut() {
-        object.insert("id".to_owned(), id.clone());
-    }
-    Some(response)
+    Some(result)
 }
 
 fn rust_analyzer_worker(receiver: mpsc::Receiver<RaWork>) {
@@ -1878,9 +2316,16 @@ fn rust_analyzer_worker(receiver: mpsc::Receiver<RaWork>) {
         if session.is_none() {
             session = start_rust_analyzer(&work.workspace);
         }
-        let result = session
-            .as_mut()
-            .and_then(|item| query_rust_analyzer(item, &work.workspace, &work.method, work.params));
+        let workspace_snapshot = work.workspace.clone();
+        let result = session.as_mut().and_then(|item| {
+            let response = query_rust_analyzer(item, &work.workspace, &work.method, work.params)?;
+            Some(RaQueryResult {
+                response,
+                legend: item.legend.clone(),
+                root: item.root.clone(),
+                workspace: workspace_snapshot.clone(),
+            })
+        });
         if work.reply.send(result).is_err() {
             eprintln!("el cliente LSP cerró la respuesta de rust-analyzer");
         }
@@ -2028,6 +2473,93 @@ fn map_rust_analyzer_position(position: &Value, source: &RustAnalyzerSourceMap) 
     lsp_position(&source.text, location.start)
 }
 
+fn rust_analyzer_semantic_kind(legend: &[String], index: usize) -> Option<usize> {
+    match legend.get(index)?.as_str() {
+        "keyword" => Some(0),
+        "function" | "method" | "macro" => Some(1),
+        "parameter" | "variable" | "selfKeyword" | "property" => Some(2),
+        "string" | "character" => Some(3),
+        "number" => Some(4),
+        "comment" => Some(5),
+        "type" | "class" | "enum" | "interface" | "struct" | "typeParameter" | "typeAlias"
+        | "union" | "builtinType" => Some(6),
+        "operator" | "arithmetic" | "bitwise" | "comparison" | "logical" => Some(7),
+        "namespace" | "module" => Some(8),
+        _ => None,
+    }
+}
+
+/// Traduce los tokens de `rust-analyzer` al `.ox`, conservando únicamente los
+/// que tienen una correspondencia token a token exacta. Un token de un
+/// fragmento completo se descarta y lo cubre el fallback local.
+fn rust_analyzer_semantic_tokens(
+    id: &Value,
+    params: Option<&Value>,
+    state: &ServerState,
+    text: &str,
+    cancellation: &AtomicBool,
+) -> Option<Vec<(usize, usize, usize, usize)>> {
+    let answer =
+        rust_analyzer_exchange("textDocument/semanticTokens/full", id, params, state, text)?;
+    if answer.response.get("error").is_some() {
+        return None;
+    }
+    let data = answer.response.pointer("/result/data")?.as_array()?;
+    let source = answer
+        .workspace
+        .source_maps
+        .get(&answer.workspace.requested_path)?;
+    let mut tokens = Vec::new();
+    let (mut line, mut character) = (0_usize, 0_usize);
+    for chunk in data.as_chunks::<5>().0 {
+        if cancellation.load(Ordering::Relaxed) {
+            return None;
+        }
+        let delta_line = usize::try_from(chunk[0].as_u64()?).ok()?;
+        let delta_character = usize::try_from(chunk[1].as_u64()?).ok()?;
+        if delta_line == 0 {
+            character = character.checked_add(delta_character)?;
+        } else {
+            line = line.checked_add(delta_line)?;
+            character = delta_character;
+        }
+        let length = usize::try_from(chunk[2].as_u64()?).ok()?;
+        let kind_index = usize::try_from(chunk[3].as_u64()?).ok()?;
+        let Some(kind) = rust_analyzer_semantic_kind(&answer.legend, kind_index) else {
+            continue;
+        };
+        let Some(mapping) = source.map.mapping_for_generated(line + 1, character + 1) else {
+            continue;
+        };
+        if mapping.generated_start_line != line + 1
+            || mapping.generated_start_column != character
+            || mapping.generated_end_line != line + 1
+            || mapping.generated_end_column != character.checked_add(length)?
+        {
+            continue;
+        }
+        let Some(start) = lsp_position(&source.text, mapping.source_start) else {
+            continue;
+        };
+        let Some(end) = lsp_position(&source.text, mapping.source_end) else {
+            continue;
+        };
+        if start["line"] != end["line"] {
+            continue;
+        }
+        let line_out = usize::try_from(start["line"].as_u64()?).ok()?;
+        let character_out = usize::try_from(start["character"].as_u64()?).ok()?;
+        let end_out = usize::try_from(end["character"].as_u64()?).ok()?;
+        let Some(length_out) = end_out.checked_sub(character_out) else {
+            continue;
+        };
+        if length_out > 0 {
+            tokens.push((line_out, character_out, length_out, kind));
+        }
+    }
+    Some(tokens)
+}
+
 fn start_rust_analyzer(workspace: &RustAnalyzerWorkspace) -> Option<RustAnalyzerSession> {
     let root = std::env::temp_dir().join(format!(
         "oxido-ra-{}",
@@ -2083,11 +2615,23 @@ fn start_rust_analyzer(workspace: &RustAnalyzerWorkspace) -> Option<RustAnalyzer
             move || rust_analyzer_reader(stdout, response_tx, reader_input)
         })
         .ok()?;
-    {
+    let initialize_response = {
         let mut locked_input = input.lock().ok()?;
-        write_lsp_message(&mut *locked_input, &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":format!("file://{}", root.display()),"capabilities":{}}})).ok()?;
-    }
-    wait_response_with_timeout(&response_rx, 1, RUST_ANALYZER_START_TIMEOUT)?;
+        write_lsp_message(&mut *locked_input, &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":format!("file://{}", root.display()),"capabilities":{"textDocument":{"semanticTokens":{"requests":{"full":true},"tokenTypes":["namespace","type","class","enum","interface","struct","typeParameter","parameter","variable","property","enumMember","event","function","method","macro","keyword","modifier","comment","string","number","regexp","operator","decorator","angle","arithmetic","attribute","bitwise","boolean","brace","bracket","builtinAttribute","builtinType","character","colon","comma","comparison","constParameter","derive","deriveHelper","dot","escapeSequence","formatSpecifier","generic","label","lifetime","logical","macroBang","parenthesis","punctuation","selfKeyword","selfTypeKeyword","semicolon","toolAttribute","typeAlias","union","unresolvedReference"],"tokenModifiers":[],"formats":["relative"]},"rename":{"prepareSupport":true}},"workspace":{"workspaceEdit":{"documentChanges":false}}}}}))
+            .ok()?;
+        wait_response_with_timeout(&response_rx, 1, RUST_ANALYZER_START_TIMEOUT)?
+    };
+    let legend = initialize_response
+        .pointer("/result/capabilities/semanticTokensProvider/legend/tokenTypes")
+        .and_then(Value::as_array)
+        .map(|types| {
+            types
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     {
         let mut locked_input = input.lock().ok()?;
         write_lsp_message(
@@ -2109,6 +2653,7 @@ fn start_rust_analyzer(workspace: &RustAnalyzerWorkspace) -> Option<RustAnalyzer
         output: response_rx,
         root,
         files: workspace.files.clone(),
+        legend,
         next_id: 1,
     })
 }
@@ -2286,43 +2831,27 @@ fn workspace_documents(state: &ServerState) -> Vec<(String, String, Option<i64>,
     documents
 }
 
-fn file_uri(path: &std::path::Path) -> String {
+pub(crate) fn file_uri(path: &std::path::Path) -> String {
     format!("file://{}", path.to_string_lossy().replace(' ', "%20"))
 }
 
 fn workspace_symbols(state: &ServerState) -> Vec<WorkspaceSymbol> {
-    workspace_symbols_from_documents(
-        &workspace_documents(state),
+    state.index.symbols(
+        &open_document_snapshot(state),
         state.project_root.as_deref(),
         state.project_mode,
     )
 }
 
-/// Índice de los documentos abiertos para clasificar semantic tokens sin
-/// recorrer el sistema de archivos en cada edición. Los archivos cerrados
-/// siguen disponibles para navegación, pero sus nombres no se usan para
-/// colorear tokens; en ese caso se conserva el fallback léxico.
-fn open_workspace_symbols(state: &ServerState) -> Vec<WorkspaceSymbol> {
-    let documents = state
+fn open_document_snapshot(state: &ServerState) -> Vec<(String, String)> {
+    state
         .documents
         .iter()
-        .map(|(uri, document)| {
-            (
-                uri.clone(),
-                document.text.clone(),
-                document.version,
-                uri.clone(),
-            )
-        })
-        .collect::<Vec<_>>();
-    workspace_symbols_from_documents(
-        &documents,
-        state.project_root.as_deref(),
-        state.project_mode,
-    )
+        .map(|(uri, document)| (uri.clone(), document.text.clone()))
+        .collect()
 }
 
-fn workspace_symbols_from_documents(
+pub(crate) fn workspace_symbols_from_documents(
     documents: &[(String, String, Option<i64>, String)],
     project_root: Option<&std::path::Path>,
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
@@ -2631,7 +3160,7 @@ fn semantic_response(id: Value, params: Option<&Value>, state: &ServerState) -> 
     let data = uri
         .and_then(|uri| {
             let document = state.documents.get(uri)?;
-            let symbols = open_workspace_symbols(state);
+            let symbols = workspace_symbols(state);
             Some(semantic_tokens(
                 &document.text,
                 state.project_mode,
@@ -2661,9 +3190,21 @@ fn semantic_tokens_with_symbols(
     symbols: &[WorkspaceSymbol],
     cancellation: &AtomicBool,
 ) -> Option<Vec<u32>> {
+    let tokens = semantic_token_list(text, project_mode, uri, symbols, cancellation)?;
+    encode_semantic_tokens(tokens)
+}
+
+fn semantic_token_list(
+    text: &str,
+    project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
+    uri: &str,
+    symbols: &[WorkspaceSymbol],
+    cancellation: &AtomicBool,
+) -> Option<Vec<(usize, usize, usize, usize)>> {
     let source = SourceFile::new(text);
     let lexed = lex(&source, LexOptions { project_mode });
     let declarations = semantic_declarations(symbols, uri, text);
+    let bindings = local_bindings(text, project_mode);
     let mut semantic = Vec::<(usize, usize, usize, usize)>::new();
     let mut previous_significant = None;
     for (index, token) in lexed.tokens.iter().enumerate() {
@@ -2685,10 +3226,13 @@ fn semantic_tokens_with_symbols(
             token,
             previous_significant,
             lexed.tokens.get(index + 1),
-            &source,
-            text,
-            symbols,
-            &declarations,
+            &SemanticContext {
+                source: &source,
+                text,
+                symbols,
+                declarations: &declarations,
+                bindings: &bindings,
+            },
         ) else {
             continue;
         };
@@ -2711,11 +3255,20 @@ fn semantic_tokens_with_symbols(
         if !is_trivia {
             previous_significant = Some(token);
         }
+        if cancellation.load(Ordering::Relaxed) {
+            return None;
+        }
     }
     semantic.sort_unstable();
-    let mut data = Vec::with_capacity(semantic.len().saturating_mul(5));
+    Some(semantic)
+}
+
+fn encode_semantic_tokens(mut tokens: Vec<(usize, usize, usize, usize)>) -> Option<Vec<u32>> {
+    tokens.sort_unstable();
+    tokens.dedup();
+    let mut data = Vec::with_capacity(tokens.len().saturating_mul(5));
     let (mut previous_line, mut previous_character) = (0_usize, 0_usize);
-    for (line, character, length, kind) in semantic {
+    for (line, character, length, kind) in tokens {
         let delta_line = line.checked_sub(previous_line)?;
         let delta_character = if delta_line == 0 {
             character.checked_sub(previous_character)?
@@ -2732,7 +3285,34 @@ fn semantic_tokens_with_symbols(
         previous_line = line;
         previous_character = character;
     }
-    (!cancellation.load(Ordering::Relaxed)).then_some(data)
+    Some(data)
+}
+
+/// Combina tokens delegados y locales conservando la semántica del analizador.
+/// Un token delegado gana cuando ambos describen la misma región; los tokens
+/// locales solo rellenan huecos que `rust-analyzer` no pudo mapear.
+fn merge_semantic_tokens(
+    local: Vec<(usize, usize, usize, usize)>,
+    delegated: Vec<(usize, usize, usize, usize)>,
+) -> Vec<(usize, usize, usize, usize)> {
+    let mut merged = Vec::with_capacity(local.len().saturating_add(delegated.len()));
+    let mut occupied = BTreeMap::<usize, Vec<(usize, usize)>>::new();
+    for token in delegated.into_iter().chain(local) {
+        let (line, character, length, _) = token;
+        let end = character.saturating_add(length);
+        let overlaps = occupied.get(&line).is_some_and(|ranges| {
+            ranges
+                .iter()
+                .any(|(start, stop)| character < *stop && *start < end)
+        });
+        if overlaps || length == 0 {
+            continue;
+        }
+        occupied.entry(line).or_default().push((character, end));
+        merged.push(token);
+    }
+    merged.sort_unstable();
+    merged
 }
 
 fn project_syntax_mode(request: &Value) -> Option<oxido_language::domain::syntax::SyntaxMode> {
@@ -2779,7 +3359,7 @@ fn project_mode_for_uri(uri: &str) -> Option<oxido_language::domain::syntax::Syn
     })
 }
 
-fn file_uri_path(uri: &str) -> Option<String> {
+pub(crate) fn file_uri_path(uri: &str) -> Option<String> {
     let encoded = uri.strip_prefix("file://")?;
     if !encoded.starts_with('/') {
         return None;
@@ -2810,14 +3390,19 @@ fn hex_value(byte: u8) -> Option<u8> {
     }
 }
 
+struct SemanticContext<'a> {
+    source: &'a SourceFile,
+    text: &'a str,
+    symbols: &'a [WorkspaceSymbol],
+    declarations: &'a BTreeMap<(usize, usize), usize>,
+    bindings: &'a [LocalBinding],
+}
+
 fn semantic_kind(
     token: &oxido_language::domain::syntax::Token,
     previous: Option<&oxido_language::domain::syntax::Token>,
     next: Option<&oxido_language::domain::syntax::Token>,
-    source: &SourceFile,
-    text: &str,
-    symbols: &[WorkspaceSymbol],
-    declarations: &BTreeMap<(usize, usize), usize>,
+    context: &SemanticContext<'_>,
 ) -> Option<usize> {
     match &token.kind {
         TokenKind::Keyword { .. } => Some(0),
@@ -2826,11 +3411,22 @@ fn semantic_kind(
         TokenKind::Comment => Some(5),
         TokenKind::Punctuation => Some(7),
         TokenKind::Identifier { .. } => {
-            let word = source.slice(token.span);
-            if let Some(kind) = declarations.get(&(token.span.start(), token.span.end())) {
+            let word = context.source.slice(token.span);
+            if let Some(kind) = context
+                .declarations
+                .get(&(token.span.start(), token.span.end()))
+            {
                 return Some(*kind);
             }
-            if let Some(kind) = semantic_reference_kind(symbols, text, token.span.start(), word) {
+            let previous_word = previous.map(|token| context.source.slice(token.span));
+            if previous_word != Some(".")
+                && local_binding_at(context.bindings, word, token.span.start()).is_some()
+            {
+                return Some(2);
+            }
+            if let Some(kind) =
+                semantic_reference_kind(context.symbols, context.text, token.span.start(), word)
+            {
                 return Some(kind);
             }
             if let Some(oxido_language::domain::syntax::Token {
@@ -2845,7 +3441,7 @@ fn semantic_kind(
                     return Some(6);
                 }
             }
-            let next_text = next.map(|token| source.slice(token.span));
+            let next_text = next.map(|token| context.source.slice(token.span));
             if next_text == Some("(") {
                 Some(1)
             } else if word.chars().next().is_some_and(char::is_uppercase) {
@@ -3762,6 +4358,11 @@ mod tests {
         let main_text =
             std::fs::read_to_string(&main_path).expect("navigation fixture is readable");
         let mut state = ServerState {
+            index: WorkspaceIndex::load(
+                Some(root.clone()),
+                Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
+                None,
+            ),
             project_root: Some(root),
             project_mode: Some(oxido_language::domain::syntax::SyntaxMode::Indentation),
             ..ServerState::default()
@@ -4064,6 +4665,7 @@ mod tests {
             .canonicalize()
             .expect("module fixture root exists");
         let state = ServerState {
+            index: WorkspaceIndex::load(Some(root.clone()), None, None),
             project_root: Some(root),
             ..ServerState::default()
         };
@@ -4094,6 +4696,7 @@ mod tests {
         let main_uri = file_uri(&main_path);
         let main_text = std::fs::read_to_string(&main_path).expect("main fixture is readable");
         let mut state = ServerState {
+            index: WorkspaceIndex::load(Some(root.clone()), None, None),
             project_root: Some(root),
             ..ServerState::default()
         };
@@ -4333,6 +4936,140 @@ mod tests {
         assert_eq!(
             read_frame(&mut input).unwrap_err().kind(),
             io::ErrorKind::InvalidData
+        );
+    }
+
+    fn open_test_document(state: &mut ServerState, uri: &str, text: &str) {
+        handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":uri,"version":1,"text":text}}
+            }),
+            state,
+        );
+    }
+
+    #[test]
+    fn rename_local_binding_only_edits_its_lexical_scope() {
+        let mut state = configured_test_state();
+        let text = concat!(
+            "sintaxis indentacion\n",
+            "funcion suma(valor: i32):\n",
+            "    dejar copia = valor\n",
+            "    retornar copia\n",
+        );
+        let uri = "file:///suma.ox";
+        open_test_document(&mut state, uri, text);
+        let position = params_for_nth(uri, text, "valor", 0);
+        let prepared = prepare_rename_response(json!(90), Some(&position), &state);
+        assert_eq!(prepared["result"]["placeholder"], "valor");
+        assert_eq!(
+            prepared["result"]["range"]["start"],
+            json!({"line":1,"character":13})
+        );
+        let mut rename = position;
+        rename["newName"] = json!("entrada");
+        let response = rename_response(json!(91), Some(&rename), &state);
+        let edits = response["result"]["changes"][uri]
+            .as_array()
+            .expect("el renombrado local devuelve edits");
+        assert_eq!(edits.len(), 2, "solo declaración y uso del parámetro");
+        assert!(edits.iter().all(|edit| edit["newText"] == "entrada"));
+        assert_eq!(edits[0]["range"]["start"], json!({"line":1,"character":13}));
+        assert_eq!(edits[1]["range"]["start"], json!({"line":2,"character":18}));
+    }
+
+    #[test]
+    fn rename_local_binding_skips_shadowed_and_qualified_names() {
+        let mut state = configured_test_state();
+        let text = concat!(
+            "sintaxis indentacion\n",
+            "funcion suma(valor: i32):\n",
+            "    dejar copia = valor\n",
+            "    si copia > 0:\n",
+            "        dejar valor = copia\n",
+            "        retornar valor\n",
+            "    retornar util::valor()\n",
+            "    retornar valor\n",
+        );
+        let uri = "file:///sombreado.ox";
+        open_test_document(&mut state, uri, text);
+        let mut rename = params_for_nth(uri, text, "valor", 0);
+        rename["newName"] = json!("entrada");
+        let response = rename_response(json!(96), Some(&rename), &state);
+        let edits = response["result"]["changes"][uri]
+            .as_array()
+            .expect("el renombrado local devuelve edits");
+        assert_eq!(
+            edits.len(),
+            3,
+            "solo el parámetro, su uso externo y el retorno externo"
+        );
+        assert!(edits.iter().all(|edit| edit["newText"] == "entrada"));
+        let starts = edits
+            .iter()
+            .map(|edit| edit["range"]["start"]["line"].as_u64().expect("línea"))
+            .collect::<Vec<_>>();
+        assert_eq!(starts, vec![1, 2, 7]);
+    }
+
+    #[test]
+    fn rename_rejects_ambiguous_cross_file_symbols() {
+        let mut state = configured_test_state();
+        let conflict = "sintaxis indentacion\nfuncion repetida():\n    pass\n";
+        open_test_document(&mut state, "file:///alpha.ox", conflict);
+        open_test_document(&mut state, "file:///beta.ox", conflict);
+        let main_text = "sintaxis indentacion\nfuncion principal():\n    repetida()\n";
+        let uri = "file:///main.ox";
+        open_test_document(&mut state, uri, main_text);
+        let position = params_for_nth(uri, main_text, "repetida", 0);
+        let prepared = prepare_rename_response(json!(92), Some(&position), &state);
+        assert!(
+            prepared["result"].is_null(),
+            "prepareRename rechaza ambigüedad"
+        );
+        let mut rename = position;
+        rename["newName"] = json!("otra");
+        let response = rename_response(json!(93), Some(&rename), &state);
+        assert!(response["result"].is_null(), "rename rechaza ambigüedad");
+    }
+
+    #[test]
+    fn rename_rejects_a_reserved_new_name() {
+        let mut state = configured_test_state();
+        let text = "sintaxis indentacion\nfuncion suma(valor: i32):\n    retornar valor\n";
+        let uri = "file:///reservada.ox";
+        open_test_document(&mut state, uri, text);
+        let mut params = params_for_nth(uri, text, "valor", 0);
+        params["newName"] = json!("funcion");
+        let response = rename_response(json!(94), Some(&params), &state);
+        assert!(
+            response["result"].is_null(),
+            "no se acepta una palabra reservada"
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_use_symbols_from_closed_workspace_files() {
+        let (state, uri, _) = navigation_fixture_state();
+        let response = semantic_response(
+            json!(95),
+            Some(&json!({"textDocument":{"uri":uri}})),
+            &state,
+        );
+        let data = response["result"]["data"]
+            .as_array()
+            .expect("semantic token data")
+            .iter()
+            .map(|value| {
+                u32::try_from(value.as_u64().expect("token component"))
+                    .expect("token component fits u32")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            semantic_token_type_at(&data, 8, 37),
+            Some(6),
+            "Alumno se clasifica como tipo aunque viva en un archivo cerrado"
         );
     }
 }

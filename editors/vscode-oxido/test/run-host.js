@@ -184,6 +184,24 @@ function prepareSlowFakeCargo(profile) {
   return { directory, started, finished };
 }
 
+function findFiles(directory, predicate) {
+  if (!fs.existsSync(directory)) return [];
+  const found = [];
+  const pending = [directory];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+      } else if (predicate(entry.name)) {
+        found.push(entryPath);
+      }
+    }
+  }
+  return found;
+}
+
 async function runHostCase({
   label,
   fixture,
@@ -237,12 +255,32 @@ async function main() {
   const cargoProfile = path.join(extensionRoot, '.vscode-test', 'cargo-workspace');
   const cargoHome = prepareCargoHome(cargoProfile);
   if (!only || only === 'trusted') {
+    const trustedFixture = path.join(__dirname, 'fixtures', 'trusted');
+    const trustedCache = path.join(
+      extensionRoot,
+      '.vscode-test',
+      'trusted-workspace',
+      'index-cache'
+    );
     await runHostCase({
       label: 'trusted workspace',
-      fixture: path.join(__dirname, 'fixtures', 'trusted'),
+      fixture: trustedFixture,
       extraArgs: ['--disable-workspace-trust'],
-      environment: { OXIDO_EXPECT_TRUSTED: 'true', OXIDO_HOST_CASE: 'trusted' }
+      environment: {
+        OXIDO_EXPECT_TRUSTED: 'true',
+        OXIDO_HOST_CASE: 'trusted',
+        OXIDO_CACHE_DIR: trustedCache
+      }
     });
+    const cacheFiles = findFiles(trustedCache, name => name.startsWith('workspace-index-v'));
+    if (cacheFiles.length === 0) {
+      throw new Error('la caché del índice no se escribió en el directorio externo');
+    }
+    const leaked = findFiles(trustedFixture, name => name.startsWith('workspace-index-v'));
+    if (leaked.length > 0) {
+      throw new Error(`la caché del índice se escribió dentro del workspace: ${leaked.join(', ')}`);
+    }
+    process.stdout.write('VS Code host test: caché del índice fuera del workspace\n');
   }
   if (!only || only === 'cargo') {
     await runHostCase({

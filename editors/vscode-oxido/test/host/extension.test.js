@@ -482,6 +482,43 @@ async function runRestrictedCase(fixturePath, withTimeout) {
   }
   assert.ok(rejectedByServer, 'el servidor rechaza Cargo cuando el workspace no es confiable');
   assert.ok(!fs.existsSync(marker), 'el servidor no inicia Cargo antes de rechazar');
+
+  const renamePosition = { line: 1, character: 10 };
+  const preparedRename = await withTimeout(
+    require('../../src/extension.js').sendLanguageServerRequest('textDocument/prepareRename', {
+      textDocument: { uri: activeFile.toString() },
+      position: renamePosition
+    }),
+    'prepareRename local en Restricted Mode'
+  );
+  assert.equal(
+    preparedRename?.placeholder,
+    'valor',
+    `prepareRename local devuelve el nombre: ${JSON.stringify(preparedRename)}`
+  );
+  assert.deepEqual(
+    preparedRename?.range?.start,
+    { line: 1, character: 10 },
+    'prepareRename local devuelve el rango del enlace'
+  );
+  const renamed = await withTimeout(
+    require('../../src/extension.js').sendLanguageServerRequest('textDocument/rename', {
+      textDocument: { uri: activeFile.toString() },
+      position: renamePosition,
+      newName: 'numero'
+    }),
+    'rename local en Restricted Mode'
+  );
+  const restrictedEdits = renamed?.changes?.[activeFile.toString()];
+  assert.ok(
+    Array.isArray(restrictedEdits) && restrictedEdits.length >= 1,
+    `el renombrado local devuelve edits: ${JSON.stringify(renamed)}`
+  );
+  assert.ok(
+    restrictedEdits.every(edit => edit.newText === 'numero'),
+    'el renombrado local usa el nombre solicitado'
+  );
+  console.log('Restricted host: prepareRename y rename locales sin rust-analyzer');
   console.log('Restricted host: ni la extensión ni el servidor invocaron Cargo');
 }
 
@@ -700,6 +737,15 @@ async function run() {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.ok(evidence.rustAnalyzerResponses > 0, 'rust-analyzer respondió al menos una consulta del host');
+    assert.ok(evidence.indexFiles > 0, `el índice cubre archivos .ox: ${JSON.stringify(evidence)}`);
+    assert.ok(
+      evidence.indexCacheWritten === true || evidence.indexCacheReused > 0,
+      `la caché versionada se escribió o reutilizó: ${JSON.stringify(evidence)}`
+    );
+    assert.ok(
+      typeof evidence.indexGeneration === 'number' && evidence.indexGeneration >= 1,
+      `el índice reporta su generación: ${JSON.stringify(evidence)}`
+    );
 
     const moduleFile = vscode.Uri.file(path.join(fixturePath, 'semantic_modulo.ox'));
     const moduleDocument = await vscode.workspace.openTextDocument(moduleFile);
@@ -786,6 +832,39 @@ async function run() {
       tokenReferenceUris.filter(uri => uri.endsWith('/semantic_tokens.ox')).length >= 2,
       `las referencias de identidad incluyen declaración y llamadas: ${JSON.stringify(tokenReferenceUris)}`
     );
+
+    const renamePosition = { line: 9, character: 8 };
+    const preparedRename = await poll(
+      () => extensionApi.sendLanguageServerRequest('textDocument/prepareRename', {
+        textDocument: { uri: tokensFile.toString() },
+        position: renamePosition
+      }),
+      value => value?.placeholder === 'identidad',
+      'prepareRename de rust-analyzer'
+    );
+    assert.ok(preparedRename?.range, 'prepareRename devuelve un rango mapeado al .ox');
+    const renamed = await poll(
+      () => extensionApi.sendLanguageServerRequest('textDocument/rename', {
+        textDocument: { uri: tokensFile.toString() },
+        position: renamePosition,
+        newName: 'identidad_renombrada'
+      }),
+      value => value?.changes && Object.keys(value.changes).length > 0,
+      'rename de rust-analyzer'
+    );
+    const renamedUri = Object.keys(renamed.changes)
+      .find(uri => uri.endsWith('/semantic_tokens.ox'));
+    assert.ok(renamedUri, `el WorkspaceEdit vuelve al .ox: ${JSON.stringify(renamed.changes)}`);
+    const renamedEdits = renamed.changes[renamedUri];
+    assert.ok(
+      renamedEdits.some(edit => edit.newText === 'identidad_renombrada'),
+      'el WorkspaceEdit usa el nombre solicitado'
+    );
+    assert.ok(
+      renamedEdits.every(edit => typeof edit.range?.start?.line === 'number'),
+      'cada edición tiene un rango .ox mapeado'
+    );
+    console.log('Rename host: prepareRename y rename mapeados a semantic_tokens.ox');
   }
 
   await vscode.commands.executeCommand('workbench.action.quit');

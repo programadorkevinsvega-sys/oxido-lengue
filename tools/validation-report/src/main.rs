@@ -28,6 +28,7 @@ struct CheckResult {
     exit_code: Option<i32>,
     tests_passed: usize,
     tests_failed: usize,
+    failed_tests: Vec<String>,
 }
 
 fn main() {
@@ -258,6 +259,7 @@ fn run_check(
             exit_code: None,
             tests_passed: 0,
             tests_failed: 0,
+            failed_tests: Vec::new(),
         },
         Err(_) => CheckResult {
             name: name.to_owned(),
@@ -267,6 +269,7 @@ fn run_check(
             exit_code: None,
             tests_passed: 0,
             tests_failed: 0,
+            failed_tests: Vec::new(),
         },
     }
 }
@@ -279,6 +282,7 @@ fn result_from_output(
     optional: bool,
 ) -> CheckResult {
     let (tests_passed, tests_failed) = parse_test_counts(&output.stdout);
+    let failed_tests = parse_failed_tests(&output.stdout);
     let unavailable_optional = optional
         && !output.status.success()
         && (output
@@ -303,6 +307,7 @@ fn result_from_output(
         exit_code: output.status.code(),
         tests_passed,
         tests_failed,
+        failed_tests,
     }
 }
 
@@ -330,6 +335,26 @@ fn parse_test_counts(output: &[u8]) -> (usize, usize) {
         }
     }
     (passed, failed)
+}
+
+/// Extrae únicamente los nombres de las pruebas fallidas. El informe no
+/// conserva logs crudos para no filtrar rutas absolutas, pero un nombre de
+/// prueba es un identificador estable que permite reproducir el fallo.
+fn parse_failed_tests(output: &[u8]) -> Vec<String> {
+    let text = String::from_utf8_lossy(output);
+    let mut failed = Vec::new();
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix("test ") else {
+            continue;
+        };
+        let Some((name, status)) = rest.split_once(" ... ") else {
+            continue;
+        };
+        if status.trim() == "FAILED" && !failed.iter().any(|seen| seen == name) {
+            failed.push(name.to_owned());
+        }
+    }
+    failed
 }
 
 fn render_report(workspace: &Path, results: &[CheckResult]) -> String {
@@ -425,8 +450,30 @@ fn render_report(workspace: &Path, results: &[CheckResult]) -> String {
     append_line(&mut report, "");
     append_line(
         &mut report,
-        "No se capturan logs crudos de procesos, para evitar filtrar rutas absolutas. Las suites fallidas se identifican por estado y código de salida; consulte el log de CI para el detalle.",
+        "No se capturan logs crudos de procesos, para evitar filtrar rutas absolutas. Las suites fallidas se identifican por estado y código de salida, y solo se publican los nombres de las pruebas fallidas.",
     );
+    append_line(&mut report, "");
+    append_line(&mut report, "## Pruebas fallidas");
+    append_line(&mut report, "");
+    let failed_tests = results
+        .iter()
+        .flat_map(|result| {
+            result
+                .failed_tests
+                .iter()
+                .map(move |test| (result.name.as_str(), test.as_str()))
+        })
+        .collect::<Vec<_>>();
+    if failed_tests.is_empty() {
+        append_line(&mut report, "Ninguna.");
+    } else {
+        for (suite, test) in failed_tests {
+            append_line(
+                &mut report,
+                &format!("- `{}` en `{}`", escape_cell(test), escape_cell(suite)),
+            );
+        }
+    }
     append_line(&mut report, "");
     append_line(
         &mut report,
@@ -494,6 +541,12 @@ mod tests {
     fn parses_cargo_test_totals_across_multiple_test_binaries() {
         let output = b"test result: ok. 4 passed; 0 failed; 0 ignored;\ntest result: FAILED. 2 passed; 1 failed; 0 ignored;\n";
         assert_eq!(parse_test_counts(output), (6, 1));
+    }
+
+    #[test]
+    fn reports_only_failing_test_identifiers() {
+        let output = b"test usado ... ok\ntest roto ... FAILED\ntest omitido ... ignored\ntest roto ... FAILED\n";
+        assert_eq!(parse_failed_tests(output), vec!["roto".to_owned()]);
     }
 
     #[test]

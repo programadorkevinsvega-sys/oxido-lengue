@@ -3526,6 +3526,19 @@ mod tests {
         }
     }
 
+    /// `rust-analyzer` solo participa cuando el binario responde correctamente.
+    /// El proxy de `rustup` puede existir sin que el componente esté instalado y
+    /// en ese caso el proceso se lanza pero falla; estos tests deben omitirse en
+    /// lugar de exigir una integración que el entorno no puede ofrecer.
+    fn rust_analyzer_is_runnable() -> bool {
+        std::process::Command::new(
+            std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into()),
+        )
+        .arg("--version")
+        .output()
+        .is_ok_and(|output| output.status.success())
+    }
+
     #[test]
     fn handles_lifecycle_and_rejects_malformed_json_without_panicking() {
         let mut state = configured_test_state();
@@ -4136,13 +4149,7 @@ mod tests {
 
     #[test]
     fn uses_real_rust_analyzer_when_workspace_is_trusted() {
-        if std::process::Command::new(
-            std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into()),
-        )
-        .arg("--version")
-        .output()
-        .is_err()
-        {
+        if !rust_analyzer_is_runnable() {
             return;
         }
         let before = RA_RESPONSES.load(Ordering::Relaxed);
@@ -4173,13 +4180,7 @@ mod tests {
 
     #[test]
     fn reuses_one_rust_analyzer_session_for_multiple_queries() {
-        if std::process::Command::new(
-            std::env::var_os("OXIDO_RUST_ANALYZER").unwrap_or_else(|| "rust-analyzer".into()),
-        )
-        .arg("--version")
-        .output()
-        .is_err()
-        {
+        if !rust_analyzer_is_runnable() {
             return;
         }
         let before = RA_STARTS.load(Ordering::Relaxed);

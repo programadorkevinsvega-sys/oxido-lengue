@@ -8,7 +8,7 @@ use oxido_language::{
     SourceFile,
     domain::{
         ast::{AggregateKind, ContainerKind, File as OxFile, Item, RustFragment},
-        syntax::{LexOptions, SyntaxMode, TokenKind, lex},
+        syntax::{LexOptions, SyntaxMode, TokenKind},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -179,7 +179,7 @@ fn rust_symbols(text: &str) -> Vec<DeclaredSymbol> {
 }
 
 fn rust_symbols_from(source: &str, base: usize, full_text: &str) -> Vec<DeclaredSymbol> {
-    let lexed = lex(
+    let lexed = crate::lex_analyzed(
         &SourceFile::new(source),
         LexOptions {
             project_mode: Some(SyntaxMode::Braces),
@@ -628,7 +628,7 @@ impl LocalBinding {
 /// una declaración del workspace. La resolución de tipos sigue delegada en
 /// `rust-analyzer`.
 pub(crate) fn local_bindings(text: &str, mode: Option<SyntaxMode>) -> Vec<LocalBinding> {
-    let lexed = lex(&SourceFile::new(text), LexOptions { project_mode: mode });
+    let lexed = crate::lex_analyzed(&SourceFile::new(text), LexOptions { project_mode: mode });
     let tokens = lexed.tokens;
     let mut blocks = vec![(0_usize, text.len())];
     let mut braces = Vec::new();

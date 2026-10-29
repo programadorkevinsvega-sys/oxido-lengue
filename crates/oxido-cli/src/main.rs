@@ -175,11 +175,12 @@ fn audit_project(args: &[OsString]) -> Result<(), String> {
                 )
             })?;
             let source = SourceFile::with_path(&path, text);
-            let lexed = oxido_language::domain::syntax::lex(
+            let lexed = oxido_language::domain::syntax::lex_with_deadline(
                 &source,
                 LexOptions {
                     project_mode: Some(SyntaxMode::Braces),
                 },
+                oxido_language::domain::syntax::analysis_deadline(),
             );
             if lexed.has_errors() {
                 return Err(format_diagnostics(&source, &path, &lexed.diagnostics));
@@ -390,11 +391,12 @@ fn audit_unsafe(args: &[OsString]) -> Result<(), String> {
     let text = fs::read_to_string(&canonical)
         .map_err(|error| format!("no se pudo leer {}: {error}", path.display()))?;
     let source = SourceFile::with_path(path.clone(), text);
-    let lexed = oxido_language::domain::syntax::lex(
+    let lexed = oxido_language::domain::syntax::lex_with_deadline(
         &source,
         LexOptions {
             project_mode: Some(SyntaxMode::Braces),
         },
+        oxido_language::domain::syntax::analysis_deadline(),
     );
     if lexed.has_errors() {
         return Err(format_diagnostics(&source, &path, &lexed.diagnostics));
@@ -486,7 +488,11 @@ fn format_ox(args: &[OsString]) -> Result<(), String> {
     };
     let (source, path) = load_ox(input)?;
     let settings = project_settings(&path)?;
-    let lexed = oxido_language::domain::syntax::lex(&source, settings.options);
+    let lexed = oxido_language::domain::syntax::lex_with_deadline(
+        &source,
+        settings.options,
+        oxido_language::domain::syntax::analysis_deadline(),
+    );
     let imported = match lexed.mode {
         Some(SyntaxMode::Indentation) => {
             let formatted =

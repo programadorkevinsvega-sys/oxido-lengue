@@ -7,9 +7,9 @@ use crate::domain::{
     },
     diagnostics::{Diagnostic, DiagnosticSuggestion},
     source::{SourceFile, Span},
-    syntax::{LexOptions, SyntaxMode, Token, TokenKind, lex},
+    syntax::{LexOptions, SyntaxMode, Token, TokenKind, lex_with_deadline},
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Instant};
 
 const MAX_BLOCK_DEPTH: usize = 128;
 
@@ -30,7 +30,25 @@ impl ParseOutput {
 
 /// Lexes and parses the structural Óxido subset while preserving Rust fragments.
 pub fn parse(source: &SourceFile, options: LexOptions) -> ParseOutput {
-    let lexed = lex(source, options);
+    parse_with_deadline(source, options, None)
+}
+
+/// Como [`parse`], pero comparte con el lexer y el parser un plazo cooperativo.
+///
+/// Si el lexer agota el plazo, devuelve sus diagnósticos sin intentar parsear
+/// tokens parciales; si lo agota el parser, emite `OX6001` y detiene el análisis.
+pub fn parse_with_deadline(
+    source: &SourceFile,
+    options: LexOptions,
+    deadline: Option<Instant>,
+) -> ParseOutput {
+    let lexed = lex_with_deadline(source, options, deadline);
+    if lexed.timed_out {
+        return ParseOutput {
+            file: None,
+            diagnostics: lexed.diagnostics,
+        };
+    }
     let mut parser = Parser {
         source,
         tokens: lexed.tokens,
@@ -40,6 +58,8 @@ pub fn parse(source: &SourceFile, options: LexOptions) -> ParseOutput {
         diagnostics: lexed.diagnostics,
         mode: lexed.mode.unwrap_or(SyntaxMode::Braces),
         deferred_doc_comments: Vec::new(),
+        deadline,
+        timed_out: false,
     };
     let file = parser.parse_file();
     let has_errors = parser.has_errors();
@@ -58,6 +78,8 @@ struct Parser<'a> {
     diagnostics: Vec<Diagnostic>,
     mode: SyntaxMode,
     deferred_doc_comments: Vec<RustFragment>,
+    deadline: Option<Instant>,
+    timed_out: bool,
 }
 
 impl Parser<'_> {
@@ -74,6 +96,9 @@ impl Parser<'_> {
         }
         let attributes = self.parse_file_inner_attributes();
         loop {
+            if self.check_deadline() {
+                break;
+            }
             self.skip_non_doc_trivia();
             if self.at_end() {
                 break;
@@ -360,6 +385,9 @@ impl Parser<'_> {
         }
         let mut statements = Vec::new();
         while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            if self.check_deadline() {
+                break;
+            }
             if self.is_doc_comment(self.position) {
                 self.deferred_doc_comments
                     .push(self.fragment(self.position, self.position + 1));
@@ -414,6 +442,9 @@ impl Parser<'_> {
         self.position += 1;
         let mut statements = Vec::new();
         while !self.at_end() && !self.is_text("}") {
+            if self.check_deadline() {
+                break;
+            }
             self.skip_trivia();
             if self.is_text("}") || self.at_end() {
                 break;
@@ -778,6 +809,9 @@ impl Parser<'_> {
         self.block_depth += 1;
         let mut statements = Vec::new();
         while !self.at_end() && !self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
+            if self.check_deadline() {
+                break;
+            }
             self.skip_trivia();
             if self.at_end() || self.is_kind(|kind| matches!(kind, TokenKind::Dedent)) {
                 break;
@@ -1978,8 +2012,27 @@ impl Parser<'_> {
     fn current(&self) -> Option<&Token> {
         self.tokens.get(self.position)
     }
+    /// Comprueba el plazo cooperativo y, al vencer, emite `OX6001` una sola vez.
+    ///
+    /// Marca `timed_out` para que [`Parser::at_end`] detenga también los bucles
+    /// anidados que no consultan el reloj en cada token.
+    fn check_deadline(&mut self) -> bool {
+        if self.timed_out {
+            return true;
+        }
+        let Some(deadline) = self.deadline else {
+            return false;
+        };
+        if Instant::now() < deadline {
+            return false;
+        }
+        let span = self.current().map(|token| token.span);
+        self.timed_out = true;
+        self.error("OX6001", "el análisis superó el límite de tiempo", span);
+        true
+    }
     fn at_end(&self) -> bool {
-        self.position >= self.tokens.len()
+        self.timed_out || self.position >= self.tokens.len()
     }
     fn is_text(&self, text: &str) -> bool {
         self.current_text() == Some(text)

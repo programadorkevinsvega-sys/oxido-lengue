@@ -7,7 +7,7 @@ use index::WorkspaceIndex;
 use oxido_compiler::application::source_map::SourceMap;
 use oxido_language::{
     SourceFile,
-    domain::syntax::{LexOptions, TokenKind, lex},
+    domain::syntax::{LexOptions, LexOutput, TokenKind, analysis_deadline, lex, lex_with_deadline},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -1576,8 +1576,12 @@ fn reference_locations(
         .map(|symbol| symbol.uri.as_str())
         .collect::<BTreeSet<_>>();
     let mut locations = Vec::new();
+    let deadline = analysis_deadline();
     for (module_uri, module_text, _, _) in workspace_documents(state) {
-        let lexed = lex(
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            break;
+        }
+        let lexed = lex_analyzed(
             &SourceFile::new(&module_text),
             LexOptions {
                 project_mode: state.project_mode,
@@ -1616,6 +1620,14 @@ fn reference_locations(
     }
     locations.dedup();
     locations
+}
+
+/// Tokeniza un documento del editor con el presupuesto de análisis compartido.
+///
+/// El LSP ya limita el tamaño del documento; el plazo protege al worker frente
+/// a entradas cuya forma hace que la tokenización sea patológica.
+pub(crate) fn lex_analyzed(source: &SourceFile, options: LexOptions) -> LexOutput {
+    lex_with_deadline(source, options, analysis_deadline())
 }
 
 /// Comprueba que un nombre pueda escribirse como identificador `.ox`. El lexer
@@ -1770,7 +1782,7 @@ fn local_binding_ranges(
     binding: &LocalBinding,
     bindings: &[LocalBinding],
 ) -> Option<Vec<(usize, usize)>> {
-    let lexed = lex(&SourceFile::new(text), LexOptions { project_mode });
+    let lexed = lex_analyzed(&SourceFile::new(text), LexOptions { project_mode });
     let mut previous_significant = None::<String>;
     let mut ranges = Vec::new();
     for token in lexed.tokens {
@@ -1978,7 +1990,7 @@ fn formatting_response(id: Value, params: Option<&Value>, state: &ServerState) -
         return json!({"jsonrpc":"2.0","id":id,"result":[]});
     };
     let source = SourceFile::new(&document.text);
-    let lexed = lex(
+    let lexed = lex_analyzed(
         &source,
         LexOptions {
             project_mode: state.project_mode,
@@ -2857,7 +2869,11 @@ pub(crate) fn workspace_symbols_from_documents(
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
 ) -> Vec<WorkspaceSymbol> {
     let mut symbols = Vec::new();
+    let deadline = analysis_deadline();
     for (uri, text, _, _) in documents {
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            break;
+        }
         let module_path = file_module_path(uri, project_root);
         let declarations = declared_symbols(text, project_mode);
         if declarations.is_empty() {
@@ -2988,7 +3004,7 @@ fn lex_token_at(
     offset: usize,
     project_mode: Option<oxido_language::domain::syntax::SyntaxMode>,
 ) -> Option<oxido_language::domain::syntax::Token> {
-    let lexed = lex(&SourceFile::new(text), LexOptions { project_mode });
+    let lexed = lex_analyzed(&SourceFile::new(text), LexOptions { project_mode });
     lexed
         .tokens
         .into_iter()
@@ -3202,7 +3218,7 @@ fn semantic_token_list(
     cancellation: &AtomicBool,
 ) -> Option<Vec<(usize, usize, usize, usize)>> {
     let source = SourceFile::new(text);
-    let lexed = lex(&source, LexOptions { project_mode });
+    let lexed = lex_analyzed(&source, LexOptions { project_mode });
     let declarations = semantic_declarations(symbols, uri, text);
     let bindings = local_bindings(text, project_mode);
     let mut semantic = Vec::<(usize, usize, usize, usize)>::new();
@@ -3716,6 +3732,52 @@ mod tests {
                 .load(Ordering::Relaxed)
         );
         assert!(dirty.is_empty());
+    }
+
+    #[test]
+    fn bounds_a_burst_of_changes_to_one_queued_diagnostic() {
+        let mut state = configured_test_state();
+        let opened = handle(
+            json!({
+                "jsonrpc":"2.0", "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///main.ox","version":1,"text":"funcion main():\n\tpass\n"}}
+            }),
+            &mut state,
+        );
+        assert!(opened.is_empty());
+        let (sender, receiver) = mpsc::sync_channel(MAX_QUEUED_DIAGNOSTIC_TASKS);
+        let mut dirty = BTreeSet::new();
+        let mut pending: HashMap<String, PendingDiagnostic> = HashMap::new();
+
+        // Ráfaga de 63 cambios mientras el worker no ha consumido la cola: cada
+        // iteración cancela la tarea anterior y vuelve a marcar el documento.
+        for version in 2..=64 {
+            let document = state
+                .documents
+                .get_mut("file:///main.ox")
+                .expect("documento abierto");
+            document.version = Some(version);
+            if let Some(previous) = pending.remove("file:///main.ox") {
+                previous.cancellation.store(true, Ordering::Relaxed);
+            }
+            dirty.insert("file:///main.ox".to_owned());
+            dispatch_diagnostic(&sender, &state, &mut dirty, &mut pending);
+        }
+
+        assert!(pending.is_empty());
+        assert_eq!(dirty.len(), 1);
+        let first = receiver.try_recv().expect("una tarea en vuelo");
+        assert_eq!(first.version, Some(2));
+        assert!(receiver.try_recv().is_err(), "la cola nunca crece");
+
+        // Al liberarse la cola, el documento sucio se reintenta con la versión vigente.
+        dispatch_diagnostic(&sender, &state, &mut dirty, &mut pending);
+        let latest = receiver
+            .try_recv()
+            .expect("reintento con la última versión");
+        assert_eq!(latest.version, Some(64));
+        assert!(dirty.is_empty());
+        assert_eq!(pending.len(), 1);
     }
 
     #[test]

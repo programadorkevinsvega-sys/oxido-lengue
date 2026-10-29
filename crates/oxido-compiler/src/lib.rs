@@ -445,7 +445,11 @@ pub fn parse_ox(
         }
     }
 
-    let mut output = oxido_language::domain::syntax::parse(source, options);
+    let mut output = oxido_language::domain::syntax::parse_with_deadline(
+        source,
+        options,
+        oxido_language::domain::syntax::analysis_deadline(),
+    );
     if let Some(file) = &output.file {
         let mut rust_diagnostics = Vec::new();
         for item in &file.items {

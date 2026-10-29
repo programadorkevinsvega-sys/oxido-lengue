@@ -2,9 +2,10 @@ use oxido_language::{
     SourceFile,
     domain::{
         ast::{BlockStyle, Item, Statement},
-        syntax::{LexOptions, parse},
+        syntax::{LexOptions, SyntaxMode, parse, parse_with_deadline},
     },
 };
+use std::time::{Duration, Instant};
 
 #[test]
 fn parses_indented_function_and_preserves_tail_semicolon_semantics() {
@@ -401,4 +402,59 @@ fn parser_keeps_macro_tokens_and_unicode_spans() {
     };
     assert_eq!(let_statement.initializer.text, "matches!(si, Some(_))");
     assert!(let_statement.span.end() > let_statement.span.start());
+}
+
+#[test]
+fn stops_parsing_when_the_deadline_expires_without_panicking() {
+    let source = SourceFile::new("funcion main():\n    pass\n");
+    let options = LexOptions {
+        project_mode: Some(SyntaxMode::Indentation),
+    };
+    let expired = Instant::now().checked_sub(Duration::from_secs(1));
+    let interrupted = parse_with_deadline(&source, options, expired);
+    assert!(interrupted.file.is_none());
+    assert_eq!(
+        interrupted
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "OX6001")
+            .count(),
+        1
+    );
+    assert!(
+        interrupted
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("límite de tiempo"))
+    );
+
+    // Fuente vacía: el lexer no tiene pasos que comprobar, así que el aviso
+    // procede del propio parser y confirma su comprobación independiente.
+    let empty = SourceFile::new("");
+    let parser_interrupted = parse_with_deadline(
+        &empty,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+        expired,
+    );
+    assert!(parser_interrupted.file.is_none());
+    assert!(
+        parser_interrupted
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("límite de tiempo"))
+    );
+
+    let complete = parse_with_deadline(
+        &source,
+        options,
+        Instant::now().checked_add(Duration::from_secs(60)),
+    );
+    assert!(!complete.has_errors(), "{:?}", complete.diagnostics);
+    assert!(complete.file.is_some());
+    assert_eq!(
+        complete.file.unwrap().items.len(),
+        parse(&source, options).file.unwrap().items.len()
+    );
 }

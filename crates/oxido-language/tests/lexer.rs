@@ -1,7 +1,8 @@
 use oxido_language::{
     SourceFile,
-    domain::syntax::{LexOptions, SyntaxMode, TokenKind, lex},
+    domain::syntax::{LexOptions, SyntaxMode, TokenKind, lex, lex_with_deadline},
 };
+use std::time::{Duration, Instant};
 
 fn texts<'a>(
     source: &'a SourceFile,
@@ -358,4 +359,45 @@ fn marks_macro_arguments_and_attribute_trees_opaque() {
         .find(|token| source.slice(token.span) == "f")
         .unwrap();
     assert!(!function_name.opaque);
+}
+
+#[test]
+fn stops_lexing_when_the_deadline_expires_without_panicking() {
+    let source = SourceFile::new("x ".repeat(10_000));
+    let options = LexOptions {
+        project_mode: Some(SyntaxMode::Braces),
+    };
+
+    let expired = Instant::now().checked_sub(Duration::from_secs(1));
+    let interrupted = lex_with_deadline(&source, options, expired);
+    assert!(interrupted.timed_out);
+    assert!(interrupted.tokens.is_empty());
+    assert_eq!(
+        interrupted
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "OX6001")
+            .count(),
+        1
+    );
+    assert!(
+        interrupted
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("límite de tiempo"))
+    );
+
+    let complete = lex_with_deadline(
+        &source,
+        options,
+        Instant::now().checked_add(Duration::from_secs(60)),
+    );
+    assert!(!complete.timed_out);
+    assert!(
+        !complete
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "OX6001")
+    );
+    assert_eq!(complete.tokens.len(), lex(&source, options).tokens.len());
 }

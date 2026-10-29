@@ -3,12 +3,32 @@ use crate::domain::{
     source::{SourceFile, Span},
     syntax::{SyntaxMode, Token, TokenKind, token::keyword},
 };
+use std::time::{Duration, Instant};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
 const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_GROUP_DEPTH: usize = 256;
 const MAX_INDENT_DEPTH: usize = 128;
 const MAX_TOKENS: usize = 1_000_000;
+/// Pasos del analizador entre dos comprobaciones del plazo cooperativo.
+const DEADLINE_CHECK_INTERVAL: usize = 4096;
+
+/// Presupuesto máximo para analizar una única fuente `.ox`.
+///
+/// Es un límite cooperativo: lexer y parser lo comprueban por lotes y detienen
+/// el trabajo con `OX6001` en vez de esperar a que la entrada termine. El valor
+/// debe cubrir con holgura el peor caso legítimo (4 MiB y un millón de tokens);
+/// su revisión con mediciones pertenece a la subfase de rendimiento.
+pub const ANALYSIS_TIME_BUDGET: Duration = Duration::from_secs(10);
+
+/// Plazo calculado desde ahora con [`ANALYSIS_TIME_BUDGET`].
+///
+/// Devuelve `None` solo si la suma desborda la representación de `Instant`; en
+/// ese caso el análisis continúa sin límite de tiempo en lugar de entrar en pánico.
+#[must_use]
+pub fn analysis_deadline() -> Option<Instant> {
+    Instant::now().checked_add(ANALYSIS_TIME_BUDGET)
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LexOptions {
@@ -20,6 +40,8 @@ pub struct LexOutput {
     pub tokens: Vec<Token>,
     pub diagnostics: Vec<Diagnostic>,
     pub mode: Option<SyntaxMode>,
+    /// `true` si el escaneo se detuvo por agotar el plazo solicitado.
+    pub timed_out: bool,
 }
 
 impl LexOutput {
@@ -47,11 +69,28 @@ struct Group {
 
 /// Tokeniza una fuente sin transformar su texto ni entrar en pánico por entradas inválidas.
 pub fn lex(source: &SourceFile, options: LexOptions) -> LexOutput {
+    lex_with_deadline(source, options, None)
+}
+
+/// Como [`lex`], pero detiene el escaneo al alcanzar `deadline`.
+///
+/// Al agotarse el plazo se emite `OX6001` una sola vez y se conservan los tokens
+/// ya producidos. El resultado nunca entra en pánico ni depende del reloj para
+/// ser reproducible: con un plazo futuro o `None` el comportamiento es idéntico
+/// al de [`lex`].
+pub fn lex_with_deadline(
+    source: &SourceFile,
+    options: LexOptions,
+    deadline: Option<Instant>,
+) -> LexOutput {
     let text = source.text();
     let mut scanner = Scanner {
         source,
         text,
         options,
+        deadline,
+        steps: 0,
+        timed_out: false,
         tokens: Vec::new(),
         diagnostics: Vec::new(),
         position: 0,
@@ -87,6 +126,9 @@ struct Scanner<'a> {
     source: &'a SourceFile,
     text: &'a str,
     options: LexOptions,
+    deadline: Option<Instant>,
+    steps: usize,
+    timed_out: bool,
     tokens: Vec<Token>,
     diagnostics: Vec<Diagnostic>,
     position: usize,
@@ -126,6 +168,9 @@ impl Scanner<'_> {
 
     fn scan(&mut self) {
         while self.position < self.text.len() && self.tokens.len() < MAX_TOKENS {
+            if self.check_deadline() {
+                break;
+            }
             if self.at_line_start() {
                 self.scan_line_prefix();
                 continue;
@@ -186,14 +231,14 @@ impl Scanner<'_> {
         let remainder_is_ascii_whitespace = self.text.as_bytes()[self.position..]
             .iter()
             .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'));
-        if self.tokens.len() >= MAX_TOKENS && !remainder_is_ascii_whitespace {
+        if !self.timed_out && self.tokens.len() >= MAX_TOKENS && !remainder_is_ascii_whitespace {
             self.error(
                 "OX6001",
                 "la fuente supera el límite de un millón de tokens",
                 self.span(self.position, (self.position + 1).min(self.text.len())),
             );
         }
-        if !self.groups.is_empty() {
+        if !self.timed_out && !self.groups.is_empty() {
             let unclosed = std::mem::take(&mut self.groups);
             for group in unclosed {
                 self.error(
@@ -214,7 +259,36 @@ impl Scanner<'_> {
             tokens: self.tokens,
             diagnostics: self.diagnostics,
             mode: self.mode,
+            timed_out: self.timed_out,
         }
+    }
+
+    /// Comprueba el plazo cada `DEADLINE_CHECK_INTERVAL` pasos del escaneo.
+    ///
+    /// Se llama al inicio de cada iteración del bucle principal, de modo que un
+    /// plazo ya vencido detiene el trabajo antes de producir ningún token.
+    fn check_deadline(&mut self) -> bool {
+        if self.timed_out {
+            return true;
+        }
+        let due = self.steps.is_multiple_of(DEADLINE_CHECK_INTERVAL);
+        self.steps = self.steps.saturating_add(1);
+        if !due {
+            return false;
+        }
+        let Some(deadline) = self.deadline else {
+            return false;
+        };
+        if Instant::now() < deadline {
+            return false;
+        }
+        self.timed_out = true;
+        self.error(
+            "OX6001",
+            "el análisis superó el límite de tiempo",
+            self.span(self.position, self.position),
+        );
+        true
     }
 
     fn scan_line_prefix(&mut self) {

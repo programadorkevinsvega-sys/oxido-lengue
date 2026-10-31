@@ -401,3 +401,33 @@ fn stops_lexing_when_the_deadline_expires_without_panicking() {
     );
     assert_eq!(complete.tokens.len(), lex(&source, options).tokens.len());
 }
+
+#[test]
+fn caps_diagnostics_and_reports_the_omitted_count() {
+    let source = SourceFile::new(format!("sintaxis llaves\n{}", "\u{1}".repeat(5_000)));
+    let output = lex(&source, LexOptions::default());
+    assert_eq!(output.diagnostics.len(), 1_001);
+    let summary = output.diagnostics.last().expect("resumen final");
+    assert_eq!(summary.code, "OX6001");
+    assert!(summary.message.contains("4000"), "{}", summary.message);
+}
+
+#[test]
+fn warns_on_fullwidth_identifiers_and_other_mixed_scripts() {
+    let source = SourceFile::new("sintaxis llaves\nlet ｐago = 1\nlet lօg = 2\nlet nombre = 3\n");
+    let output = lex(&source, LexOptions::default());
+    let warnings: Vec<_> = output
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "OX1003")
+        .collect();
+    assert_eq!(warnings.len(), 2, "{:?}", output.diagnostics);
+    assert!(
+        output
+            .tokens
+            .iter()
+            .filter(|token| matches!(token.kind, TokenKind::Identifier { .. }))
+            .count()
+            >= 3
+    );
+}

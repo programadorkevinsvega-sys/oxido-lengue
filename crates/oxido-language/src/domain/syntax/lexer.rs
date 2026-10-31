@@ -10,6 +10,12 @@ const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_GROUP_DEPTH: usize = 256;
 const MAX_INDENT_DEPTH: usize = 128;
 const MAX_TOKENS: usize = 1_000_000;
+/// Máximo de diagnósticos conservados por fuente.
+///
+/// Una entrada con millones de caracteres inválidos generaría un diagnóstico
+/// por carácter; el tope evita que el informe consuma memoria sin límite. Se
+/// conserva un diagnóstico final que resume cuántos se omitieron.
+pub const MAX_DIAGNOSTICS: usize = 1000;
 /// Pasos del analizador entre dos comprobaciones del plazo cooperativo.
 const DEADLINE_CHECK_INTERVAL: usize = 4096;
 
@@ -91,6 +97,7 @@ pub fn lex_with_deadline(
         deadline,
         steps: 0,
         timed_out: false,
+        suppressed_diagnostics: 0,
         tokens: Vec::new(),
         diagnostics: Vec::new(),
         position: 0,
@@ -129,6 +136,7 @@ struct Scanner<'a> {
     deadline: Option<Instant>,
     steps: usize,
     timed_out: bool,
+    suppressed_diagnostics: usize,
     tokens: Vec<Token>,
     diagnostics: Vec<Diagnostic>,
     position: usize,
@@ -254,7 +262,17 @@ impl Scanner<'_> {
         }
     }
 
-    fn finish(self) -> LexOutput {
+    fn finish(mut self) -> LexOutput {
+        if self.suppressed_diagnostics > 0 {
+            self.diagnostics.push(Diagnostic::error(
+                "OX6001",
+                format!(
+                    "se omitieron {} diagnósticos adicionales",
+                    self.suppressed_diagnostics
+                ),
+                Span::empty(),
+            ));
+        }
         LexOutput {
             tokens: self.tokens,
             diagnostics: self.diagnostics,
@@ -631,10 +649,10 @@ impl Scanner<'_> {
                 self.position,
             );
         } else {
-            if has_mixed_confusable_scripts(word) {
+            if has_confusable_identifier(word) {
                 self.warning(
                     "OX1003",
-                    "identificador combina alfabetos visualmente confundibles",
+                    "identificador con caracteres visualmente confundibles",
                     self.span(start, self.position),
                 );
             }
@@ -898,10 +916,18 @@ impl Scanner<'_> {
             })
     }
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
+        if self.diagnostics.len() >= MAX_DIAGNOSTICS {
+            self.suppressed_diagnostics = self.suppressed_diagnostics.saturating_add(1);
+            return;
+        }
         self.diagnostics
             .push(Diagnostic::error(code, message, span));
     }
     fn warning(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
+        if self.diagnostics.len() >= MAX_DIAGNOSTICS {
+            self.suppressed_diagnostics = self.suppressed_diagnostics.saturating_add(1);
+            return;
+        }
         self.diagnostics
             .push(Diagnostic::warning(code, message, span));
     }
@@ -973,7 +999,7 @@ fn is_bidi_control(ch: char) -> bool {
     matches!(ch as u32, 0x061c | 0x200e..=0x200f | 0x202a..=0x202e | 0x2066..=0x2069)
 }
 
-fn has_mixed_confusable_scripts(word: &str) -> bool {
+fn has_confusable_identifier(word: &str) -> bool {
     let mut latin = false;
     let mut other = false;
     for ch in word.chars() {
@@ -981,8 +1007,19 @@ fn has_mixed_confusable_scripts(word: &str) -> bool {
         if ch.is_ascii_alphabetic() || (0x00c0..=0x024f).contains(&point) {
             latin = true;
         }
-        if (0x0370..=0x03ff).contains(&point) || (0x0400..=0x052f).contains(&point) {
+        if (0x0370..=0x03ff).contains(&point)
+            || (0x0400..=0x052f).contains(&point)
+            || (0x0530..=0x058f).contains(&point)
+        {
             other = true;
+        }
+        // Formas de ancho completo y dígitos de ancho completo se confunden con
+        // sus equivalentes ASCII aunque el identificador sea homogéneo.
+        if (0xff10..=0xff19).contains(&point)
+            || (0xff21..=0xff3a).contains(&point)
+            || (0xff41..=0xff5a).contains(&point)
+        {
+            return true;
         }
     }
     latin && other

@@ -2307,4 +2307,15 @@ fn reports_project_risk_surface_without_leaking_absolute_paths() {
         "{stdout}"
     );
     assert!(!stdout.contains(root.to_str().unwrap()), "{stdout}");
+
+    let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .args(["auditar-proyecto", root.to_str().unwrap(), "--rechazar"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(
+        String::from_utf8_lossy(&rejected.stderr).contains("--rechazar"),
+        "{}",
+        String::from_utf8_lossy(&rejected.stderr)
+    );
 }

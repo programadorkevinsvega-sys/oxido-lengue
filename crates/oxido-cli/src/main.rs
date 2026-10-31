@@ -91,8 +91,10 @@ fn print_aliases(args: &[OsString]) -> Result<(), String> {
 }
 
 fn audit_project(args: &[OsString]) -> Result<(), String> {
-    let [root] = args else {
-        return Err("uso: oxido auditar-proyecto <directorio>".into());
+    let (root, reject) = match args {
+        [root] => (root, false),
+        [root, flag] if flag == "--rechazar" => (root, true),
+        _ => return Err("uso: oxido auditar-proyecto <directorio> [--rechazar]".into()),
     };
     let root = fs::canonicalize(PathBuf::from(root))
         .map_err(|error| format!("no se pudo resolver el proyecto: {error}"))?;
@@ -239,6 +241,11 @@ fn audit_project(args: &[OsString]) -> Result<(), String> {
     println!(
         "Alcance: análisis estático; no descubre expansiones macro ni prueba ausencia de riesgos."
     );
+    if reject && unsafe_count > 0 {
+        return Err(format!(
+            "la política --rechazar encontró {unsafe_count} uso(s) de unsafe"
+        ));
+    }
     Ok(())
 }
 

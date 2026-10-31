@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–10: completadas en sus alcances documentados. Fase 11: completada en su alcance técnico. Fase 11.1: completada para ámbitos locales, renombrado e índice persistente. Distribución y benchmarks multiplataforma pasan a Fase 12. Fase 12: en curso; 12.1 (modelo de amenazas) y 12.2 (límites) completadas en su alcance documentado. Fases 13–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
+**Fases 0–10: completadas en sus alcances documentados. Fase 11: completada en su alcance técnico. Fase 11.1: completada para ámbitos locales, renombrado e índice persistente. Distribución y benchmarks multiplataforma pasan a Fase 12. Fase 12: en curso; 12.1–12.9 completadas en su alcance documentado (12.8 medido en Linux/Windows/macOS; 12.9 sin firma ni publicación). Fases 13–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -340,8 +340,8 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 5. Auditoría de rutas, symlinks, permisos y procesos hijos. **Completada en su alcance documentado:** índice sin symlinks, confinamiento de rutas, caché `0700`/`0600` en Unix, procesos sin shell y cancelación de Cargo.
 6. `cargo-audit`, `cargo-deny`, `--locked` y política de dependencias/licencias. **Completada en su alcance documentado:** [`docs/politica-dependencias.md`](politica-dependencias.md) y auditorías en CI.
 7. Fuzzing continuo, revisión de pánicos y límites de memoria/CPU. **Completada en su alcance documentado:** cinco targets, topes de diagnósticos y revisión estática sin `unwrap`/`expect`/`panic!` en rutas de producción; la medición del peor caso pertenece a 12.8.
-8. Benchmarks de análisis, generación, memoria y latencia del LSP, incluidos objetivos medidos y memoria real en Windows/macOS; optimizar según perfiles.
-9. Builds reproducibles, SBOM, firma, notarización, matriz Windows/macOS y publicación de los VSIX preparados en Fase 11.
+8. Benchmarks de análisis, generación, memoria y latencia del LSP, incluidos objetivos medidos y memoria real en Windows/macOS; optimizar según perfiles. **Completado:** 13 escenarios, objetivos P95/RSS, medición Linux local y Linux/Windows/macOS en CI; resultados en el [informe](reports/fase-12/2026-10-30-benchmark-linux.md).
+9. Builds reproducibles, SBOM, firma, notarización, matriz Windows/macOS y publicación de los VSIX preparados en Fase 11. **Completado sin publicar:** build release reproducible y SBOM CycloneDX en CI; firma, notarización y publicación requieren credenciales y autorización. Ver [`docs/reproducibilidad.md`](reproducibilidad.md).
 10. Informes CI sin secretos ni rutas absolutas; telemetría desactivada por defecto.
 11. Sandbox de playground, solo si se aprueba ese producto.
 

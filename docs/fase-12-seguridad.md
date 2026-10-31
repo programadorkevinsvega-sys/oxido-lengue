@@ -90,12 +90,12 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 
 - No sustituyen un sandbox: la compilación autorizada puede ejecutar `build.rs` y macros.
 - No limitan la memoria total del proceso más allá de los topes por documento, índice y cola.
-- No garantizan que un plazo de 10 s sea suficiente para toda entrada válida; esa medición pertenece a 12.8.
+- No garantizan que un plazo de 10 s sea suficiente para toda entrada válida; la medición Linux está en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md) y Windows/macOS se miden en CI.
 - No hay playground ni aislamiento de sistema operativo.
 
 ---
 
-## Resultados de auditoría (12.1–12.7)
+## Resultados de auditoría (12.1–12.9)
 
 | Comprobación | Resultado |
 |---|---|
@@ -112,7 +112,9 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 | `cargo-audit` | Integrado con versión fijada 0.22.2; sin vulnerabilidades conocidas en la auditoría local (12.6) |
 | Fuzzing y pánicos | Cinco targets, smoke de 1000 casos por push y 10 000 semanales; revisión estática de pánicos completada (12.7) |
 | Tope de diagnósticos | 1.000 por fuente más resumen `OX6001`; el mismo tope se aplica a los diagnósticos de Rust antes de combinarlos (12.7) |
-| Benchmarks y memoria | Solo Linux y sin objetivos medidos para 12.8 |
+| Benchmarks y memoria | Linux, Windows y macOS medidos en CI con objetivos y RSS real (12.8) |
+| Builds reproducibles | Dos builds release con `SOURCE_DATE_EPOCH=0` y remap de rutas producen el mismo SHA-256 en Linux (12.9) |
+| SBOM | CycloneDX 1.5 por crate, sin rutas absolutas del workspace; artefacto de CI (12.9) |
 
 ### 12.3. `unsafe`
 
@@ -147,8 +149,27 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 - Cinco targets de `cargo-fuzz` (`lexer`, `parser`, `config`, `backend`, `lsp`), con smoke de 1000 casos por push y 10 000 semanales. Un smoke no demuestra ausencia de fallos.
 - Revisión estática de rutas de producción: no hay `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`, `unimplemented!` ni `assert!`/`debug_assert!` en el código de biblioteca fuera de módulos `#[cfg(test)]`. Las únicas coincidencias son nombres de macros en las tablas de palabras clave de Rust. Las pruebas sí usan `unwrap`/`expect` para fallar con contexto.
 - Los límites de memoria y CPU son los de la matriz: 4 MiB por fuente, 1.000.000 de tokens, 256 grupos, 128 niveles, 1.000 diagnósticos, 64 documentos de 4 MiB con 16 MiB totales, 256 archivos indexados y 16 MiB de caché.
-- El plazo cooperativo de 10 s acota el tiempo de análisis, pero no el consumo total del proceso ni el peor caso de una entrada válida de 4 MiB; esa medición sigue en 12.8.
+- El plazo cooperativo de 10 s acota el tiempo de análisis, pero no el consumo total del proceso ni el peor caso de una entrada válida de 4 MiB; la medición Linux está en 12.8.
 - El desbordamiento de pila por anidamiento queda acotado por los límites del lexer y del parser; el fuzzing cubre entradas malformadas y truncadas.
+
+### 12.8. Benchmarks de análisis, generación, memoria y LSP
+
+- Arnés propio `tools/benchmark` (`oxido-benchmark`), con 13 escenarios y un proceso hijo por escenario para aislar el pico de RSS. `--check` falla por P95, RSS, plazo vencido o resultado funcional vacío.
+- Medición Linux `x86_64`, 12 CPUs y Rust 1.99.1, documentada en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md).
+- Entrada grande válida de 4 MiB: lexer P95 41,23 ms y 40,2 MiB; parser P95 72,63 ms y 107,4 MiB; generación P95 3.436,55 ms y 1.022,0 MiB; apertura LSP 415,84 ms y 114,3 MiB.
+- Escenarios LSP interactivos sobre ~5 KiB: hover, símbolos y referencias con P95 entre 0,63 ms y 1,05 ms en esta máquina.
+- Entrada inválida de 4 MiB: 213,05 ms (lexer) y 215,52 ms (parser), con el tope de 1.001 diagnósticos y sin plazo vencido.
+- Límite conocido: una única función con ~300.000 sentencias desborda la pila de `rustfmt` y devuelve `OX4001`; el benchmark usa muchas funciones pequeñas para la carga representativa. No toda entrada válida de 4 MiB se genera correctamente.
+- Los objetivos se fijaron después de medir, con margen para la variabilidad del runner. No son objetivos de producción.
+- La matriz `benchmark-analysis` ejecutó `--check` en Linux, Windows y macOS en el run [41167513550](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/41167513550) y los tres runners aprobaron todos los objetivos. En CI, `generate-large` quedó en 4.445 ms / 1.022 MiB (Ubuntu), 4.625 ms / 826 MiB (Windows) y 3.625 ms / 1.006 MiB (macOS).
+
+### 12.9. Builds reproducibles y SBOM
+
+- `tools/verify-reproducible-build.sh` compila dos veces con `SOURCE_DATE_EPOCH=0`, `CARGO_INCREMENTAL=0` y `--remap-path-prefix=<workspace>=/oxido`, y compara SHA-256. En Linux produjo el mismo hash para `oxido-cli` (documentado en [`docs/reproducibilidad.md`](reproducibilidad.md)).
+- `tools/generate-sbom.sh` usa `cargo-cyclonedx` 0.5.9, genera CycloneDX 1.5 JSON por paquete, renombra los archivos y elimina la ruta absoluta del workspace. CI publica el artefacto `oxido-sbom-<sha>`.
+- Los jobs `reproducible` y `sbom` se añadieron a CI y al workflow de release. El workflow de release no firma, no notariza y no publica; solo empaqueta y adjunta artefactos.
+- La reproducibilidad comprobada es local, con el mismo toolchain y la misma máquina. No se ha demostrado entre sistemas operativos ni máquinas distintas.
+- Firma, notarización, publicación y credenciales siguen pendientes de autorización explícita.
 
 Comandos ejecutados para esta fase:
 
@@ -166,6 +187,9 @@ cargo test --workspace --locked
 cargo fmt --manifest-path tools/validation-report/Cargo.toml -- --check
 cargo clippy --manifest-path tools/validation-report/Cargo.toml --all-targets --locked -- -D warnings
 OXIDO_VALIDATION_FUZZ_RUNS=1000 cargo run --manifest-path tools/validation-report/Cargo.toml --bin oxido-validation-report --locked
+cargo run --release --locked -p oxido-benchmark -- --check
+tools/verify-reproducible-build.sh oxido-cli oxido release
+tools/generate-sbom.sh
 ```
 
 ---
@@ -174,13 +198,16 @@ OXIDO_VALIDATION_FUZZ_RUNS=1000 cargo run --manifest-path tools/validation-repor
 
 | Prioridad | Acción | Subfase | Estado |
 |---|---|---|---|
-| Media | Medir el peor caso de 4 MiB y un millón de tokens para justificar el presupuesto de 10 s | 12.8 | Pendiente |
+| Media | Medir el peor caso de 4 MiB y un millón de tokens para justificar el presupuesto de 10 s | 12.8 | Completado en Linux, Windows y macOS |
+| Media | Añadir objetivos de P95/RSS y comprobar que el escenario hizo trabajo real | 12.8 | Completado |
+| Media | Verificar dos builds release con el mismo SHA-256 y generar SBOM sin rutas absolutas | 12.9 | Completado en Linux |
 | Media | Revisar pánicos y límites de memoria/CPU con fuzzing prolongado | 12.7 | Completado en el alcance verificado |
 | Media | Añadir `cargo-audit` explícito y documentar la política de licencias y dependencias | 12.6 | Completado |
 | Media | Auditar permisos de la caché, symlinks y rutas de escritura del LSP | 12.5 | Completado |
 | Baja | Verificar la política `--rechazar` de `oxido auditar-unsafe` y documentar sus límites | 12.3 | Completado |
 | Baja | Ampliar la cobertura de caracteres confundibles más allá de alfabetos mezclados | 12.4 | Completado |
-| Diferida | SBOM, firma, notarización, builds reproducibles y matriz Windows/macOS | 12.9 | Pendiente |
+| Diferida | SBOM y builds reproducibles | 12.9 | Completado en Linux; matriz Windows/macOS en CI |
+| Diferida | Firma, notarización y publicación | 12.9 | Pendiente de credenciales y autorización |
 | Condicionada | Sandbox de playground, solo si se aprueba el producto | 12.11 | Pendiente |
 
 ---
@@ -198,6 +225,8 @@ OXIDO_VALIDATION_FUZZ_RUNS=1000 cargo run --manifest-path tools/validation-repor
 - [x] Auditoría formal de permisos y symlinks cerrada (12.5).
 - [x] `cargo-audit` integrado y política de dependencias escrita (12.6).
 - [x] Revisión de pánicos y memoria/CPU completada en el alcance verificado (12.7).
-- [ ] Objetivos de rendimiento medidos en Linux, Windows y macOS (12.8).
-- [ ] SBOM, firma, notarización y builds reproducibles (12.9).
+- [x] Objetivos de rendimiento medidos en Linux, Windows y macOS con RSS real (12.8).
+- [x] Build reproducible verificado localmente en Linux (12.9).
+- [x] SBOM CycloneDX generado y publicado como artefacto de CI (12.9).
+- [ ] Firma, notarización y publicación (12.9): requieren credenciales y autorización.
 - [ ] Sandbox de playground, solo si se aprueba (12.11).

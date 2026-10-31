@@ -16,6 +16,8 @@ Una sintaxis en español e inglés que busca generar Rust estándar y conservar 
 - [Gramática inicial](./grammar)
 - [Modos de sintaxis](./syntax-modes)
 - [Matriz de compatibilidad](./compatibility)
+- [Builds reproducibles y SBOM](./reproducibilidad)
+- [Benchmark de análisis y LSP](./reports/fase-12/2026-10-30-benchmark-linux)
 - [Roadmap](./roadmap)
 - [Decisiones de arquitectura (ADR)](./adr/)
 - [Casos de uso](./audiencias/casos-de-uso)

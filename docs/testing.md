@@ -120,6 +120,28 @@ Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend,lsp}`.
 
 `differential_indented_ox_and_equivalent_rust_have_the_same_observable_result`, `differential_indented_impl_and_match_have_the_same_result_as_rust` y `differential_result_propagation_matches_native_rust` comparan tres pares positivos. `differential_patterns_borrows_and_async_match_native_rust` añade cuatro pares ejecutables: enum/patrones, préstamo mutable/iterador, `async`/`Future::poll` y genéricos/trait/closure. Cada par compila y ejecuta ambos programas y compara stdout byte por byte. `differential_type_errors_match_rustc_and_map_back_to_the_ox_line` compara el rechazo `E0308` y exige ubicación en el `.ox`. Son siete pares positivos y uno negativo; no certifican equivalencia semántica general.
 
+## Benchmarks de análisis y LSP
+
+`tools/benchmark` contiene el arnés `oxido-benchmark`. Cada escenario se ejecuta en un proceso hijo para aislar el RSS y el comando padre agrega las mediciones.
+
+```sh
+cargo run --release --locked -p oxido-benchmark
+cargo run --release --locked -p oxido-benchmark -- --check
+```
+
+Los escenarios cubren lexer, parser, generación y LSP con entradas típicas (~5 KiB), grandes (4 MiB), inválidas (4 MiB de bytes de control) y consultas LSP de hover, símbolos y referencias. `--check` aplica objetivos de P95 y RSS, comprueba el plazo de 10 s y exige que el escenario haya producido trabajo real (tokens, AST, Rust, mensajes o resultados LSP). Los objetivos se fijaron después de medir en Linux; el job `benchmark-analysis` los repite en Linux, Windows y macOS. Los resultados Linux están en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md).
+
+El benchmark no mide el round-trip de un editor real, la compilación Cargo ni el rendimiento de producción. Un resultado de una máquina no se extrapola a otra.
+
+## Builds reproducibles y SBOM
+
+```sh
+tools/verify-reproducible-build.sh oxido-cli oxido release
+tools/generate-sbom.sh
+```
+
+El primer script compila dos veces en directorios temporales, fija `SOURCE_DATE_EPOCH=0`, elimina la ruta del checkout con `--remap-path-prefix` y compara SHA-256. El segundo genera un CycloneDX 1.5 por paquete con `cargo-cyclonedx` 0.5.9 y elimina la ruta absoluta del workspace. Los detalles, límites y requisitos de firma/publicación están en [`reproducibilidad.md`](reproducibilidad.md).
+
 ## Informe reproducible
 
 Desde la raíz, ejecuta:

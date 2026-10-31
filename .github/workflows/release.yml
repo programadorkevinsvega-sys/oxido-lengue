@@ -10,8 +10,34 @@ permissions:
   contents: read
 
 jobs:
+  reproducible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - run: tools/verify-reproducible-build.sh oxido-cli oxido release
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - run: cargo install cargo-cyclonedx --version 0.5.9 --locked
+      - run: tools/generate-sbom.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oxido-sbom-${{ github.sha }}
+          path: target/sbom/*.cdx.json
+          if-no-files-found: error
+          retention-days: 30
   vsix:
     name: VSIX ${{ matrix.target }}
+    # Firma y notarización no configuradas: requieren secretos y autorización explícita.
+    # Este workflow solo empaqueta y adjunta artefactos; no publica ni firma.
+    needs: [reproducible, sbom]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false

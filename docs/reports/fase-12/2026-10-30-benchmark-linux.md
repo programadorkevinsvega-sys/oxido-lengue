@@ -1,7 +1,9 @@
-# Benchmark de análisis, generación y LSP (Linux)
+# Benchmark de análisis, generación y LSP (Linux, Windows y macOS)
 
-**Fecha:** 2026-10-30  
-**Commit de referencia:** cambios de Fase 12.8 (sin fusionar al crear este informe)  
+**Fecha:** 2026-10-30 (medición local) y 2026-10-31 (CI)
+
+**Commit de referencia:** cambios de Fase 12.8 (sin fusionar al crear este informe)
+
 **Herramienta:** `tools/benchmark` (`oxido-benchmark`)
 
 ## Entorno
@@ -63,12 +65,43 @@ Los escenarios `lsp-*` miden el coste dentro del proceso del servidor mediante `
 
 Los objetivos se fijaron después de medir y dejan margen para la variabilidad del runner. No son objetivos de producción ni una promesa de rendimiento.
 
+## CI multiplataforma
+
+Run de CI [41167513550](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/41167513550), job `benchmark-analysis`. Los tres runners ejecutaron `cargo run --release --locked -p oxido-benchmark -- --check` y aprobaron todos los objetivos.
+
+| Runner | Sistema | CPUs lógicas |
+|---|---|---:|
+| `ubuntu-latest` | Linux `x86_64` | 4 |
+| `windows-latest` | Windows `x86_64` | 4 |
+| `macos-14` | macOS `aarch64` | 3 |
+
+P95 en ms / RSS máximo en MiB:
+
+| Escenario | Ubuntu | Windows | macOS |
+|---|---:|---:|---:|
+| `lex-typical` | 0.13 / 3.1 | 0.13 / 7.4 | 0.06 / 3.7 |
+| `parse-typical` | 0.15 / 3.2 | 0.31 / 7.4 | 0.09 / 3.8 |
+| `generate-typical` | 25.83 / 8.4 | 72.18 / 11.9 | 179.54 / 9.4 |
+| `lex-large` | 71.79 / 35.8 | 71.22 / 57.3 | 60.40 / 59.0 |
+| `parse-large` | 115.16 / 92.6 | 160.92 / 95.7 | 106.82 / 117.5 |
+| `generate-large` | 4445.12 / 1022.3 | 4625.40 / 826.0 | 3624.53 / 1005.5 |
+| `lex-invalid` | 302.67 / 7.5 | 333.26 / 11.5 | 315.70 / 8.6 |
+| `parse-invalid` | 298.58 / 7.5 | 292.82 / 11.6 | 324.47 / 8.4 |
+| `lsp-open-typical` | 0.86 / 6.1 | 1.21 / 9.4 | 1.06 / 6.0 |
+| `lsp-hover-typical` | 0.90 / 8.4 | 1.30 / 11.1 | 0.68 / 7.8 |
+| `lsp-symbols-typical` | 0.82 / 6.7 | 1.10 / 9.5 | 1.53 / 6.1 |
+| `lsp-references-typical` | 0.98 / 6.9 | 2.24 / 9.7 | 1.31 / 6.4 |
+| `lsp-open-large` | 620.50 / 114.7 | 724.78 / 111.7 | 414.82 / 132.7 |
+
+Los runners de GitHub tienen menos CPUs que la máquina local (12), así que sus tiempos no son comparables uno a uno con la tabla anterior. Los valores sí confirman que la generación de 4 MiB termina dentro del plazo y que el RSS se mantiene por debajo de los objetivos en los tres sistemas.
+
 ## Límites encontrados
 
 - La generación válida de 4 MiB tarda unos 3,4 s y alcanza 1.022 MiB de RSS; queda por debajo del plazo de 10 s y del objetivo de 1.536 MiB, pero el margen de memoria no es amplio. Una segunda ejecución local dio 4,24 s y 1.017 MiB; la variación refuerza que los objetivos son cotas de CI, no umbrales de producción.
 - Una única función con unas 300.000 sentencias (también dentro del límite de 4 MiB) desborda la pila de `rustfmt` y devuelve `OX4001`; no hay pánico del compilador. El benchmark usa muchas funciones pequeñas para medir una carga representativa, pero el caso patológico sigue siendo un límite conocido: no toda entrada válida de 4 MiB se genera correctamente.
 - Los escenarios LSP interactivos rondan 1 ms en esta máquina; el benchmark no mide el round-trip completo del editor.
-- La medición es local, en Linux y con un solo toolchain. Los jobs de CI para Windows y macOS están preparados; sus resultados solo se declararán cuando el workflow correspondiente los produzca.
+- La medición local es Linux con 12 CPUs; la de CI usa runners de 4, 4 y 3 CPUs. Son muestras de ese hardware y ese toolchain, no garantías para otros equipos.
+- Los runners de CI no son entornos de producción y pueden variar entre ejecuciones; los objetivos dejan margen, pero no convierten estos números en SLA.
 - No se ha medido el coste de `cargo build` ni el tiempo de compilación Rust; este informe cubre lexer, parser, generación y LSP.
 
 ## Reproducción

@@ -129,7 +129,7 @@ cargo run --release --locked -p oxido-benchmark
 cargo run --release --locked -p oxido-benchmark -- --check
 ```
 
-Los escenarios cubren lexer, parser, generación y LSP con entradas típicas (~5 KiB), grandes (4 MiB), inválidas (4 MiB de bytes de control) y consultas LSP de hover, símbolos y referencias. `--check` aplica objetivos de P95 y RSS, comprueba el plazo de 10 s y exige que el escenario haya producido trabajo real (tokens, AST, Rust, mensajes o resultados LSP). Los objetivos se fijaron después de medir en Linux; el job `benchmark-analysis` los repite en Linux, Windows y macOS. Los resultados Linux están en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md).
+Los escenarios cubren lexer, parser, generación y LSP con entradas típicas (~5 KiB), grandes (4 MiB), inválidas (4 MiB de bytes de control) y consultas LSP de hover, símbolos y referencias. `--check` aplica objetivos de P95 y RSS, comprueba el plazo de 10 s y exige que el escenario haya producido trabajo real (tokens, AST, Rust, mensajes o resultados LSP). Los objetivos se fijaron después de medir en Linux; el job `benchmark-analysis` los repite en Linux, Windows y macOS. Los resultados locales y de CI están en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md).
 
 El benchmark no mide el round-trip de un editor real, la compilación Cargo ni el rendimiento de producción. Un resultado de una máquina no se extrapola a otra.
 

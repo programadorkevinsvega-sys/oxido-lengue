@@ -112,7 +112,7 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 | `cargo-audit` | Integrado con versión fijada 0.22.2; sin vulnerabilidades conocidas en la auditoría local (12.6) |
 | Fuzzing y pánicos | Cinco targets, smoke de 1000 casos por push y 10 000 semanales; revisión estática de pánicos completada (12.7) |
 | Tope de diagnósticos | 1.000 por fuente más resumen `OX6001`; el mismo tope se aplica a los diagnósticos de Rust antes de combinarlos (12.7) |
-| Benchmarks y memoria | Linux medido con objetivos y RSS real; jobs de Windows/macOS preparados para 12.8 |
+| Benchmarks y memoria | Linux, Windows y macOS medidos en CI con objetivos y RSS real (12.8) |
 | Builds reproducibles | Dos builds release con `SOURCE_DATE_EPOCH=0` y remap de rutas producen el mismo SHA-256 en Linux (12.9) |
 | SBOM | CycloneDX 1.5 por crate, sin rutas absolutas del workspace; artefacto de CI (12.9) |
 
@@ -161,7 +161,7 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 - Entrada inválida de 4 MiB: 213,05 ms (lexer) y 215,52 ms (parser), con el tope de 1.001 diagnósticos y sin plazo vencido.
 - Límite conocido: una única función con ~300.000 sentencias desborda la pila de `rustfmt` y devuelve `OX4001`; el benchmark usa muchas funciones pequeñas para la carga representativa. No toda entrada válida de 4 MiB se genera correctamente.
 - Los objetivos se fijaron después de medir, con margen para la variabilidad del runner. No son objetivos de producción.
-- La matriz `benchmark-analysis` ejecuta `--check` en Linux, Windows y macOS. Los resultados de Windows/macOS se incorporarán cuando el primer run de CI los produzca; no se declaran medidos todavía.
+- La matriz `benchmark-analysis` ejecutó `--check` en Linux, Windows y macOS en el run [41167513550](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/41167513550) y los tres runners aprobaron todos los objetivos. En CI, `generate-large` quedó en 4.445 ms / 1.022 MiB (Ubuntu), 4.625 ms / 826 MiB (Windows) y 3.625 ms / 1.006 MiB (macOS).
 
 ### 12.9. Builds reproducibles y SBOM
 
@@ -198,7 +198,7 @@ tools/generate-sbom.sh
 
 | Prioridad | Acción | Subfase | Estado |
 |---|---|---|---|
-| Media | Medir el peor caso de 4 MiB y un millón de tokens para justificar el presupuesto de 10 s | 12.8 | Completado en Linux; Windows/macOS en CI |
+| Media | Medir el peor caso de 4 MiB y un millón de tokens para justificar el presupuesto de 10 s | 12.8 | Completado en Linux, Windows y macOS |
 | Media | Añadir objetivos de P95/RSS y comprobar que el escenario hizo trabajo real | 12.8 | Completado |
 | Media | Verificar dos builds release con el mismo SHA-256 y generar SBOM sin rutas absolutas | 12.9 | Completado en Linux |
 | Media | Revisar pánicos y límites de memoria/CPU con fuzzing prolongado | 12.7 | Completado en el alcance verificado |
@@ -225,8 +225,7 @@ tools/generate-sbom.sh
 - [x] Auditoría formal de permisos y symlinks cerrada (12.5).
 - [x] `cargo-audit` integrado y política de dependencias escrita (12.6).
 - [x] Revisión de pánicos y memoria/CPU completada en el alcance verificado (12.7).
-- [x] Objetivos de rendimiento medidos en Linux con RSS real (12.8).
-- [ ] Objetivos de rendimiento medidos en Windows y macOS: jobs preparados, resultados pendientes del primer run de CI (12.8).
+- [x] Objetivos de rendimiento medidos en Linux, Windows y macOS con RSS real (12.8).
 - [x] Build reproducible verificado localmente en Linux (12.9).
 - [x] SBOM CycloneDX generado y publicado como artefacto de CI (12.9).
 - [ ] Firma, notarización y publicación (12.9): requieren credenciales y autorización.

@@ -43,6 +43,7 @@ jobs:
           components: rustfmt, clippy, rust-analyzer
       - run: rustup toolchain install nightly-2026-10-16 --profile minimal --component rustfmt
       - run: cargo install cargo-deny --locked
+      - run: cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo install cargo-fuzz --version 0.13.2 --locked
       - run: npm ci --prefix website
       - run: cargo run --manifest-path tools/validation-report/Cargo.toml --bin oxido-validation-report --locked
@@ -61,7 +62,9 @@ jobs:
         with:
           toolchain: 1.99.1
       - run: cargo install cargo-deny --locked
+      - run: cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo deny check
+      - run: cargo audit
   vscode-extension:
     runs-on: ubuntu-latest
     steps:

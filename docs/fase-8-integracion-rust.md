@@ -101,7 +101,7 @@ La prueba E2E con la dependencia real `futures-executor` vendorizada ejecuta un 
 
 **Estado:** verificada para el subconjunto detectable documentado.
 
-`oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` muestra posición de cada token y puede rechazarlo sin compilar. `oxido auditar-proyecto <directorio>` enumera tokens `unsafe`/`inseguro`, archivos `build.rs`, manifiestos que declaran crates `proc-macro`, bloques FFI y llamadas léxicas `Command::new`. Omite directorios de build comunes, no sigue symlinks, limita el número de entradas y muestra rutas relativas para no filtrar rutas absolutas.
+`oxido auditar-unsafe <archivo.ox|archivo.rs> [--rechazar]` muestra posición de cada token y puede rechazarlo sin compilar. `oxido auditar-proyecto <directorio> [--rechazar]` enumera tokens `unsafe`/`inseguro`, archivos `build.rs`, manifiestos que declaran crates `proc-macro`, bloques FFI y llamadas léxicas `Command::new`; con `--rechazar` devuelve error si encuentra usos. Omite directorios de build comunes, no sigue symlinks, limita el número de entradas y muestra rutas relativas para no filtrar rutas absolutas.
 
 El informe es estático y conservador: no resuelve todas las dependencias registry ni relaciones indirectas con macros procedurales, puede contar código de macros opacas, no ve código generado por expansión y solo reconoce la forma visible `Command::new`. No prueba ausencia de riesgo ni reemplaza sandbox, Workspace Trust o revisión de dependencias.
 

@@ -524,10 +524,56 @@ pub fn parse_ox(
                 }
             }
         }
+        cap_rust_diagnostics(&mut rust_diagnostics);
         output.diagnostics.extend(rust_diagnostics);
         if output.has_errors() {
             output.file = None;
         }
     }
     output
+}
+
+fn cap_rust_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
+    let max = oxido_language::domain::syntax::MAX_DIAGNOSTICS;
+    if diagnostics.len() > max {
+        let omitted = diagnostics.len() - max;
+        diagnostics.truncate(max);
+        diagnostics.push(Diagnostic::error(
+            "OX6001",
+            format!("se omitieron {omitted} diagnósticos adicionales"),
+            oxido_language::domain::source::Span::empty(),
+        ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cap_rust_diagnostics;
+    use oxido_language::domain::diagnostics::Diagnostic;
+    use oxido_language::domain::source::Span;
+    use oxido_language::domain::syntax::MAX_DIAGNOSTICS;
+
+    #[test]
+    fn caps_rust_diagnostics_and_reports_the_omitted_count() {
+        let mut diagnostics = (0..MAX_DIAGNOSTICS + 500)
+            .map(|_| Diagnostic::error("OX4001", "fragmento inválido", Span::empty()))
+            .collect::<Vec<_>>();
+        cap_rust_diagnostics(&mut diagnostics);
+        assert_eq!(diagnostics.len(), MAX_DIAGNOSTICS + 1);
+        let summary = diagnostics.last().expect("resumen final");
+        assert_eq!(summary.code, "OX6001");
+        assert!(summary.message.contains("500"), "{}", summary.message);
+    }
+
+    #[test]
+    fn leaves_a_list_within_the_limit_unchanged() {
+        let mut diagnostics = vec![Diagnostic::error(
+            "OX4001",
+            "fragmento inválido",
+            Span::empty(),
+        )];
+        cap_rust_diagnostics(&mut diagnostics);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "OX4001");
+    }
 }

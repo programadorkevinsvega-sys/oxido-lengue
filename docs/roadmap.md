@@ -335,11 +335,11 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 1. Modelo de amenazas actualizado para `.ox`, configuración, dependencias/macros, LSP y playground. **Completada en su alcance documentado:** [informe de seguridad](fase-12-seguridad.md).
 2. Aplicar límites de tamaño, anidamiento, tokens, tiempo y frecuencia. **Completada en su alcance documentado:** matriz de límites y plazo cooperativo en el [informe de seguridad](fase-12-seguridad.md).
-3. `#![forbid(unsafe_code)]` en el compilador y política de rechazo de `unsafe` en código analizado.
-4. Detección de Unicode bidireccional y advertencias de caracteres confundibles.
-5. Auditoría de rutas, symlinks, permisos y procesos hijos.
-6. `cargo-audit`, `cargo-deny`, `--locked` y política de dependencias/licencias.
-7. Fuzzing continuo, revisión de pánicos y límites de memoria/CPU.
+3. `#![forbid(unsafe_code)]` en el compilador y política de rechazo de `unsafe` en código analizado. **Completada en su alcance documentado:** `forbid` en los seis crates y el binario LSP; `--rechazar` en `auditar-unsafe` y `auditar-proyecto`, con límites léxicos registrados en el [informe de seguridad](fase-12-seguridad.md).
+4. Detección de Unicode bidireccional y advertencias de caracteres confundibles. **Completada en su alcance documentado:** bidi, alfabetos mezclados, armenio y ancho completo en el [informe de seguridad](fase-12-seguridad.md).
+5. Auditoría de rutas, symlinks, permisos y procesos hijos. **Completada en su alcance documentado:** índice sin symlinks, confinamiento de rutas, caché `0700`/`0600` en Unix, procesos sin shell y cancelación de Cargo.
+6. `cargo-audit`, `cargo-deny`, `--locked` y política de dependencias/licencias. **Completada en su alcance documentado:** [`docs/politica-dependencias.md`](politica-dependencias.md) y auditorías en CI.
+7. Fuzzing continuo, revisión de pánicos y límites de memoria/CPU. **Completada en su alcance documentado:** cinco targets, topes de diagnósticos y revisión estática sin `unwrap`/`expect`/`panic!` en rutas de producción; la medición del peor caso pertenece a 12.8.
 8. Benchmarks de análisis, generación, memoria y latencia del LSP, incluidos objetivos medidos y memoria real en Windows/macOS; optimizar según perfiles.
 9. Builds reproducibles, SBOM, firma, notarización, matriz Windows/macOS y publicación de los VSIX preparados en Fase 11.
 10. Informes CI sin secretos ni rutas absolutas; telemetría desactivada por defecto.

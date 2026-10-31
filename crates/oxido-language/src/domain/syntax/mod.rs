@@ -3,7 +3,8 @@ pub mod parser;
 pub mod token;
 
 pub use lexer::{
-    ANALYSIS_TIME_BUDGET, LexOptions, LexOutput, analysis_deadline, lex, lex_with_deadline,
+    ANALYSIS_TIME_BUDGET, LexOptions, LexOutput, MAX_DIAGNOSTICS, analysis_deadline, lex,
+    lex_with_deadline,
 };
 pub use parser::{ParseOutput, parse, parse_with_deadline};
 pub use token::{

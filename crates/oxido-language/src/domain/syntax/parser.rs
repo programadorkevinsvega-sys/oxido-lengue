@@ -7,7 +7,7 @@ use crate::domain::{
     },
     diagnostics::{Diagnostic, DiagnosticSuggestion},
     source::{SourceFile, Span},
-    syntax::{LexOptions, SyntaxMode, Token, TokenKind, lex_with_deadline},
+    syntax::{LexOptions, MAX_DIAGNOSTICS, SyntaxMode, Token, TokenKind, lex_with_deadline},
 };
 use std::{collections::HashSet, time::Instant};
 
@@ -60,12 +60,24 @@ pub fn parse_with_deadline(
         deferred_doc_comments: Vec::new(),
         deadline,
         timed_out: false,
+        suppressed_diagnostics: 0,
     };
     let file = parser.parse_file();
     let has_errors = parser.has_errors();
+    let mut diagnostics = parser.diagnostics;
+    if parser.suppressed_diagnostics > 0 {
+        diagnostics.push(Diagnostic::error(
+            "OX6001",
+            format!(
+                "se omitieron {} diagnósticos adicionales",
+                parser.suppressed_diagnostics
+            ),
+            Span::empty(),
+        ));
+    }
     ParseOutput {
         file: (!has_errors).then_some(file),
-        diagnostics: parser.diagnostics,
+        diagnostics,
     }
 }
 
@@ -80,6 +92,7 @@ struct Parser<'a> {
     deferred_doc_comments: Vec<RustFragment>,
     deadline: Option<Instant>,
     timed_out: bool,
+    suppressed_diagnostics: usize,
 }
 
 impl Parser<'_> {
@@ -2142,6 +2155,10 @@ impl Parser<'_> {
             .any(|diagnostic| diagnostic.severity == crate::domain::diagnostics::Severity::Error)
     }
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Option<Span>) {
+        if self.diagnostics.len() >= MAX_DIAGNOSTICS {
+            self.suppressed_diagnostics = self.suppressed_diagnostics.saturating_add(1);
+            return;
+        }
         self.diagnostics.push(Diagnostic::error(
             code,
             message,

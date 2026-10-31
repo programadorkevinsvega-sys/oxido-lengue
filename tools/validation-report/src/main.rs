@@ -135,6 +135,13 @@ fn run() -> Result<(), String> {
     ));
     results.push(run_check(
         &workspace,
+        "Auditoría de vulnerabilidades",
+        "cargo",
+        &["audit"],
+        true,
+    ));
+    results.push(run_check(
+        &workspace,
         "Formato fuzz",
         "cargo",
         &[

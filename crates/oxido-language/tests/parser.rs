@@ -458,3 +458,22 @@ fn stops_parsing_when_the_deadline_expires_without_panicking() {
         parse(&source, options).file.unwrap().items.len()
     );
 }
+
+#[test]
+fn caps_parser_diagnostics_and_reports_the_omitted_count() {
+    let source = SourceFile::new(format!(
+        "sintaxis llaves\nfn f() {{ {} }}",
+        "let = 1;\n".repeat(2_000)
+    ));
+    let parsed = parse(
+        &source,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    assert!(parsed.file.is_none());
+    assert_eq!(parsed.diagnostics.len(), 1_001);
+    let summary = parsed.diagnostics.last().expect("resumen final");
+    assert_eq!(summary.code, "OX6001");
+    assert!(summary.message.contains("omitieron"), "{}", summary.message);
+}

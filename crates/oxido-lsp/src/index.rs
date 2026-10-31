@@ -275,15 +275,27 @@ impl WorkspaceIndex {
         if encoded.len() > MAX_INDEX_CACHE_BYTES {
             return;
         }
-        if let Some(parent) = path.parent()
-            && let Err(error) = std::fs::create_dir_all(parent)
-        {
-            eprintln!("no se pudo preparar la caché del índice: {error}");
-            return;
+        if let Some(parent) = path.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                eprintln!("no se pudo preparar la caché del índice: {error}");
+                return;
+            }
+            if let Err(error) = restrict_permissions(parent, 0o700) {
+                eprintln!(
+                    "no se pudieron restringir los permisos del directorio de caché: {error}"
+                );
+            }
         }
         let temporary = path.with_extension(format!("tmp-{}", std::process::id()));
         if let Err(error) = std::fs::write(&temporary, encoded) {
             eprintln!("no se pudo escribir la caché del índice: {error}");
+            return;
+        }
+        if let Err(error) = restrict_permissions(&temporary, 0o600) {
+            eprintln!("no se pudieron restringir los permisos de la caché del índice: {error}");
+            if let Err(cleanup) = std::fs::remove_file(&temporary) {
+                eprintln!("no se pudo limpiar la caché temporal del índice: {cleanup}");
+            }
             return;
         }
         if let Err(error) = std::fs::rename(&temporary, &path) {
@@ -299,6 +311,20 @@ impl WorkspaceIndex {
         }
         self.stats.cache_written = true;
     }
+}
+
+/// Restringe permisos de la caché al usuario actual en plataformas Unix.
+///
+/// En otros sistemas es un no-op: los permisos dependen de las ACL del sistema.
+#[cfg(unix)]
+fn restrict_permissions(path: &Path, mode: u32) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_path: &Path, _mode: u32) -> std::io::Result<()> {
+    Ok(())
 }
 
 /// Directorio base de caché del usuario. Nunca se usa la raíz del workspace.
@@ -617,6 +643,39 @@ mod tests {
             Some(cache.clone()),
         );
         assert!(index.stats().reindexed >= 1);
+        cleanup(&[&root, &cache]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restricts_cache_permissions_to_the_current_user() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temporary_workspace("permissions");
+        std::fs::write(
+            root.join("main.ox"),
+            "sintaxis indentacion\nfuncion principal():\n    pass\n",
+        )
+        .expect("fixture");
+        let cache = temporary_cache("permissions");
+        let _index = WorkspaceIndex::load(
+            Some(root.clone()),
+            Some(SyntaxMode::Indentation),
+            Some(cache.clone()),
+        );
+        let path = cache_path(&cache, &root);
+        let file_mode = std::fs::metadata(&path)
+            .expect("caché escrita")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(file_mode, 0o600, "la caché solo la lee el usuario");
+        let directory_mode = std::fs::metadata(&cache)
+            .expect("directorio de caché")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(directory_mode, 0o700, "el directorio es privado");
         cleanup(&[&root, &cache]);
     }
 }

@@ -254,9 +254,11 @@ fn probe_isolation() -> Result<(), SandboxError> {
     }
 }
 
+/// Límites del proceso aislado. El espacio de direcciones se fija en 2 GiB:
+/// con 1 GiB `rust-lld` aborta al enlazar un programa Rust mínimo.
 fn limit_arguments() -> [&'static str; 6] {
     [
-        "--as=1073741824",
+        "--as=2147483648",
         "--cpu=10",
         "--nproc=64",
         "--nofile=256",
@@ -287,7 +289,6 @@ fn bind_arguments(
 ) -> Vec<OsString> {
     let mut arguments = Vec::new();
     for program in [
-        "bwrap",
         "--unshare-all",
         "--die-with-parent",
         "--new-session",
@@ -537,6 +538,21 @@ mod tests {
             .get_args()
             .map(|argument| argument.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
+        assert_eq!(command.get_program(), "prlimit");
+        assert_eq!(
+            arguments
+                .iter()
+                .filter(|argument| *argument == "bwrap")
+                .count(),
+            1,
+            "el ejecutable bwrap debe aparecer una sola vez"
+        );
+        assert!(arguments.windows(2).any(|pair| pair == ["--", "bwrap"]));
+        assert!(
+            arguments
+                .windows(2)
+                .any(|pair| pair == ["bwrap", "--unshare-all"])
+        );
         assert!(arguments.iter().any(|argument| argument == "--unshare-all"));
         assert!(!arguments.iter().any(|argument| argument == "--share-net"));
         assert!(
@@ -564,7 +580,7 @@ mod tests {
     #[test]
     fn limits_include_memory_cpu_processes_and_file_size() {
         let arguments = limit_arguments();
-        assert!(arguments.contains(&"--as=1073741824"));
+        assert!(arguments.contains(&"--as=2147483648"));
         assert!(arguments.contains(&"--cpu=10"));
         assert!(arguments.contains(&"--nproc=64"));
         assert!(arguments.contains(&"--fsize=67108864"));

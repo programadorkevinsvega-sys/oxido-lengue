@@ -38,16 +38,17 @@ cargo build --release -p oxido-playground --locked
 
 - `cargo test -p oxido-playground --offline`: 13 pruebas de límites, argumentos de aislamiento, lectura HTTP acotada, rechazo de `chunked`, contenido y saneado de rutas.
 - `cargo clippy -p oxido-playground --all-targets --offline -- -D warnings`: sin avisos.
-- Ejecución de extremo a extremo en un contenedor Linux anidado con namespaces habilitados: `--check` correcto, programa ejecutado, red externa inaccesible desde el sandbox, ruta del host oculta y plazo de pared aplicado a los 12 s. El contenedor exterior se ejecutó con `--privileged` porque el host bloquea namespaces sin privilegios; el aislamiento interior fue el de `bwrap`.
+- Prueba de humo `tools/playground/smoke.sh` en el job `playground-sandbox` de un runner `ubuntu-latest` de GitHub, sin contenedor privilegiado: `--check` correcto, programa ejecutado, red externa inaccesible desde el sandbox, ruta del host oculta, plazo de pared aplicado a los 12 s y `415` sin `Content-Type`.
+- La misma prueba se había ejecutado antes en un contenedor Linux anidado con `--privileged`, necesario porque el host de desarrollo bloquea namespaces sin privilegios; el aislamiento interior fue el de `bwrap` en ambos casos.
 - En el host de desarrollo, sin namespaces de usuario, `--check` falla de forma cerrada con código 2.
 
-La evidencia y el método están en [`docs/reports/fase-12/2026-10-31-sandbox-linux.md`](../../docs/reports/fase-12/2026-10-31-sandbox-linux.md). La ejecución real descubrió y corrigió un `bwrap` duplicado en los argumentos y un límite de memoria demasiado bajo para enlazar Rust.
+La evidencia y el método están en [`docs/reports/fase-12/2026-10-31-sandbox-linux.md`](../../docs/reports/fase-12/2026-10-31-sandbox-linux.md). La ejecución real descubrió y corrigió un `bwrap` duplicado en los argumentos, un límite de memoria demasiado bajo para enlazar Rust y un límite de 64 procesos insuficiente en el runner de GitHub.
 
 ## Limitaciones
 
 - Solo Linux con `bwrap` y `prlimit`. No hay backend para Windows ni macOS.
-- La verificación se hizo en un contenedor exterior privilegiado para permitir namespaces anidados; falta repetirla en un host sin Docker y en un despliegue real.
-- La imagen del sandbox debe contener un toolchain Rust compatible, un enlazador C y el binario `oxido`.
+- La verificación se hizo en un runner Ubuntu estándar de GitHub y en un contenedor anidado local; falta validarla en un despliegue real con usuarios.
+- La imagen del sandbox debe contener un toolchain Rust compatible con `rustfmt`, un enlazador C y el binario `oxido`.
 - No se ha medido el coste por ejecución ni la concurrencia de producción.
 - No se publica ni se despliega; no hay autenticación porque el valor por defecto escucha en `127.0.0.1`.
 - El límite de memoria del sandbox no cubre la suma de todos los `tmpfs` del host; el límite por ejecución y la exclusión mutua acotan el riesgo, pero un despliegue público requiere cuotas de disco y un supervisor externo.

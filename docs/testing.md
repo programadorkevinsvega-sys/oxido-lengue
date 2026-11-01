@@ -157,9 +157,11 @@ tools/audit-telemetry.sh
 cargo test -p oxido-playground --offline
 cargo clippy -p oxido-playground --all-targets --offline -- -D warnings
 cargo run -p oxido-playground -- --check
+cargo build --locked -p oxido-cli -p oxido-playground
+tools/playground/smoke.sh
 ```
 
-`oxido-playground` ejecuta una fuente `.ox` con `bwrap --unshare-all` y `prlimit`. `--check` crea un aislamiento mínimo real; si el kernel no permite namespaces, el servicio no arranca. Las pruebas cubren argumentos de aislamiento, límites de fuente y salida, lectura HTTP acotada y saneado de rutas. La verificación de extremo a extremo se hizo en un contenedor Linux anidado con namespaces habilitados: programa ejecutado, red externa inaccesible desde el sandbox, ruta del host oculta y plazo de pared aplicado. El contenedor exterior necesitó privilegios para permitir namespaces anidados; el aislamiento interior siguió siendo el de `bwrap`. Estado, método y límites en el [informe del sandbox](reports/fase-12/2026-10-31-sandbox-linux.md).
+`oxido-playground` ejecuta una fuente `.ox` con `bwrap --unshare-all` y `prlimit`. `--check` crea un aislamiento mínimo real; si el kernel no permite namespaces, el servicio no arranca. Las pruebas cubren argumentos de aislamiento, límites de fuente y salida, lectura HTTP acotada y saneado de rutas. `tools/playground/smoke.sh` arranca el servicio y comprueba ejecución, red inaccesible, ruta del host oculta, plazo de pared y rechazo sin `Content-Type`. Se ejecutó tanto en un contenedor Linux anidado como en el job `playground-sandbox` de un runner Ubuntu de GitHub, sin privilegios de contenedor: programa ejecutado, red externa inaccesible desde el sandbox, ruta del host oculta, plazo de pared aplicado y `415` sin `Content-Type`. Estado, método y límites en el [informe del sandbox](reports/fase-12/2026-10-31-sandbox-linux.md).
 
 ## Informe reproducible
 

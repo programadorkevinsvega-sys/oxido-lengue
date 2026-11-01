@@ -31,6 +31,17 @@ jobs:
       - run: cargo clippy --manifest-path tools/validation-report/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo test --manifest-path tools/validation-report/Cargo.toml --locked
+  playground-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap
+      - run: cargo build --locked -p oxido-cli -p oxido-playground
+      - run: ./target/debug/oxido-playground --check
+      - run: tools/playground/smoke.sh
   benchmark-analysis:
     strategy:
       fail-fast: false

@@ -338,6 +338,7 @@ mod tests {
     fn page_is_self_contained_and_uses_the_local_api() {
         assert!(web::PAGE.contains("/api/ejecutar"));
         assert!(web::PAGE.contains("64 KiB"));
+        assert!(web::PAGE.contains("2 GiB"));
         assert!(!web::PAGE.contains("http://"));
         assert!(!web::PAGE.contains("https://"));
     }

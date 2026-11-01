@@ -159,7 +159,7 @@ cargo clippy -p oxido-playground --all-targets --offline -- -D warnings
 cargo run -p oxido-playground -- --check
 ```
 
-`oxido-playground` ejecuta una fuente `.ox` con `bwrap --unshare-all` y `prlimit`. `--check` crea un aislamiento mínimo real; si el kernel no permite namespaces, el servicio no arranca. Las pruebas cubren argumentos de aislamiento, límites de fuente y salida, lectura HTTP acotada y saneado de rutas, pero no sustituyen una ejecución end-to-end en un host con namespaces habilitados. Estado y límites en el [informe del sandbox](reports/fase-12/2026-10-31-sandbox-linux.md).
+`oxido-playground` ejecuta una fuente `.ox` con `bwrap --unshare-all` y `prlimit`. `--check` crea un aislamiento mínimo real; si el kernel no permite namespaces, el servicio no arranca. Las pruebas cubren argumentos de aislamiento, límites de fuente y salida, lectura HTTP acotada y saneado de rutas. La verificación de extremo a extremo se hizo en un contenedor Linux anidado con namespaces habilitados: programa ejecutado, red externa inaccesible desde el sandbox, ruta del host oculta y plazo de pared aplicado. El contenedor exterior necesitó privilegios para permitir namespaces anidados; el aislamiento interior siguió siendo el de `bwrap`. Estado, método y límites en el [informe del sandbox](reports/fase-12/2026-10-31-sandbox-linux.md).
 
 ## Informe reproducible
 

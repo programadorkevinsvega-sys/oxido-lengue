@@ -260,7 +260,7 @@ fn limit_arguments() -> [&'static str; 6] {
     [
         "--as=2147483648",
         "--cpu=10",
-        "--nproc=64",
+        "--nproc=256",
         "--nofile=256",
         "--fsize=67108864",
         "--core=0",
@@ -582,7 +582,7 @@ mod tests {
         let arguments = limit_arguments();
         assert!(arguments.contains(&"--as=2147483648"));
         assert!(arguments.contains(&"--cpu=10"));
-        assert!(arguments.contains(&"--nproc=64"));
+        assert!(arguments.contains(&"--nproc=256"));
         assert!(arguments.contains(&"--fsize=67108864"));
         assert!(arguments.contains(&"--core=0"));
     }

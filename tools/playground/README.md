@@ -17,7 +17,7 @@ Cada ejecución usa un proceso nuevo con:
 - `--die-with-parent`, `--new-session` y `--cap-drop ALL`.
 - Sistema de archivos de solo lectura para `/usr`, `/bin`, `/lib`, `/lib64`, `/etc/ld.so.cache`, `/etc/alternatives` y `/etc/nsswitch.conf`.
 - `/tmp` y `/work` como `tmpfs` con tamaño acotado; la fuente se monta de solo lectura y el resto del host no se comparte.
-- `prlimit`: 2 GiB de espacio de direcciones, 10 s de CPU, 64 procesos, 256 descriptores, 64 MiB por archivo y núcleos deshabilitados. El límite de 1 GiB se descartó tras medir que `rust-lld` no podía enlazar un programa mínimo.
+- `prlimit`: 2 GiB de espacio de direcciones, 10 s de CPU, 256 procesos, 256 descriptores, 64 MiB por archivo y núcleos deshabilitados. El límite de 1 GiB se descartó tras medir que `rust-lld` no podía enlazar un programa mínimo.
 - Plazo de pared de 12 s y 64 KiB por flujo de salida.
 - Una sola ejecución simultánea; las demás reciben `429`.
 - Solo se acepta `Content-Type: application/json`; las peticiones de formulario o `text/plain` se rechazan con `415` para evitar ejecuciones por CSRF desde otro origen.

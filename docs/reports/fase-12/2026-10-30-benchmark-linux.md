@@ -20,7 +20,8 @@
 
 - Un proceso hijo por escenario para que el pico de RSS no se contamine con escenarios anteriores.
 - Calentamiento y número de iteraciones variables según el coste del escenario.
-- RSS máximo muestreado cada 10 ms por `sysinfo`; se conserva el mayor valor entre el muestreo y la lectura final. Es una cota inferior del pico real: un pico más corto que el intervalo puede no capturarse.
+- Un hijo mide los tiempos y otro ejecuta el escenario una sola vez para medir el RSS; así el asignador no acumula memoria entre iteraciones.
+- RSS máximo muestreado cada 2 ms por `sysinfo` desde el proceso padre; es una cota inferior del pico real: un pico más corto que el intervalo puede no capturarse.
 - Entrada grande acotada al límite real del lexer: 4 MiB.
 - La entrada grande válida contiene 8.222 funciones pequeñas, no una única función gigante, para representar un archivo grande sin convertir el benchmark en una prueba de una forma patológica.
 - `--check` falla si se supera el P95 o el RSS objetivo, si vence el plazo de 10 s o si el escenario no hizo el trabajo esperado (por ejemplo, generar cero bytes de Rust o no devolver símbolos).

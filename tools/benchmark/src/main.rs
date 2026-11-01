@@ -3,14 +3,16 @@
 //! Mide análisis, generación, memoria y latencia del LSP con entradas reproducibles.
 //!
 //! Cada escenario se ejecuta en un proceso hijo para que el pico de memoria no se
-//! contamine con los escenarios anteriores. El proceso padre muestrea el RSS del
-//! hijo y agrega los resultados; el hijo no se mide a sí mismo.
+//! contamine con los escenarios anteriores. Los tiempos se miden en un hijo y el
+//! RSS en otro con una sola ejecución: así el asignador no acumula memoria entre
+//! iteraciones. El proceso padre muestrea el RSS del hijo de memoria.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     env,
-    process::{Command, Stdio},
+    path::Path,
+    process::{Command, Output, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -19,7 +21,7 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 const ANALYSIS_BUDGET: Duration = Duration::from_secs(10);
 const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const TYPICAL_LINES: usize = 200;
-const RSS_SAMPLE_INTERVAL: Duration = Duration::from_millis(10);
+const RSS_SAMPLE_INTERVAL: Duration = Duration::from_millis(2);
 const SCENARIOS: [&str; 13] = [
     "lex-typical",
     "parse-typical",
@@ -172,6 +174,16 @@ fn run() -> Result<(), String> {
             println!("{encoded}");
             Ok(())
         }
+        Some("--scenario-memory") => {
+            let name = args
+                .next()
+                .ok_or_else(|| "falta el nombre del escenario".to_owned())?;
+            let measurement = run_scenario_memory(&name)?;
+            let encoded = serde_json::to_string(&measurement)
+                .map_err(|error| format!("no se pudo serializar el resultado: {error}"))?;
+            println!("{encoded}");
+            Ok(())
+        }
         Some("--check") => run_all(true),
         Some(other) => Err(format!("argumento no reconocido: {other}")),
         None => run_all(false),
@@ -183,44 +195,8 @@ fn run_all(check: bool) -> Result<(), String> {
         env::current_exe().map_err(|error| format!("no se pudo resolver el binario: {error}"))?;
     let mut measurements = Vec::new();
     for name in SCENARIOS {
-        let mut child = Command::new(&executable)
-            .arg("--scenario")
-            .arg(name)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("no se pudo ejecutar el escenario {name}: {error}"))?;
-        let pid = Pid::from_u32(child.id());
-        let mut system =
-            System::new().map_err(|error| format!("no se pudo inicializar sysinfo: {error}"))?;
-        let mut peak_rss_kib = 0_u64;
-        loop {
-            system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
-            if let Some(process) = system.process(pid) {
-                peak_rss_kib = peak_rss_kib.max(process.memory() / 1024);
-            }
-            let exited = child
-                .try_wait()
-                .map_err(|error| format!("no se pudo esperar al escenario {name}: {error}"))?;
-            if exited.is_some() {
-                break;
-            }
-            thread::sleep(RSS_SAMPLE_INTERVAL);
-        }
-        let output = child
-            .wait_with_output()
-            .map_err(|error| format!("no se pudo leer el escenario {name}: {error}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "el escenario {name} falló: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
-        }
-        let mut measurement: Measurement =
-            serde_json::from_slice(&output.stdout).map_err(|error| {
-                format!("el escenario {name} devolvió un resultado inválido: {error}")
-            })?;
-        measurement.peak_rss_kib = measurement.peak_rss_kib.max(peak_rss_kib);
+        let mut measurement = run_child(&executable, "--scenario", name)?;
+        measurement.peak_rss_kib = run_child_sampled(&executable, "--scenario-memory", name)?;
         measurements.push(measurement);
     }
     print_report(&measurements)?;
@@ -228,6 +204,58 @@ fn run_all(check: bool) -> Result<(), String> {
         evaluate_objectives(&measurements)?;
     }
     Ok(())
+}
+
+fn run_child(executable: &Path, mode: &str, name: &str) -> Result<Measurement, String> {
+    let output = Command::new(executable)
+        .arg(mode)
+        .arg(name)
+        .output()
+        .map_err(|error| format!("no se pudo ejecutar el escenario {name}: {error}"))?;
+    parse_child_output(name, &output)
+}
+
+fn run_child_sampled(executable: &Path, mode: &str, name: &str) -> Result<u64, String> {
+    let mut child = Command::new(executable)
+        .arg(mode)
+        .arg(name)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("no se pudo ejecutar el escenario {name}: {error}"))?;
+    let pid = Pid::from_u32(child.id());
+    let mut system =
+        System::new().map_err(|error| format!("no se pudo inicializar sysinfo: {error}"))?;
+    let mut peak_rss_kib = 0_u64;
+    loop {
+        system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+        if let Some(process) = system.process(pid) {
+            peak_rss_kib = peak_rss_kib.max(process.memory() / 1024);
+        }
+        let exited = child
+            .try_wait()
+            .map_err(|error| format!("no se pudo esperar al escenario {name}: {error}"))?;
+        if exited.is_some() {
+            break;
+        }
+        thread::sleep(RSS_SAMPLE_INTERVAL);
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("no se pudo leer el escenario {name}: {error}"))?;
+    let _measurement = parse_child_output(name, &output)?;
+    Ok(peak_rss_kib)
+}
+
+fn parse_child_output(name: &str, output: &Output) -> Result<Measurement, String> {
+    if !output.status.success() {
+        return Err(format!(
+            "el escenario {name} falló: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("el escenario {name} devolvió un resultado inválido: {error}"))
 }
 
 fn run_scenario(name: &str) -> Result<Measurement, String> {
@@ -248,6 +276,25 @@ fn run_scenario(name: &str) -> Result<Measurement, String> {
         scenario: name.to_owned(),
         input_bytes,
         iterations: iterations.measured,
+        min_ms: stats.min_ms,
+        median_ms: stats.median_ms,
+        p95_ms: stats.p95_ms,
+        max_ms: stats.max_ms,
+        peak_rss_kib: 0,
+        detail,
+    })
+}
+
+fn run_scenario_memory(name: &str) -> Result<Measurement, String> {
+    let (mut scenario, _iterations) = build_scenario(name)?;
+    let input_bytes = scenario_input_bytes(&scenario);
+    let started = Instant::now();
+    let detail = scenario.run()?;
+    let stats = compute_stats(vec![started.elapsed()])?;
+    Ok(Measurement {
+        scenario: name.to_owned(),
+        input_bytes,
+        iterations: 1,
         min_ms: stats.min_ms,
         median_ms: stats.median_ms,
         p95_ms: stats.p95_ms,
@@ -572,7 +619,7 @@ fn print_report(measurements: &[Measurement]) -> Result<(), String> {
     println!("- Rust: `{}`", rustc_version());
     println!("- Presupuesto de análisis: {} s", ANALYSIS_BUDGET.as_secs());
     println!(
-        "- Método: un proceso hijo por escenario; RSS máximo muestreado cada 10 ms; entrada grande acotada a 4 MiB."
+        "- Método: un proceso hijo para tiempos y otro con una sola ejecución para el RSS, muestreado cada 2 ms; entrada grande acotada a 4 MiB."
     );
     println!();
     println!(

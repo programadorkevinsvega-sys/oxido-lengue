@@ -243,8 +243,8 @@ fn run_child_sampled(executable: &Path, mode: &str, name: &str) -> Result<u64, S
     let output = child
         .wait_with_output()
         .map_err(|error| format!("no se pudo leer el escenario {name}: {error}"))?;
-    let _measurement = parse_child_output(name, &output)?;
-    Ok(peak_rss_kib)
+    let measurement = parse_child_output(name, &output)?;
+    Ok(peak_rss_kib.max(measurement.peak_rss_kib))
 }
 
 fn parse_child_output(name: &str, output: &Output) -> Result<Measurement, String> {
@@ -288,6 +288,7 @@ fn run_scenario(name: &str) -> Result<Measurement, String> {
 fn run_scenario_memory(name: &str) -> Result<Measurement, String> {
     let (mut scenario, _iterations) = build_scenario(name)?;
     let input_bytes = scenario_input_bytes(&scenario);
+    let baseline_rss_kib = current_memory_kib()?;
     let started = Instant::now();
     let detail = scenario.run()?;
     let stats = compute_stats(vec![started.elapsed()])?;
@@ -299,9 +300,19 @@ fn run_scenario_memory(name: &str) -> Result<Measurement, String> {
         median_ms: stats.median_ms,
         p95_ms: stats.p95_ms,
         max_ms: stats.max_ms,
-        peak_rss_kib: 0,
+        peak_rss_kib: baseline_rss_kib,
         detail,
     })
+}
+
+fn current_memory_kib() -> Result<u64, String> {
+    let pid = Pid::from_u32(std::process::id());
+    let mut system =
+        System::new().map_err(|error| format!("no se pudo inicializar sysinfo: {error}"))?;
+    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    Ok(system
+        .process(pid)
+        .map_or(0, |process| process.memory() / 1024))
 }
 
 fn scenario_input_bytes(scenario: &Scenario) -> usize {

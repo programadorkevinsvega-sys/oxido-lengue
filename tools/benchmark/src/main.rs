@@ -3,17 +3,14 @@
 //! Mide análisis, generación, memoria y latencia del LSP con entradas reproducibles.
 //!
 //! Cada escenario se ejecuta en un proceso hijo para que el pico de memoria no se
-//! contamine con los escenarios anteriores. El proceso padre solo agrega resultados.
+//! contamine con los escenarios anteriores. El proceso padre muestrea el RSS del
+//! hijo y agrega los resultados; el hijo no se mide a sí mismo.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     env,
-    process::Command,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    process::{Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -186,20 +183,44 @@ fn run_all(check: bool) -> Result<(), String> {
         env::current_exe().map_err(|error| format!("no se pudo resolver el binario: {error}"))?;
     let mut measurements = Vec::new();
     for name in SCENARIOS {
-        let output = Command::new(&executable)
+        let mut child = Command::new(&executable)
             .arg("--scenario")
             .arg(name)
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|error| format!("no se pudo ejecutar el escenario {name}: {error}"))?;
+        let pid = Pid::from_u32(child.id());
+        let mut system =
+            System::new().map_err(|error| format!("no se pudo inicializar sysinfo: {error}"))?;
+        let mut peak_rss_kib = 0_u64;
+        loop {
+            system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+            if let Some(process) = system.process(pid) {
+                peak_rss_kib = peak_rss_kib.max(process.memory() / 1024);
+            }
+            let exited = child
+                .try_wait()
+                .map_err(|error| format!("no se pudo esperar al escenario {name}: {error}"))?;
+            if exited.is_some() {
+                break;
+            }
+            thread::sleep(RSS_SAMPLE_INTERVAL);
+        }
+        let output = child
+            .wait_with_output()
+            .map_err(|error| format!("no se pudo leer el escenario {name}: {error}"))?;
         if !output.status.success() {
             return Err(format!(
                 "el escenario {name} falló: {}",
                 String::from_utf8_lossy(&output.stderr).trim()
             ));
         }
-        let measurement = serde_json::from_slice(&output.stdout).map_err(|error| {
-            format!("el escenario {name} devolvió un resultado inválido: {error}")
-        })?;
+        let mut measurement: Measurement =
+            serde_json::from_slice(&output.stdout).map_err(|error| {
+                format!("el escenario {name} devolvió un resultado inválido: {error}")
+            })?;
+        measurement.peak_rss_kib = measurement.peak_rss_kib.max(peak_rss_kib);
         measurements.push(measurement);
     }
     print_report(&measurements)?;
@@ -215,7 +236,6 @@ fn run_scenario(name: &str) -> Result<Measurement, String> {
     for _ in 0..iterations.warmup {
         let _detail = scenario.run()?;
     }
-    let sampler = MemorySampler::start()?;
     let mut samples = Vec::with_capacity(iterations.measured);
     let mut detail = Value::Null;
     for _ in 0..iterations.measured {
@@ -223,7 +243,6 @@ fn run_scenario(name: &str) -> Result<Measurement, String> {
         detail = scenario.run()?;
         samples.push(started.elapsed());
     }
-    let peak_rss_kib = sampler.finish()?;
     let stats = compute_stats(samples)?;
     Ok(Measurement {
         scenario: name.to_owned(),
@@ -233,7 +252,7 @@ fn run_scenario(name: &str) -> Result<Measurement, String> {
         median_ms: stats.median_ms,
         p95_ms: stats.p95_ms,
         max_ms: stats.max_ms,
-        peak_rss_kib,
+        peak_rss_kib: 0,
         detail,
     })
 }
@@ -541,60 +560,6 @@ fn compute_stats(mut samples: Vec<Duration>) -> Result<Stats, String> {
 
 fn to_millis(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
-}
-
-struct MemorySampler {
-    stop: Arc<AtomicBool>,
-    handle: Option<thread::JoinHandle<u64>>,
-    fallback_kib: u64,
-}
-
-impl MemorySampler {
-    fn start() -> Result<Self, String> {
-        let pid = Pid::from_u32(std::process::id());
-        let baseline = current_memory_kib(pid)
-            .ok_or_else(|| "no se pudo leer la memoria inicial del proceso".to_owned())?;
-        let stop = Arc::new(AtomicBool::new(false));
-        let thread_stop = Arc::clone(&stop);
-        let handle = thread::spawn(move || {
-            let Ok(mut system) = System::new() else {
-                return baseline;
-            };
-            let mut peak = baseline;
-            while !thread_stop.load(Ordering::Relaxed) {
-                system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
-                if let Some(process) = system.process(pid) {
-                    peak = peak.max(process.memory() / 1024);
-                }
-                thread::sleep(RSS_SAMPLE_INTERVAL);
-            }
-            peak
-        });
-        Ok(Self {
-            stop,
-            handle: Some(handle),
-            fallback_kib: baseline,
-        })
-    }
-
-    fn finish(mut self) -> Result<u64, String> {
-        let pid = Pid::from_u32(std::process::id());
-        let final_kib = current_memory_kib(pid).unwrap_or(self.fallback_kib);
-        self.stop.store(true, Ordering::Relaxed);
-        let sampled = match self.handle.take() {
-            Some(handle) => handle
-                .join()
-                .map_err(|_| "el muestreador de memoria terminó con pánico".to_owned())?,
-            None => self.fallback_kib,
-        };
-        Ok(sampled.max(final_kib))
-    }
-}
-
-fn current_memory_kib(pid: Pid) -> Option<u64> {
-    let mut system = System::new().ok()?;
-    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
-    system.process(pid).map(|process| process.memory() / 1024)
 }
 
 fn print_report(measurements: &[Measurement]) -> Result<(), String> {

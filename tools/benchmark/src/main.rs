@@ -22,6 +22,7 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 const ANALYSIS_BUDGET: Duration = Duration::from_secs(10);
 const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const TYPICAL_LINES: usize = 200;
+const RSS_SAMPLE_INTERVAL: Duration = Duration::from_millis(10);
 const SCENARIOS: [&str; 13] = [
     "lex-typical",
     "parse-typical",
@@ -289,7 +290,7 @@ fn build_scenario(name: &str) -> Result<(Scenario, Iterations), String> {
             },
             Iterations {
                 warmup: 1,
-                measured: 3,
+                measured: 10,
             },
         )),
         "parse-large" => Ok((
@@ -299,7 +300,7 @@ fn build_scenario(name: &str) -> Result<(Scenario, Iterations), String> {
             },
             Iterations {
                 warmup: 1,
-                measured: 3,
+                measured: 10,
             },
         )),
         "generate-large" => Ok((
@@ -565,7 +566,7 @@ impl MemorySampler {
                 if let Some(process) = system.process(pid) {
                     peak = peak.max(process.memory() / 1024);
                 }
-                thread::sleep(Duration::from_millis(20));
+                thread::sleep(RSS_SAMPLE_INTERVAL);
             }
             peak
         });
@@ -606,7 +607,7 @@ fn print_report(measurements: &[Measurement]) -> Result<(), String> {
     println!("- Rust: `{}`", rustc_version());
     println!("- Presupuesto de análisis: {} s", ANALYSIS_BUDGET.as_secs());
     println!(
-        "- Método: un proceso hijo por escenario; RSS máximo muestreado cada 20 ms; entrada grande acotada a 4 MiB."
+        "- Método: un proceso hijo por escenario; RSS máximo muestreado cada 10 ms; entrada grande acotada a 4 MiB."
     );
     println!();
     println!(

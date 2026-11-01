@@ -21,4 +21,6 @@ jobs:
           for i in 1 2 3 4 5; do
             echo "=== ejecución $i"
             ./target/release/oxido-benchmark
+            echo "=== time -l $i"
+            /usr/bin/time -l ./target/release/oxido-benchmark --scenario lex-large > /dev/null
           done

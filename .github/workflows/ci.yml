@@ -44,6 +44,12 @@ jobs:
           toolchain: 1.99.1
           components: rustfmt
       - run: cargo run --release --locked -p oxido-benchmark -- --check
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: tools/audit-telemetry.sh
+      - run: tools/report-hygiene.sh docs/reports
   reproducible:
     runs-on: ubuntu-latest
     steps:
@@ -61,6 +67,7 @@ jobs:
           toolchain: 1.99.1
       - run: cargo install cargo-cyclonedx --version 0.5.9 --locked
       - run: tools/generate-sbom.sh
+      - run: tools/report-hygiene.sh target/sbom
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: oxido-sbom-${{ github.sha }}
@@ -83,6 +90,7 @@ jobs:
       - run: cargo install cargo-fuzz --version 0.13.2 --locked
       - run: npm ci --prefix website
       - run: cargo run --manifest-path tools/validation-report/Cargo.toml --bin oxido-validation-report --locked
+      - run: tools/report-hygiene.sh target/validation-report.md
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ always() }}
         with:
@@ -196,6 +204,7 @@ jobs:
       - run: cargo run --locked -p oxido-cli -- descargar-dependencias prueba/crud_sqlite/crud_api_persistencia.ox --confirmar
       - run: cargo fetch --locked --manifest-path prueba/crud_sqlite_rust/Cargo.toml
       - run: python3 prueba/crud_sqlite_rust/benchmark_secuencial.py --rondas 5 2>&1 | tee -a target/benchmark-results/benchmark.log
+      - run: tools/report-hygiene.sh target/benchmark-results/benchmark.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ always() }}
         with:

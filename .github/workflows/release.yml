@@ -27,6 +27,7 @@ jobs:
           toolchain: 1.99.1
       - run: cargo install cargo-cyclonedx --version 0.5.9 --locked
       - run: tools/generate-sbom.sh
+      - run: tools/report-hygiene.sh target/sbom
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: oxido-sbom-${{ github.sha }}

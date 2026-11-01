@@ -1,6 +1,6 @@
 # Fase 12 — Seguridad y calidad avanzada
 
-**Estado:** en curso. Las subfases **12.1 a 12.7** están completadas en su alcance documentado. Las subfases 12.8–12.11 siguen abiertas; su cierre requiere la evidencia indicada en el plan de corrección.
+**Estado:** en curso. Las subfases **12.1 a 12.10** están completadas en su alcance documentado. La subfase **12.11** tiene una implementación inicial de sandbox Linux, pero no está cerrada: el aislamiento no pudo verificarse de extremo a extremo en el entorno de desarrollo y no existe backend para Windows ni macOS.
 
 **Fuentes:** [`plan` §16](../plan) (modelo de referencia), [`ARCHITECTURE_RULES.md`](../ARCHITECTURE_RULES.md), [`SECURITY.md`](../SECURITY.md), [`docs/politica-dependencias.md`](politica-dependencias.md) y el código de `crates/`. Este informe describe el estado verificado; no declara ausencia de riesgos.
 
@@ -32,8 +32,8 @@
 | LSP | Escritura de caché dentro del workspace o fuga de rutas en errores | Caché versionada fuera de la raíz, escritura temporal + `rename` atómico, permisos `0700`/`0600` en Unix y errores sin rutas absolutas | `crates/oxido-lsp/src/index.rs`; pruebas de persistencia, invalidación y permisos; host `run-host.js` | En sistemas no Unix los permisos dependen de las ACL del sistema operativo |
 | LSP | Ejecución implícita de Cargo o `rust-analyzer` en un workspace no confiable | Restricted Mode no inicia `rust-analyzer` ni permite `oxido/check`; solo índice y ámbitos locales | `run-host.js` (casos sin `--disable-workspace-trust`), pruebas host de rename y Cargo | Si el usuario concede confianza, el análisis puede ejecutar build scripts y macros |
 | Procesos hijos | Inyección de comandos o procesos huérfanos | `Command` con argumentos separados, nunca shell; `rustfmt` con plazo de 10 s; Cargo con timeout y cancelación que mata el árbol | `oxido-rust-backend/src/lib.rs` (`TIME_LIMIT`), `application/cargo.rs` | Depende de las garantías del sistema operativo al matar el árbol |
-| CI y artefactos | Fuga de secretos o rutas absolutas; dependencias vulnerables | Informes con nombres de pruebas y sin logs completos; `cargo-deny` y `cargo-audit` en CI; `--locked` | `.github/workflows/ci.yml`, `deny.toml`, `docs/politica-dependencias.md` | `cargo-audit` depende de la base RustSec y no detecta vulnerabilidades desconocidas; SBOM/firma pertenecen a 12.9 |
-| Playground | Ejecución de código ajeno | **No existe**; si se aprueba, exige aislamiento del sistema operativo, red deshabilitada y límites de CPU, memoria, procesos y tiempo | `plan` §16.1; no hay directorio `playground/` | Subfase 12.11 condicionada a la aprobación del producto |
+| CI y artefactos | Fuga de secretos o rutas absolutas; dependencias vulnerables | Informes con nombres de pruebas y sin logs completos; `tools/report-hygiene.sh` bloquea rutas absolutas y credenciales en los artefactos; `tools/audit-telemetry.sh` rechaza SDK de telemetría; `cargo-deny` y `cargo-audit` en CI; `--locked` | `.github/workflows/ci.yml`, `tools/report-hygiene.sh`, `tools/audit-telemetry.sh`, `deny.toml`, `docs/politica-dependencias.md` | Los patrones son estáticos y no cubren secretos con formatos desconocidos; `cargo-audit` depende de la base RustSec |
+| Playground | Ejecución de código ajeno | Implementación Linux con `bwrap --unshare-all`, red sin acceso, `/tmp` y `/work` en `tmpfs`, `prlimit` (1 GiB, 10 s CPU, 64 procesos, 64 MiB por archivo, sin core), plazo de pared de 12 s y salida de 64 KiB; el servicio no arranca sin aislamiento real | `tools/playground/`, pruebas del crate y [`informe del sandbox`](reports/fase-12/2026-10-31-sandbox-linux.md) | Solo Linux; ejecución aislada de extremo a extremo no verificada en este entorno; sin backend Windows/macOS; un despliegue público requiere autenticación, cuotas y supervisor externo |
 
 ### Fronteras de confianza
 
@@ -91,11 +91,11 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 - No sustituyen un sandbox: la compilación autorizada puede ejecutar `build.rs` y macros.
 - No limitan la memoria total del proceso más allá de los topes por documento, índice y cola.
 - No garantizan que un plazo de 10 s sea suficiente para toda entrada válida; la medición Linux está en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md) y Windows/macOS se miden en CI.
-- No hay playground ni aislamiento de sistema operativo.
+- El sandbox de playground (12.11) solo aplica a ese servicio; la CLI y el LSP siguen sin aislamiento de sistema operativo para compilaciones autorizadas.
 
 ---
 
-## Resultados de auditoría (12.1–12.9)
+## Resultados de auditoría (12.1–12.11)
 
 | Comprobación | Resultado |
 |---|---|
@@ -115,6 +115,9 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 | Benchmarks y memoria | Linux, Windows y macOS medidos en CI con objetivos y RSS real (12.8) |
 | Builds reproducibles | Dos builds release con `SOURCE_DATE_EPOCH=0` y remap de rutas producen el mismo SHA-256 en Linux (12.9) |
 | SBOM | CycloneDX 1.5 por crate, sin rutas absolutas del workspace; artefacto de CI (12.9) |
+| Higiene de informes | `report-hygiene.sh` ejecutado en CI sobre el informe de validación, el SBOM y el log de benchmarks; sin coincidencias en `docs/reports` (12.10) |
+| Telemetría | `audit-telemetry.sh` no encuentra SDK ni endpoints en dependencias y código propio; no hay envío remoto por defecto (12.10) |
+| Sandbox de playground | Implementación Linux con `bwrap`/`prlimit`, pruebas unitarias y fallo cerrado si falta aislamiento; sin verificación de extremo a extremo en este entorno (12.11) |
 
 ### 12.3. `unsafe`
 
@@ -169,7 +172,26 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 - `tools/generate-sbom.sh` usa `cargo-cyclonedx` 0.5.9, genera CycloneDX 1.5 JSON por paquete, renombra los archivos y elimina la ruta absoluta del workspace. CI publica el artefacto `oxido-sbom-<sha>`.
 - Los jobs `reproducible` y `sbom` se añadieron a CI y al workflow de release. El workflow de release no firma, no notariza y no publica; solo empaqueta y adjunta artefactos.
 - La reproducibilidad comprobada es local, con el mismo toolchain y la misma máquina. No se ha demostrado entre sistemas operativos ni máquinas distintas.
+- El 2026-10-31 se repitió el preflight local de empaquetado Linux x64: `cargo build --release -p oxido-lsp --locked`, `npm ci --prefix editors/vscode-oxido`, `npm run package:vsix:server`, `npm run package:vsix` y `write-sha256.js`. Se generaron el VSIX estándar (`93767d6…862c`) y el VSIX con servidor (`3430a6c…3c73`); no se firmaron ni se publicaron.
 - Firma, notarización, publicación y credenciales siguen pendientes de autorización explícita.
+
+### 12.10. Informes CI y telemetría
+
+- `tools/report-hygiene.sh` inspecciona informes y artefactos en busca de rutas absolutas (`/home/`, `/Users/`, `/tmp/`, unidades Windows), credenciales conocidas (`ghp_`, `github_pat_`, claves privadas, tokens de Cargo) y volcados de entorno. No imprime el valor coincidente para no reproducir el secreto.
+- CI ejecuta la comprobación sobre `target/validation-report.md`, `target/sbom` y `target/benchmark-results/benchmark.log`; un fallo rompe el job antes de subir el artefacto.
+- El job `hygiene` ejecuta `tools/audit-telemetry.sh` y `tools/report-hygiene.sh docs/reports` en cada push y pull request.
+- `tools/audit-telemetry.sh` revisa manifiestos y código propio en busca de SDK de analítica (`sentry`, `posthog`, `mixpanel`, `amplitude`, `datadog`, `newrelic`, `opentelemetry`, `prom-client`, entre otros). No se encontró ninguno.
+- La telemetría remota sigue desactivada por defecto: no hay cliente de red en los crates ni en la extensión, y la política está en [`docs/prompts/observabilidad-trazabilidad-rust.md`](prompts/observabilidad-trazabilidad-rust.md). El único socket es el servidor local del playground, que escucha en `127.0.0.1` y no envía datos a terceros.
+- Límite: la comprobación es estática y por patrones; no demuestra que un binario no abra sockets. Una auditoría dinámica de red requiere ejecutar el producto con captura de tráfico.
+
+### 12.11. Sandbox de playground
+
+- Se aprobó el producto playground. La implementación está en `tools/playground` (`oxido-playground`), con API `GET /`, `GET /salud` y `POST /api/ejecutar`.
+- Cada ejecución usa `prlimit` y `bwrap --unshare-all`, sin red, con `/tmp` y `/work` en `tmpfs`, sin compartir el resto del host y con la fuente montada de solo lectura. El detalle está en [`tools/playground/README.md`](../tools/playground/README.md).
+- Límites: 64 KiB de fuente, 1 GiB de memoria, 10 s de CPU, 64 procesos, 256 descriptores, 64 MiB por archivo, 12 s de pared y 64 KiB por salida. Solo una ejecución simultánea.
+- El servicio exige `bwrap`, `prlimit` y un aislamiento funcional antes de escuchar. Si el kernel no permite namespaces de usuario, termina con error; no existe un modo sin sandbox.
+- Evidencia: 13 pruebas unitarias y `clippy -D warnings` sin avisos. `--check` falla de forma cerrada en este entorno porque el kernel rechaza crear namespaces (`Resource temporarily unavailable`), así que la ejecución aislada real no se verificó aquí.
+- Límites pendientes: no hay backend Windows/macOS, no hay autenticación ni cuotas de disco, y no se midió concurrencia ni coste por ejecución. Por eso 12.11 no se declara completada.
 
 Comandos ejecutados para esta fase:
 
@@ -190,6 +212,11 @@ OXIDO_VALIDATION_FUZZ_RUNS=1000 cargo run --manifest-path tools/validation-repor
 cargo run --release --locked -p oxido-benchmark -- --check
 tools/verify-reproducible-build.sh oxido-cli oxido release
 tools/generate-sbom.sh
+tools/audit-telemetry.sh
+tools/report-hygiene.sh docs/reports target/sbom
+cargo test -p oxido-playground --offline
+cargo clippy -p oxido-playground --all-targets --offline -- -D warnings
+cargo run -p oxido-playground -- --check
 ```
 
 ---
@@ -208,7 +235,8 @@ tools/generate-sbom.sh
 | Baja | Ampliar la cobertura de caracteres confundibles más allá de alfabetos mezclados | 12.4 | Completado |
 | Diferida | SBOM y builds reproducibles | 12.9 | Completado en Linux; matriz Windows/macOS en CI |
 | Diferida | Firma, notarización y publicación | 12.9 | Pendiente de credenciales y autorización |
-| Condicionada | Sandbox de playground, solo si se aprueba el producto | 12.11 | Pendiente |
+| Media | Bloquear rutas absolutas y secretos en informes CI; auditar telemetría | 12.10 | Completado con comprobaciones estáticas en CI |
+| Condicionada | Sandbox de playground, solo si se aprueba el producto | 12.11 | Implementación Linux con fallo cerrado; sin verificación de extremo a extremo |
 
 ---
 
@@ -229,4 +257,6 @@ tools/generate-sbom.sh
 - [x] Build reproducible verificado localmente en Linux (12.9).
 - [x] SBOM CycloneDX generado y publicado como artefacto de CI (12.9).
 - [ ] Firma, notarización y publicación (12.9): requieren credenciales y autorización.
-- [ ] Sandbox de playground, solo si se aprueba (12.11).
+- [x] Informes CI sin secretos ni rutas absolutas, con comprobación automática (12.10).
+- [x] Telemetría remota desactivada por defecto y sin SDK detectado (12.10).
+- [ ] Sandbox de playground: implementación Linux y pruebas unitarias; falta verificación real y soporte Windows/macOS (12.11).

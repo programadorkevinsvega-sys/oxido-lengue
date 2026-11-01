@@ -9,6 +9,7 @@ Esta preparación cubre la parte de Fase 12.9 que no requiere credenciales ni au
 - compilación release repetible con `SOURCE_DATE_EPOCH` y `--remap-path-prefix`;
 - comparación SHA-256 de dos compilaciones independientes;
 - SBOM CycloneDX por crate, sin rutas absolutas del workspace;
+- preflight local de empaquetado VSIX para Linux x64;
 - jobs de CI y artefactos de workflow preparados.
 
 No incluye publicar VSIX, firmar binarios, notarizar en Apple ni usar secretos. Esas acciones requieren autorización explícita y credenciales fuera del repositorio.
@@ -47,7 +48,7 @@ cargo install cargo-cyclonedx --version 0.5.9 --locked
 tools/generate-sbom.sh
 ```
 
-El script genera un CycloneDX 1.5 JSON por cada paquete del workspace (`crates/*` y `tools/benchmark`), los renombra como `<paquete>.cdx.json`, elimina la ruta absoluta del workspace y los deja en `target/sbom/`.
+El script genera un CycloneDX 1.5 JSON por cada paquete del workspace (`crates/*` y `tools/*`), los renombra como `<paquete>.cdx.json`, elimina la ruta absoluta del workspace y los deja en `target/sbom/`.
 
 - Herramienta: `cargo-cyclonedx` 0.5.9.
 - Formato: CycloneDX 1.5, JSON.
@@ -55,13 +56,37 @@ El script genera un CycloneDX 1.5 JSON por cada paquete del workspace (`crates/*
 - Los SBOM describen las dependencias del workspace; no sustituyen una auditoría de vulnerabilidades. `cargo-audit` y `cargo-deny` siguen siendo las comprobaciones de seguridad.
 - El campo `metadata.timestamp` y el `serialNumber` pueden variar entre ejecuciones; el SBOM no se presenta como byte a byte reproducible.
 
+## Preflight de VSIX
+
+El 2026-10-31 se repitió el empaquetado local de Linux x64 sin firma ni publicación:
+
+```bash
+cargo build --release -p oxido-lsp --locked
+npm ci --prefix editors/vscode-oxido
+npm run package:vsix --prefix editors/vscode-oxido
+OXIDO_SERVER_BINARY="$PWD/target/release/oxido-lsp" \
+  OXIDO_VSIX_TARGET=linux-x64 \
+  npm run package:vsix:server --prefix editors/vscode-oxido
+node editors/vscode-oxido/scripts/write-sha256.js editors/vscode-oxido/dist/*.vsix
+```
+
+Resultado:
+
+```text
+3430a6ca650550062667fd9d7a5151dbb42c32e936b9aa05b342622187643c73  oxido-language-support-0.1.0-linux-x64.vsix
+93767d65a463f82fe679dcdbc063add375859f26d84d5c0548f68ce5faa8862c  oxido-language-support-0.1.0.vsix
+```
+
+Los VSIX quedan en `editors/vscode-oxido/dist/`, que no se versiona. El workflow de release repite el empaquetado en Linux, Windows y macOS y adjunta los artefactos; las hashes anteriores solo demuestran que el preflight local funciona en Linux, no que el resultado sea idéntico entre plataformas.
+
 ## Workflows
 
 - `.github/workflows/ci.yml` ejecuta:
   - `benchmark-analysis` en Linux, Windows y macOS con `--check`;
   - `reproducible` en Linux;
-  - `sbom` en Linux y publica el artefacto.
-- `.github/workflows/release.yml` añade `reproducible` y `sbom` antes de empaquetar los VSIX. El workflow sigue sin publicar ni firmar; solo adjunta artefactos.
+  - `sbom` en Linux y publica el artefacto;
+  - `hygiene`, que ejecuta `tools/audit-telemetry.sh` y `tools/report-hygiene.sh docs/reports`; los jobs de validación, SBOM y benchmark aplican la misma comprobación a sus artefactos antes de subirlos.
+- `.github/workflows/release.yml` añade `reproducible` y `sbom` antes de empaquetar los VSIX; el SBOM pasa por `tools/report-hygiene.sh`. El workflow sigue sin publicar ni firmar; solo adjunta artefactos.
 - La matriz de release conserva Linux x64, Windows x64 y macOS arm64.
 
 ## Pendiente para publicar

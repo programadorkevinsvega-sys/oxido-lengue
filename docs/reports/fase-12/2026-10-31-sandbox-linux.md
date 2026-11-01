@@ -1,6 +1,6 @@
-# Sandbox de playground — evidencia Linux (2026-10-31)
+# Sandbox de playground — evidencia Linux (2026-10-31, actualizado 2026-11-01)
 
-**Estado:** implementación Linux verificada de extremo a extremo dentro de un contenedor anidado con namespaces habilitados. No se declara cerrada: no hay backend para Windows ni macOS y no se ejecutó en un host sin privilegios de contenedor.
+**Estado:** implementación Linux verificada de extremo a extremo en un runner Ubuntu de GitHub, sin contenedor privilegiado. No se declara cerrada: no hay backend para Windows ni macOS y falta validarla en un despliegue real.
 
 ## Alcance
 
@@ -24,26 +24,30 @@ Se implementó `tools/playground` (`oxido-playground`), un servicio local que ej
 
 ## Correcciones encontradas al ejecutar
 
-La primera ejecución real detectó dos defectos que las pruebas unitarias no cubrían:
+La ejecución real detectó tres defectos que las pruebas unitarias no cubrían:
 
 1. `bind_arguments` incluía un `bwrap` de más. El comando quedaba como `prlimit … -- bwrap bwrap --unshare-all …`, de modo que el proceso exterior intentaba ejecutar `bwrap` como programa y fallaba dentro del aislamiento. Se eliminó el duplicado y se añadió una prueba que exige que `bwrap` aparezca exactamente una vez y justo después de `--`.
 2. El límite de 1 GiB de espacio de direcciones impedía enlazar incluso un programa Rust mínimo: `rust-lld` abortaba con `Resource temporarily unavailable`. Se midieron 2, 4 y 8 GiB; 2 GiB fue el menor valor probado que completó la compilación (`Finished dev profile`). El límite quedó en 2 GiB y está documentado en el código.
+3. El límite de 64 procesos era insuficiente en el runner de GitHub: al ejecutar `rustc` dentro del sandbox, `cargo` fallaba con `Resource temporarily unavailable (os error 11)` al hacer `exec`. Se elevó a 256, que conserva el límite y permite compilar en ese entorno.
 
 ## Verificación de extremo a extremo
 
-Método: host Ubuntu 24.04 con AppArmor restringiendo los namespaces de usuario sin privilegios. Se usó Docker 29.9.2 con una imagen `ubuntu:24.04` que incluye `bubblewrap 0.9.0`, `prlimit` y `build-essential`. El contenedor exterior se ejecutó con `--privileged`, `--memory 2g`, `--pids-limit 256` y `--cpus 2` para permitir la creación de namespaces anidados; el aislamiento interior siguió siendo el de `bwrap`. El contenedor exterior tenía red: una petición a `1.1.1.1` devolvió `301`.
+### Runner Ubuntu de GitHub (2026-11-01)
+
+Job `playground-sandbox` de la ejecución `41273981361`, sobre `ubuntu-latest`, con `bubblewrap` instalado desde apt y sin privilegios especiales de contenedor. El runner tiene red exterior; la prueba de humo levanta un servidor HTTP en el host y comprueba que el sandbox no puede alcanzarlo.
 
 | Prueba | Resultado |
 |---|---|
 | `--check` | `Sandbox disponible: bwrap, prlimit y el aislamiento responden.` |
-| `GET /` | `200`, 3826 bytes |
-| Programa que imprime | `{"codigo":0,...,"salida":"hola desde el sandbox\n","estado":"ok"}` |
-| Conexión a `1.1.1.1:80` desde el sandbox | `SIN RED` (el contenedor exterior sí tenía red) |
-| Lectura de una ruta del host desde el sandbox | `OCULTO` |
-| Programa con `sleep(30)` | `{"codigo":null,"duracion_ms":12012,"estado":"tiempo_agotado","tiempo_agotado":true}` |
+| Programa que imprime | `{"codigo":0,"duracion_ms":150,"salida":"hola desde el sandbox\n","estado":"ok"}` |
+| Conexión al listener del host desde el sandbox | `SIN RED` (el listener era accesible desde el runner) |
+| Lectura de `/etc/hostname` desde el sandbox | `OCULTO` |
+| Programa con `sleep(30)` | `{"codigo":null,"duracion_ms":12019,"estado":"tiempo_agotado","tiempo_agotado":true}` |
 | `POST /api/ejecutar` sin `Content-Type` | `415` |
 
-La ejecución se hizo con el binario de desarrollo y el toolchain Rust del host montado en solo lectura; el sandbox lo enlaza como `/rustup` y `/cargo-bin`, y compila el programa generado con `CARGO_NET_OFFLINE=true`.
+### Contenedor anidado local (2026-10-31)
+
+El host de desarrollo bloquea namespaces de usuario sin privilegios, así que la primera prueba se hizo con Docker 29.9.2 y una imagen `ubuntu:24.04` con `bubblewrap 0.9.0`, `prlimit` y `build-essential`. El contenedor exterior se ejecutó con `--privileged` para permitir namespaces anidados; el aislamiento interior siguió siendo el de `bwrap`. Se obtuvo el mismo resultado: programa ejecutado, `SIN RED`, `OCULTO` y plazo de pared de 12 s.
 
 ## Pruebas automáticas
 
@@ -60,6 +64,14 @@ Finished `dev` profile [unoptimized + debuginfo] target(s)
 
 Las pruebas cubren límites de fuente, rechazo de NUL, argumentos de aislamiento, límites de recursos, truncado y saneado de rutas, lectura HTTP acotada, rechazo de `Transfer-Encoding: chunked`, cuerpos sobredimensionados y una página autocontenida.
 
+La prueba de humo reproducible está en `tools/playground/smoke.sh` y se ejecuta en CI:
+
+```sh
+cargo build --locked -p oxido-cli -p oxido-playground
+./target/debug/oxido-playground --check
+tools/playground/smoke.sh
+```
+
 ## Fallo cerrado
 
 En el host de desarrollo, sin namespaces de usuario, el servicio sigue negándose a arrancar:
@@ -75,11 +87,11 @@ Esto es el comportamiento esperado: no existe un modo sin sandbox.
 ## Límites
 
 - Solo Linux. No hay backend para Windows ni macOS.
-- La verificación usó un contenedor exterior privilegiado para habilitar namespaces anidados; no se probó en un host sin Docker ni en un servicio desplegado.
+- La verificación se hizo en un runner Ubuntu estándar de GitHub; no se probó un despliegue público con usuarios reales.
 - No hay autenticación, cuotas de disco ni supervisor externo; el valor por defecto escucha en `127.0.0.1`.
 - Los `tmpfs` acotan el espacio por montaje, pero el límite de espacio de direcciones no contabiliza toda la memoria residente del host.
-- La imagen debe incluir un toolchain Rust, un enlazador C y el binario `oxido`; no se construyó una imagen de contenedor para producción.
+- La imagen debe incluir un toolchain Rust con `rustfmt`, un enlazador C y el binario `oxido`; no se construyó una imagen de contenedor para producción.
 
 ## Conclusión
 
-12.11 tiene ahora evidencia real de ejecución, aislamiento de red, ocultación de rutas del host y plazo de pared. Sigue abierta por la ausencia de backend Windows/macOS y por no haberse validado en un host sin privilegios de contenedor.
+12.11 tiene evidencia real en un runner Linux estándar de ejecución, aislamiento de red, ocultación de rutas del host y plazo de pared. Sigue abierta por la ausencia de backend Windows/macOS y por no haberse validado en un despliegue real.

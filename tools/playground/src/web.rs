@@ -27,7 +27,7 @@ button:disabled { opacity: .6; cursor: wait; }
 <body>
 <main>
 <h1>Playground de Óxido</h1>
-<p class="limites">Ejecución aislada sin red. Límites: 64 KiB de fuente, 12 s de pared, 2 GiB de memoria, 64 procesos y 64 KiB por salida. Solo biblioteca estándar y dependencias ya disponibles.</p>
+<p class="limites">Ejecución aislada sin red. Límites: 64 KiB de fuente, 12 s de pared, 2 GiB de memoria, 256 procesos y 64 KiB por salida. Solo biblioteca estándar y dependencias ya disponibles.</p>
 <div class="workspace">
   <section>
     <label for="fuente">Código</label>

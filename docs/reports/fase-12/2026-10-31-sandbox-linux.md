@@ -15,7 +15,7 @@ Se implementó `tools/playground` (`oxido-playground`), un servicio local que ej
 | Sistema de archivos | `/usr`, `/bin`, `/lib`, `/lib64`, `/etc/ld.so.cache`, `/etc/alternatives` y `/etc/nsswitch.conf` en solo lectura; `/tmp` y `/work` en `tmpfs`; fuente en solo lectura |
 | Memoria | `prlimit --as=2147483648` (2 GiB de espacio de direcciones) |
 | CPU | `prlimit --cpu=10` y plazo de pared de 12 s |
-| Procesos | `prlimit --nproc=64` |
+| Procesos | `prlimit --nproc=256` |
 | Archivos y descriptores | `--fsize=67108864`, `--nofile=256`, `--core=0` |
 | Entrada | 64 KiB de fuente y 96 KiB de cuerpo HTTP |
 | Salida | 64 KiB por flujo, con marca de truncado |

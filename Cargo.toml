@@ -8,6 +8,7 @@ members = [
     "crates/oxido-cli",
     "crates/oxido-lsp",
     "tools/benchmark",
+    "tools/playground",
 ]
 default-members = ["crates/oxido-cli"]
 

@@ -142,6 +142,25 @@ tools/generate-sbom.sh
 
 El primer script compila dos veces en directorios temporales, fija `SOURCE_DATE_EPOCH=0`, elimina la ruta del checkout con `--remap-path-prefix` y compara SHA-256. El segundo genera un CycloneDX 1.5 por paquete con `cargo-cyclonedx` 0.5.9 y elimina la ruta absoluta del workspace. Los detalles, límites y requisitos de firma/publicación están en [`reproducibilidad.md`](reproducibilidad.md).
 
+## Higiene de informes y telemetría
+
+```sh
+tools/report-hygiene.sh docs/reports target/sbom target/validation-report.md
+tools/audit-telemetry.sh
+```
+
+`report-hygiene.sh` falla si un informe contiene rutas absolutas (`/home/`, `/Users/`, `/tmp/`, unidades Windows), credenciales conocidas o volcados de entorno; no imprime el valor coincidente. CI lo ejecuta antes de subir el informe de validación, el SBOM y el log de benchmarks. `audit-telemetry.sh` revisa manifiestos y código propio para rechazar SDK de analítica; no demuestra por sí solo que un binario no abra sockets.
+
+## Sandbox de playground
+
+```sh
+cargo test -p oxido-playground --offline
+cargo clippy -p oxido-playground --all-targets --offline -- -D warnings
+cargo run -p oxido-playground -- --check
+```
+
+`oxido-playground` ejecuta una fuente `.ox` con `bwrap --unshare-all` y `prlimit`. `--check` crea un aislamiento mínimo real; si el kernel no permite namespaces, el servicio no arranca. Las pruebas cubren argumentos de aislamiento, límites de fuente y salida, lectura HTTP acotada y saneado de rutas, pero no sustituyen una ejecución end-to-end en un host con namespaces habilitados. Estado y límites en el [informe del sandbox](reports/fase-12/2026-10-31-sandbox-linux.md).
+
 ## Informe reproducible
 
 Desde la raíz, ejecuta:

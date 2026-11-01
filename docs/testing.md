@@ -122,7 +122,7 @@ Los seeds versionados están en `fuzz/corpus/{lexer,parser,config,backend,lsp}`.
 
 ## Benchmarks de análisis y LSP
 
-`tools/benchmark` contiene el arnés `oxido-benchmark`. Cada escenario se ejecuta en un proceso hijo para aislar el RSS y el comando padre agrega las mediciones.
+`tools/benchmark` contiene el arnés `oxido-benchmark`. Cada escenario ejecuta un hijo para medir tiempos y otro con una sola ejecución para medir el RSS; el proceso padre muestrea la memoria del segundo y agrega las mediciones.
 
 ```sh
 cargo run --release --locked -p oxido-benchmark

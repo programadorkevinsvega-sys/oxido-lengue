@@ -157,14 +157,15 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 
 ### 12.8. Benchmarks de análisis, generación, memoria y LSP
 
-- Arnés propio `tools/benchmark` (`oxido-benchmark`), con 13 escenarios y un proceso hijo por escenario para aislar el pico de RSS. `--check` falla por P95, RSS, plazo vencido o resultado funcional vacío.
+- Arnés propio `tools/benchmark` (`oxido-benchmark`), con 13 escenarios; un hijo mide los tiempos y otro, con una sola ejecución, el RSS. `--check` falla por P95, RSS, plazo vencido o resultado funcional vacío.
 - Medición Linux `x86_64`, 12 CPUs y Rust 1.99.1, documentada en el [informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md).
 - Entrada grande válida de 4 MiB: lexer P95 41,23 ms y 40,2 MiB; parser P95 72,63 ms y 107,4 MiB; generación P95 3.436,55 ms y 1.022,0 MiB; apertura LSP 415,84 ms y 114,3 MiB.
 - Escenarios LSP interactivos sobre ~5 KiB: hover, símbolos y referencias con P95 entre 0,63 ms y 1,05 ms en esta máquina.
 - Entrada inválida de 4 MiB: 213,05 ms (lexer) y 215,52 ms (parser), con el tope de 1.001 diagnósticos y sin plazo vencido.
 - Límite conocido: una única función con ~300.000 sentencias desborda la pila de `rustfmt` y devuelve `OX4001`; el benchmark usa muchas funciones pequeñas para la carga representativa. No toda entrada válida de 4 MiB se genera correctamente.
 - Los objetivos se fijaron después de medir, con margen para la variabilidad del runner. No son objetivos de producción.
-- La matriz `benchmark-analysis` ejecutó `--check` en Linux, Windows y macOS en el run [41167513550](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/41167513550) y los tres runners aprobaron todos los objetivos. En CI, `generate-large` quedó en 4.445 ms / 1.022 MiB (Ubuntu), 4.625 ms / 826 MiB (Windows) y 3.625 ms / 1.006 MiB (macOS).
+- La matriz `benchmark-analysis` ejecutó `--check` en Linux, Windows y macOS en el run [41277774631](https://github.com/programadorkevinsvega-sys/oxido-lengue/actions/runs/41277774631) y los tres runners aprobaron todos los objetivos. En CI, `generate-large` quedó en 3.790 ms / 722,9 MiB (Ubuntu), 3.634 ms / 609,1 MiB (Windows) y 2.987 ms / 708,0 MiB (macOS).
+- El 2026-11-01 se corrigió el método de RSS: antes se medía dentro del proceso y tras varias iteraciones, lo que en macOS produjo 46,9–134,3 MiB para `lex-large` con el mismo commit. Ahora un hijo ejecuta el escenario una vez y el padre muestrea su memoria; seis ejecuciones en macOS dieron 28,8–40,3 MiB para `lex-large` y 92,8–111,8 MiB para `parse-large`, sin cambiar los objetivos.
 
 ### 12.9. Builds reproducibles y SBOM
 

@@ -25,6 +25,7 @@ Una sintaxis en español e inglés que busca generar Rust estándar y conservar 
 - [Benchmark de análisis y LSP](./reports/fase-12/2026-10-30-benchmark-linux)
 - [Sandbox de playground: evidencia Linux](./reports/fase-12/2026-10-31-sandbox-linux)
 - [Fase 13: documentación y material educativo](./reports/fase-13/2026-11-02-documentacion)
+- [Fase 14: preparación de estabilización](./reports/fase-14/2026-11-02-estabilizacion)
 - [Roadmap](./roadmap)
 - [Decisiones de arquitectura (ADR)](./adr/)
 - [Casos de uso](./audiencias/casos-de-uso)

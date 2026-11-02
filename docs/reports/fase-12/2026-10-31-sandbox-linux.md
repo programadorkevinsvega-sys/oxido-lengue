@@ -1,6 +1,6 @@
 # Sandbox de playground — evidencia Linux (2026-10-31, actualizado 2026-11-01)
 
-**Estado:** implementación Linux verificada de extremo a extremo en un runner Ubuntu de GitHub, sin contenedor privilegiado. No se declara cerrada: no hay backend para Windows ni macOS y falta validarla en un despliegue real.
+**Estado:** cerrada con alcance Linux ([ADR 0013](../../adr/0013-cierre-12-11-alcance-linux.md)). La implementación se verificó de extremo a extremo en un runner Ubuntu de GitHub, sin contenedor privilegiado. Windows/macOS y el despliegue público quedan fuera de la subfase.
 
 ## Alcance
 
@@ -94,4 +94,4 @@ Esto es el comportamiento esperado: no existe un modo sin sandbox.
 
 ## Conclusión
 
-12.11 tiene evidencia real en un runner Linux estándar de ejecución, aislamiento de red, ocultación de rutas del host y plazo de pared. Sigue abierta por la ausencia de backend Windows/macOS y por no haberse validado en un despliegue real.
+12.11 queda cerrada con alcance Linux: hay evidencia real en un runner Linux estándar de ejecución, aislamiento de red, ocultación de rutas del host y plazo de pared, y el job `playground-sandbox` es obligatorio en `main`. Windows/macOS y el despliegue público se excluyeron explícitamente en el [ADR 0013](../../adr/0013-cierre-12-11-alcance-linux.md); abordarlos exigirá una subfase o un ADR nuevo con su propia verificación.

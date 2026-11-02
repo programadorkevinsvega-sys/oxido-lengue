@@ -14,6 +14,8 @@ cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
 
 `fase_8_estructura_indentada.ox` combina estructuras, `implementar`, `rasgo`, módulos anidados y `coincidir` con inicializador y brazos con bloque indentado. Es la primera entrega de Fase 8, no representa el cierre de toda la integración con Rust.
 
+`tutorial/01_saludo.ox`, `tutorial/02_condiciones.ox` y `tutorial/03_punto.ox` son las tres lecciones del [tutorial progresivo](../docs/tutorial.md). También tienen prueba automática de compilación y salida.
+
 ```sh
 cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox

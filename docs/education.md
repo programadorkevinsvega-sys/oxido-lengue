@@ -1,6 +1,6 @@
 # Educación y material didáctico
 
-Esta página reúne la ruta de aprendizaje, los ejemplos verificados y los ejercicios propuestos. El material es inicial: no se ha validado con estudiantes ni con docentes, y no se afirma que mejore resultados de aprendizaje. Los ejemplos que se presentan como ejecutables están cubiertos por pruebas del repositorio.
+Esta página reúne la ruta de aprendizaje, los ejemplos verificados y los ejercicios propuestos. El material es inicial: no se ha validado con estudiantes ni con docentes, y no se afirma que mejore resultados de aprendizaje. Los ejemplos que se presentan como ejecutables están cubiertos por pruebas del repositorio. Para una primera clase práctica, empieza por el [tutorial progresivo](tutorial.md), con tres lecciones ejecutables.
 
 ## Estado
 

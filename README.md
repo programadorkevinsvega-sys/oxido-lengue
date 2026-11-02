@@ -19,7 +19,7 @@ oxido nuevo demo
 oxido ejecutar demo/src/main.ox
 ```
 
-La guía completa —requisitos, comandos, dependencias y solución de problemas— está en [docs/instalacion.md](docs/instalacion.md). Para el editor, consulta [docs/vscode.md](docs/vscode.md). El material educativo y los ejercicios propuestos están en [docs/education.md](docs/education.md), y los criterios de evaluación empresarial en [docs/enterprise-readiness.md](docs/enterprise-readiness.md).
+La guía completa —requisitos, comandos, dependencias y solución de problemas— está en [docs/instalacion.md](docs/instalacion.md). El [tutorial progresivo](docs/tutorial.md) ofrece tres lecciones ejecutables. Para el editor, consulta [docs/vscode.md](docs/vscode.md). El material educativo y los ejercicios propuestos están en [docs/education.md](docs/education.md), y los criterios de evaluación empresarial en [docs/enterprise-readiness.md](docs/enterprise-readiness.md).
 
 ## Ejemplo ejecutable inicial
 

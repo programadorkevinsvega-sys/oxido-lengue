@@ -500,6 +500,34 @@ fn compiles_and_runs_indented_structs_enums_and_collections() {
 }
 
 #[test]
+fn compiles_and_runs_the_progressive_tutorial_examples() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let cases = [
+        (
+            include_str!("../../../examples/tutorial/01_saludo.ox"),
+            vec!["Hola, mundo!"],
+        ),
+        (
+            include_str!("../../../examples/tutorial/02_condiciones.ox"),
+            vec!["3: bajo (otro)", "12: alto (doce)", "5: bajo (otro)"],
+        ),
+        (
+            include_str!("../../../examples/tutorial/03_punto.ox"),
+            vec!["(2, 3) suma 5"],
+        ),
+    ];
+    for (text, expected) in cases {
+        let source = SourceFile::new(text);
+        let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+        assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+        assert_eq!(result.program_output, expected);
+    }
+}
+
+#[test]
 fn compiles_and_runs_spanish_prelude_aliases_and_macros() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

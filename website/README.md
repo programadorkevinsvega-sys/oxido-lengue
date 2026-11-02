@@ -30,7 +30,10 @@ El portal ya está publicado en Cloudflare Pages. En el proyecto de Pages, conse
 - `src/pages/404.astro`: página personalizada para rutas no encontradas, emitida como `404.html` para Cloudflare Pages.
 - `../docs/audiencias/*.md`: páginas fuente para desarrolladores, empresas y estudiantes.
 - `../docs/*.md`: especificaciones, roadmap e informes técnicos que se publican como referencia.
+- `../docs/reports/`, `../docs/adr/` y `../docs/prompts/`: subárboles que también se publican bajo `referencia/`.
 - El script genera copias bajo `src/content/docs/referencia/` y `audiencias/`; son artefactos locales y no se versionan.
+- `scripts-check-links.mjs` recorre el `dist` generado y falla si un enlace o recurso interno no existe. El build ejecuta esa comprobación después de Astro.
+- Los enlaces que salen de `docs/` se reescriben al archivo correspondiente en GitHub para que el sitio no apunte a rutas inexistentes.
 - Los ejemplos deben distinguir sintaxis propuesta de características implementadas. La rebanada inicial compila `examples/hola_mundo.ox`; no se afirma compatibilidad general.
 
 La propiedad `site` de `astro.config.mjs` usa el dominio público `https://oxido-lengue.pages.dev`; Astro genera el sitemap en `dist/sitemap-index.xml`. La página personalizada `src/pages/404.astro` se emite como `dist/404.html`, que Cloudflare Pages sirve para rutas inexistentes. Se desactiva la ruta 404 interna de Starlight para evitar que compita con esta página estática.

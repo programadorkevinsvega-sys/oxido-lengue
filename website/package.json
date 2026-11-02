@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "npm run prepare:docs && astro build",
+    "build": "npm run prepare:docs && astro build && npm run check:links",
     "preview": "astro preview",
     "check": "npm run prepare:docs && astro check",
+    "check:links": "node scripts-check-links.mjs",
     "prepare:docs": "node scripts-prepare-docs.mjs"
   },
   "dependencies": {

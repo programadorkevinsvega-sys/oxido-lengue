@@ -32,4 +32,4 @@ cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox
 4. Referencias, ownership y borrowing.
 5. Errores del compilador y lectura del Rust generado.
 
-`examples/fase_7_interoperabilidad.ox` muestra tuplas, referencias, métodos, módulos, errores `Result`/`Option` y `VecDeque` en sintaxis Rust. Consulta [modos de sintaxis](/referencia/syntax-modes/), [alias](/referencia/aliases/) y [compatibilidad](/referencia/compatibility/).
+`examples/fase_7_interoperabilidad.ox` muestra tuplas, referencias, métodos, módulos, errores `Result`/`Option` y `VecDeque` en sintaxis Rust. Consulta [modos de sintaxis](/referencia/syntax-modes/), [alias](/referencia/aliases/), [compatibilidad](/referencia/compatibility/) y la [guía de educación](/referencia/education/) con ejercicios propuestos.

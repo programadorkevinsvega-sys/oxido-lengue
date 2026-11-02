@@ -1,0 +1,99 @@
+# VS Code y servidor LSP
+
+El editor se compone de una extensión de VS Code (`editors/vscode-oxido`) y el servidor `oxido-lsp`. La extensión asocia archivos `.ox`, inicia el servidor y añade tres comandos. El análisis al editar es local y no ejecuta Cargo ni `rust-analyzer`; la comprobación con Cargo es una acción separada que exige Workspace Trust.
+
+El estado técnico y la evidencia están en el [informe de Fase 11](fase-11-vscode-lsp.md), [ADR 0010](adr/0010-frontera-lsp-y-confianza-editor.md) y [ADR 0012](adr/0012-ambitos-locales-rename-e-indice-persistente.md). La extensión no está publicada en un marketplace, el VSIX no está firmado y solo el paquete Linux x64 con servidor incluido se ha ejecutado de extremo a extremo.
+
+## Requisitos
+
+- VS Code 1.95.0 o posterior.
+- `oxido-lsp` compilado del mismo commit, en `PATH` o indicado con `oxido.serverPath`.
+- Opcional: `rust-analyzer` y `rustfmt` del toolchain para análisis semántico y formateo.
+- Opcional: un `oxido.toml` válido y un `Cargo.lock` para el comando de Cargo.
+
+## Instalar el servidor
+
+```sh
+cargo build --release --locked -p oxido-lsp
+./target/release/oxido-lsp --version
+```
+
+El servidor se comunica por stdio. No abre puertos ni envía telemetría.
+
+## Empaquetar e instalar la extensión
+
+```sh
+npm --prefix editors/vscode-oxido ci
+npm --prefix editors/vscode-oxido run package:vsix
+code --install-extension editors/vscode-oxido/dist/oxido-language-support-0.1.0.vsix
+```
+
+Ese VSIX no incluye `oxido-lsp`; el servidor debe estar en `PATH` o configurarse. Para producir un paquete que incluya el servidor de la plataforma actual:
+
+```sh
+OXIDO_SERVER_BINARY=target/release/oxido-lsp \
+OXIDO_VSIX_TARGET=linux-x64 \
+npm --prefix editors/vscode-oxido run package:vsix:server
+code --install-extension editors/vscode-oxido/dist/oxido-language-support-0.1.0-linux-x64.vsix
+```
+
+El binario incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp` y el archivo existe y es ejecutable. Una ruta configurada explícitamente tiene prioridad.
+
+## Configuración
+
+| Ajuste | Valor por defecto | Efecto |
+|---|---|---|
+| `oxido.serverPath` | `oxido-lsp` | Ruta al ejecutable del servidor. En Restricted Mode solo se acepta la configuración de usuario |
+
+La extensión declara `untrustedWorkspaces.supported = "limited"` y restringe `oxido.serverPath` en modo restringido. La configuración del workspace solo selecciona el modo de sintaxis y la edición; no contiene comandos.
+
+## Comandos
+
+| Comando | Qué hace | Confianza |
+|---|---|---|
+| `Óxido: Reiniciar servidor de lenguaje` | Reinicia el proceso LSP | No requiere |
+| `Óxido: Comprobar con Cargo` | Ejecuta una comprobación real con el `oxido.toml` y el `Cargo.lock` del proyecto | Requiere Workspace Trust |
+| `Óxido: Ver estadísticas del editor` | Muestra duración, round-trip y memoria residente | No requiere |
+
+`Óxido: Comprobar con Cargo` admite una sola comprobación concurrente y `$/cancelRequest` mata el árbol de procesos. El resultado cancelado no publica diagnósticos. El comando usa `--locked --offline`; si faltan dependencias o el lockfile, devuelve el diagnóstico correspondiente.
+
+## Capacidades
+
+- Diagnósticos léxicos y estructurales con spans convertidos a UTF-16.
+- Semantic tokens para declaraciones, referencias y ámbitos locales de documentos abiertos.
+- Símbolos de archivos cerrados desde una caché versionada fuera del workspace.
+- En workspace confiable, hover, completado, inlay hints, definición, referencias, semantic tokens y renombrado mediante `rust-analyzer`, con correspondencia exacta de ubicaciones.
+- En Restricted Mode, navegación y renombrado local con el índice y los ámbitos locales, sin iniciar `rust-analyzer`.
+
+No se afirma mapeo semántico completo entre módulos ni resolución de tipos universal. Las ediciones sin correspondencia exacta se rechazan.
+
+## Límites y seguridad
+
+- El LSP no inicia Cargo ni `rust-analyzer` al abrir o editar.
+- El comando Cargo puede ejecutar `build.rs` y macros procedurales de dependencias. El Workspace Trust expresa confianza; no es un sandbox.
+- La compilación autorizada no está aislada del sistema operativo. El sandbox Linux del playground es un producto aparte y no cubre la CLI ni el LSP.
+- El framing admite 4 MiB; la cabecera, 8 KiB; 64 documentos y 16 MiB en total.
+- El índice escanea como máximo 256 archivos, 2048 entradas, 4 MiB por archivo y 16 MiB de caché, y nunca escribe dentro del workspace.
+- La memoria residente solo se informa en Linux. En Windows y macOS el valor es `null` y la extensión muestra «no disponible».
+- El VSIX no está firmado, no se publica y la matriz Windows/macOS del paquete con servidor no se ha ejecutado.
+
+## Solución de problemas
+
+| Síntoma | Causa probable | Acción |
+|---|---|---|
+| «No se encontró oxido-lsp» | El binario no está en `PATH` | Configura `oxido.serverPath` con una ruta absoluta |
+| El servidor arranca y se cierra | Versión incompatible o error de protocolo | Reinicia y revisa la salida del canal de la extensión |
+| `OX4001` al formatear | Falta `rustfmt` | Instala el componente del toolchain |
+| Sin funciones de Rust | `rust-analyzer` ausente o workspace no confiable | Instala el componente y concede confianza |
+| El comando Cargo no hace nada | Restricted Mode | Concede Workspace Trust de forma explícita |
+| `OX7001` | Falta `Cargo.lock` | Descarga y confirma las dependencias antes de compilar |
+
+## Verificación
+
+```sh
+cargo test -p oxido-lsp --locked
+npm test --prefix editors/vscode-oxido
+npm run test:host --prefix editors/vscode-oxido
+```
+
+La suite host abre VS Code real y cubre workspace confiable, Cargo, navegación sin confianza, cancelación, VSIX instalado, VSIX con servidor incluido y Restricted Mode. Requiere `rust-analyzer` y `rustfmt`; los casos que dependen de ellos se omiten si no están disponibles.

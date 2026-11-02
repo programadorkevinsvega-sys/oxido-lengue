@@ -37,7 +37,9 @@ Por defecto declara dependencias de crates.io con `version`. `oxido descargar-de
 
 `oxido auditar-proyecto .` enumera `unsafe`, archivos `build.rs`, manifiestos de crates `proc-macro`, bloques FFI y llamadas `Command::new` detectables. No ejecuta Cargo ni sigue symlinks; los hallazgos usan rutas relativas. Es un inventario estático, no una garantía de seguridad.
 
-El crate `oxido-lsp` es un prototipo stdio con diagnósticos léxicos básicos. La respuesta de semantic tokens es heurística e incompleta, no sirve para resaltado fiable; tampoco integra `rust-analyzer`, Workspace Trust ni compilación desde VS Code. No hay una extensión VS Code funcional.
+El crate `oxido-lsp` habla LSP por stdio, publica diagnósticos léxicos y estructurales, semantic tokens, símbolos y, en workspace confiable, delega hover, completado, inlay hints, navegación y renombrado en `rust-analyzer`. La extensión de VS Code asocia `.ox`, declara Workspace Trust `limited` y ofrece `Óxido: Comprobar con Cargo`. Sigue siendo un alcance técnico: no hay publicación en marketplace, el VSIX no está firmado y la cobertura semántica no es universal. Consulta la [guía de VS Code y LSP](../vscode.md).
+
+Para instalar la CLI y ejecutar el primer programa, consulta la [guía de instalación](../instalacion.md).
 
 ## Dirección técnica
 

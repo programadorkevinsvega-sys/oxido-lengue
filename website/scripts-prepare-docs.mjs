@@ -1,17 +1,47 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { existsSync, statSync } from 'node:fs'
 import { dirname, join, posix, relative as relativePath, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(fileURLToPath(import.meta.url))
-const sourceDocs = resolve(root, '../docs')
+const repoRoot = resolve(root, '..')
+const sourceDocs = join(repoRoot, 'docs')
 const contentDocs = join(root, 'src/content/docs')
 const references = join(contentDocs, 'referencia')
 const audiences = join(contentDocs, 'audiencias')
+const repoBase = 'https://github.com/programadorkevinsvega-sys/oxido-lengue'
 
 await rm(references, { recursive: true, force: true })
 await rm(audiences, { recursive: true, force: true })
 await mkdir(references, { recursive: true })
 await mkdir(audiences, { recursive: true })
+
+function rewriteLink(target, sourceDirectory) {
+  const trimmed = target.trim()
+  if (!trimmed || trimmed.startsWith('/') || /^(https?:|mailto:|tel:)/.test(trimmed)) {
+    return target
+  }
+  const boundary = trimmed.search(/[?#]/)
+  const path = boundary === -1 ? trimmed : trimmed.slice(0, boundary)
+  const suffix = boundary === -1 ? '' : trimmed.slice(boundary)
+  if (!path) return target
+
+  const normalized = posix.normalize(posix.join(sourceDirectory, path))
+  if (normalized.startsWith('../')) {
+    const repoPath = posix.normalize(posix.join('docs', normalized))
+    const absolute = join(repoRoot, repoPath)
+    if (!existsSync(absolute)) return target
+    const kind = statSync(absolute).isDirectory() ? 'tree' : 'blob'
+    return `${repoBase}/${kind}/main/${repoPath}${suffix}`
+  }
+  if (path.endsWith('.md')) {
+    return `/referencia/${normalized.replace(/\.md$/, '')}/${suffix}`
+  }
+  if (!posix.extname(path)) {
+    return `/referencia/${normalized}/${suffix}`
+  }
+  return target
+}
 
 async function addFrontmatter(source, destination, fallbackTitle) {
   const body = await readFile(source, 'utf8')
@@ -27,9 +57,9 @@ async function addFrontmatter(source, destination, fallbackTitle) {
     .replaceAll('```ebnf', '```text')
     .replaceAll('../ARCHITECTURE_RULES.md', '/referencia/reglas-de-arquitectura/')
     .replaceAll('../website/README.md', '/referencia/sitio-documental/')
-    .replace(/\]\(([^/][^)]*?)\.md(#[^)]*)?\)/g, (_match, path, anchor = '') => {
-      const page = posix.normalize(posix.join(sourceDirectory, path))
-      return `](/referencia/${page}/${anchor})`
+    .replace(/\]\(([^)]+)\)/g, (match, target) => {
+      if (match.startsWith('![')) return match
+      return `](${rewriteLink(target, sourceDirectory)})`
     })
     .replaceAll('](/referencia/architecture/)', '](/referencia/arquitectura/)')
   const content = `---\ntitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(description)}\n---\n\n${rewritten}`
@@ -70,9 +100,11 @@ const reportsDirectory = join(sourceDocs, 'reports')
 await addMarkdownTree(reportsDirectory, join(references, 'reports'))
 const adrDirectory = join(sourceDocs, 'adr')
 await addMarkdownTree(adrDirectory, join(references, 'adr'))
+const promptsDirectory = join(sourceDocs, 'prompts')
+await addMarkdownTree(promptsDirectory, join(references, 'prompts'))
 
 await addFrontmatter(
-  resolve(root, '../ARCHITECTURE_RULES.md'),
+  resolve(repoRoot, 'ARCHITECTURE_RULES.md'),
   join(references, 'reglas-de-arquitectura.md'),
   'Reglas de arquitectura',
 )

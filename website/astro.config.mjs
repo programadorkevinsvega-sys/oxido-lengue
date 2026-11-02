@@ -27,6 +27,7 @@ export default defineConfig({
           label: 'Guías',
           items: [
             { label: 'Instalación', link: '/referencia/instalacion/' },
+            { label: 'Tutorial progresivo', link: '/referencia/tutorial/' },
             { label: 'VS Code y LSP', link: '/referencia/vscode/' },
             { label: 'Educación', link: '/referencia/education/' },
             { label: 'Preparación empresarial', link: '/referencia/enterprise-readiness/' },

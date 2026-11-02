@@ -48,3 +48,7 @@ cargo test --workspace --locked
 El portal se construye desde `website/` con `npm ci && npm run build` (Node 22.23.4).
 
 Lee [AGENTS.md](AGENTS.md), [reglas de arquitectura](ARCHITECTURE_RULES.md) y [plan](plan) antes de modificar el lenguaje o su arquitectura.
+
+## Licencia
+
+El código se distribuye con doble licencia [MIT](LICENSE-MIT) o [Apache-2.0](LICENSE-APACHE), a elección de quien lo use. Las contribuciones se aceptan bajo los mismos términos. Los ejemplos de `examples/` y la documentación de `docs/` se incluyen bajo la misma licencia salvo que se indique lo contrario.

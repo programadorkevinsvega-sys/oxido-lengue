@@ -7,7 +7,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 - El compilador, la CLI y el LSP están en etapa temprana. La compatibilidad se limita a la [matriz publicada](compatibility.md).
 - No hay firma, notarización, publicación en marketplaces ni binarios distribuidos oficialmente. La subfase 12.9 se cerró sin publicar.
 - El sandbox del playground está verificado solo en Linux y no cubre la CLI ni el LSP. No está desplegado.
-- La licencia del proyecto aún no se ha seleccionado. No se debe asumir una licencia permisiva ni reutilizar el código sin una decisión explícita del titular.
+- El código del repositorio se ofrece con doble licencia **MIT o Apache-2.0** (`LICENSE-MIT` y `LICENSE-APACHE`). Cada crate declara `license = "MIT OR Apache-2.0"`. El titular puede cambiar esta decisión, y la revisión legal del uso previsto sigue siendo responsabilidad de cada organización.
 - La documentación distingue entre lo implementado, lo especificado y lo propuesto. Los casos de uso no son compromisos de producto.
 
 ## Controles verificados
@@ -32,7 +32,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 2. **Sin sandbox general.** La CLI y el LSP no están aislados del sistema operativo. El sandbox del playground es un producto separado.
 3. **Cobertura parcial del lenguaje.** La matriz no cubre todo Rust. Un programa que compila no demuestra compatibilidad general.
 4. **Distribución incompleta.** No hay binarios firmados, instaladores, marketplace ni canal de actualizaciones.
-5. **Licencia no seleccionada.** No se puede asumir el derecho de uso, modificación o redistribución.
+5. **Licencia y revisión legal.** El código usa MIT o Apache-2.0, pero cada organización debe revisar si esa licencia cubre su uso previsto. Las licencias de terceros se auditan con `cargo-deny`, no con una revisión legal completa.
 6. **Sin soporte ni SLA.** No hay compromiso de respuesta, ventanas de mantenimiento ni compatibilidad retroactiva.
 7. **Datos del entorno.** Los informes pueden contener salidas de diagnóstico; la higiene bloquea rutas absolutas y secretos conocidos, pero no todos los formatos.
 
@@ -40,7 +40,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 
 Antes de un piloto interno:
 
-- [ ] Confirmar la licencia y los términos de uso con el titular del proyecto.
+- [ ] Revisar que `LICENSE-MIT`/`LICENSE-APACHE` cubren el uso previsto y conservar la atribución requerida.
 - [ ] Fijar un commit y un toolchain reproducibles.
 - [ ] Revisar la matriz de compatibilidad y elegir un caso de uso dentro de ella.
 - [ ] Ejecutar `cargo test --workspace --locked`, `cargo audit` y `cargo deny check`.
@@ -73,7 +73,7 @@ Antes de producción:
 1. ¿Qué commit, toolchain y versión exacta se evaluaron?
 2. ¿Qué casos de la matriz están cubiertos por pruebas y cuáles no?
 3. ¿Cómo se ejecutan las dependencias y qué aislamiento existe?
-4. ¿Qué licencia se aplica al compilador, a la CLI y a los ejemplos?
+4. ¿Qué licencia se aplica al compilador, a la CLI y a los ejemplos? (MIT o Apache-2.0 en este repositorio.)
 5. ¿Qué artefactos están firmados y cómo se verifica su integridad?
 6. ¿Qué soporte y SLA existen?
 7. ¿Cómo se reportan y corrigen vulnerabilidades?

@@ -1,6 +1,6 @@
 # Playground de Óxido
 
-Servicio local que ejecuta código `.ox` dentro de un sandbox de sistema operativo. Es la implementación de la subfase 12.11, condicionada a la aprobación del producto playground.
+Servicio local que ejecuta código `.ox` dentro de un sandbox de sistema operativo. Es la implementación de la subfase 12.11, cerrada con alcance Linux según el [ADR 0013](../../docs/adr/0013-cierre-12-11-alcance-linux.md).
 
 ## Responsabilidad y límites
 
@@ -46,8 +46,8 @@ La evidencia y el método están en [`docs/reports/fase-12/2026-10-31-sandbox-li
 
 ## Limitaciones
 
-- Solo Linux con `bwrap` y `prlimit`. No hay backend para Windows ni macOS.
-- La verificación se hizo en un runner Ubuntu estándar de GitHub y en un contenedor anidado local; falta validarla en un despliegue real con usuarios.
+- Solo Linux con `bwrap` y `prlimit`. No hay backend para Windows ni macOS; quedan fuera de 12.11 (ADR 0013).
+- La verificación se hizo en un runner Ubuntu estándar de GitHub y en un contenedor anidado local; no se ha validado un despliegue real con usuarios.
 - La imagen del sandbox debe contener un toolchain Rust compatible con `rustfmt`, un enlazador C y el binario `oxido`.
 - No se ha medido el coste por ejecución ni la concurrencia de producción.
 - No se publica ni se despliega; no hay autenticación porque el valor por defecto escucha en `127.0.0.1`.

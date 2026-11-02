@@ -1,6 +1,6 @@
 # Fase 12 — Seguridad y calidad avanzada
 
-**Estado:** en curso. Las subfases **12.1 a 12.10** están completadas en su alcance documentado. La subfase **12.11** tiene una implementación Linux verificada de extremo a extremo en un runner Ubuntu de GitHub y en local dentro de un contenedor anidado, pero no está cerrada: no hay backend para Windows ni macOS y falta validarla en un despliegue real.
+**Estado:** completada en su alcance documentado. Las subfases **12.1 a 12.11** están cerradas según sus informes y ADR. La subfase **12.11 se cierra con alcance Linux** ([ADR 0013](adr/0013-cierre-12-11-alcance-linux.md)): el sandbox está verificado de extremo a extremo en un runner Ubuntu de GitHub y en local dentro de un contenedor anidado, pero no hay backend Windows/macOS ni despliegue público. La firma, notarización y publicación de 12.9 siguen fuera de alcance por falta de credenciales y autorización explícita.
 
 **Fuentes:** [`plan` §16](../plan) (modelo de referencia), [`ARCHITECTURE_RULES.md`](../ARCHITECTURE_RULES.md), [`SECURITY.md`](../SECURITY.md), [`docs/politica-dependencias.md`](politica-dependencias.md) y el código de `crates/`. Este informe describe el estado verificado; no declara ausencia de riesgos.
 
@@ -33,7 +33,7 @@
 | LSP | Ejecución implícita de Cargo o `rust-analyzer` en un workspace no confiable | Restricted Mode no inicia `rust-analyzer` ni permite `oxido/check`; solo índice y ámbitos locales | `run-host.js` (casos sin `--disable-workspace-trust`), pruebas host de rename y Cargo | Si el usuario concede confianza, el análisis puede ejecutar build scripts y macros |
 | Procesos hijos | Inyección de comandos o procesos huérfanos | `Command` con argumentos separados, nunca shell; `rustfmt` con plazo de 10 s; Cargo con timeout y cancelación que mata el árbol | `oxido-rust-backend/src/lib.rs` (`TIME_LIMIT`), `application/cargo.rs` | Depende de las garantías del sistema operativo al matar el árbol |
 | CI y artefactos | Fuga de secretos o rutas absolutas; dependencias vulnerables | Informes con nombres de pruebas y sin logs completos; `tools/report-hygiene.sh` bloquea rutas absolutas y credenciales en los artefactos; `tools/audit-telemetry.sh` rechaza SDK de telemetría; `cargo-deny` y `cargo-audit` en CI; `--locked` | `.github/workflows/ci.yml`, `tools/report-hygiene.sh`, `tools/audit-telemetry.sh`, `deny.toml`, `docs/politica-dependencias.md` | Los patrones son estáticos y no cubren secretos con formatos desconocidos; `cargo-audit` depende de la base RustSec |
-| Playground | Ejecución de código ajeno | Implementación Linux con `bwrap --unshare-all`, red sin acceso, `/tmp` y `/work` en `tmpfs`, `prlimit` (2 GiB, 10 s CPU, 256 procesos, 64 MiB por archivo, sin core), plazo de pared de 12 s y salida de 64 KiB; el servicio no arranca sin aislamiento real | `tools/playground/`, pruebas del crate y [`informe del sandbox`](reports/fase-12/2026-10-31-sandbox-linux.md) | Solo Linux; verificado en un runner Ubuntu estándar de GitHub y en un contenedor anidado local; sin backend Windows/macOS; un despliegue público requiere autenticación, cuotas y supervisor externo |
+| Playground | Ejecución de código ajeno | Implementación Linux con `bwrap --unshare-all`, red sin acceso, `/tmp` y `/work` en `tmpfs`, `prlimit` (2 GiB, 10 s CPU, 256 procesos, 64 MiB por archivo, sin core), plazo de pared de 12 s y salida de 64 KiB; el servicio no arranca sin aislamiento real | `tools/playground/`, pruebas del crate y [`informe del sandbox`](reports/fase-12/2026-10-31-sandbox-linux.md) | Solo Linux; 12.11 cerrada con ese alcance (ADR 0013); verificado en un runner Ubuntu estándar de GitHub y en un contenedor anidado local; sin backend Windows/macOS; un despliegue público requiere autenticación, cuotas y supervisor externo |
 
 ### Fronteras de confianza
 
@@ -117,7 +117,7 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 | SBOM | CycloneDX 1.5 por crate, sin rutas absolutas del workspace; artefacto de CI (12.9) |
 | Higiene de informes | `report-hygiene.sh` ejecutado en CI sobre el informe de validación, el SBOM y el log de benchmarks; sin coincidencias en `docs/reports` (12.10) |
 | Telemetría | `audit-telemetry.sh` no encuentra SDK ni endpoints en dependencias y código propio; no hay envío remoto por defecto (12.10) |
-| Sandbox de playground | Implementación Linux con `bwrap`/`prlimit`, pruebas unitarias y fallo cerrado si falta aislamiento; ejecución de extremo a extremo verificada en un runner Ubuntu estándar de GitHub y en un contenedor anidado, con red externa inaccesible, ruta del host oculta y plazo de pared aplicado (12.11) |
+| Sandbox de playground | Implementación Linux con `bwrap`/`prlimit`, pruebas unitarias y fallo cerrado si falta aislamiento; ejecución de extremo a extremo verificada en un runner Ubuntu estándar de GitHub y en un contenedor anidado, con red externa inaccesible, ruta del host oculta y plazo de pared aplicado. Cerrado con alcance Linux (ADR 0013) (12.11) |
 
 ### 12.3. `unsafe`
 
@@ -193,7 +193,7 @@ Esto protege al servidor de ráfagas sin prometer una cuota por segundo ni desca
 - El servicio exige `bwrap`, `prlimit` y un aislamiento funcional antes de escuchar. Si el kernel no permite namespaces de usuario, termina con error; no existe un modo sin sandbox.
 - Evidencia: 13 pruebas unitarias y `clippy -D warnings` sin avisos. La ejecución de extremo a extremo se verificó el 2026-11-01 en el job `playground-sandbox` de un runner `ubuntu-latest` de GitHub, sin contenedor privilegiado: `--check` correcto, programa ejecutado con salida y código 0, conexión externa rechazada desde el sandbox mientras el runner tenía red, ruta del host no visible, `sleep(30)` interrumpido a los 12 s y `415` sin `Content-Type`. La misma prueba de humo se había ejecutado antes en un contenedor anidado local con `--privileged`, necesario porque el host de desarrollo bloquea namespaces sin privilegios; el aislamiento interior fue el de `bwrap` en ambos casos.
 - La ejecución real descubrió tres defectos corregidos: un `bwrap` duplicado en los argumentos, un límite de 1 GiB que impedía enlazar con `rust-lld` (se subió a 2 GiB tras medir 2, 4 y 8 GiB) y un límite de 64 procesos que provocaba `EAGAIN` al ejecutar `rustc` en el runner de GitHub (se subió a 256).
-- Límites pendientes: no hay backend Windows/macOS, no hay autenticación ni cuotas de disco, no se midió concurrencia ni coste por ejecución, y falta validar un despliegue real con usuarios. Por eso 12.11 no se declara completada.
+- Límites fuera de alcance: Windows/macOS, autenticación, cuotas de disco, concurrencia, coste por ejecución y despliegue público. El [ADR 0013](adr/0013-cierre-12-11-alcance-linux.md) cierra 12.11 con alcance Linux; si el producto se aprueba para otras plataformas o para un despliegue real, se abrirá una subfase o un ADR nuevo con criterios y evidencia propios.
 
 Comandos ejecutados para esta fase:
 
@@ -238,7 +238,7 @@ cargo run -p oxido-playground -- --check
 | Diferida | SBOM y builds reproducibles | 12.9 | Completado en Linux; matriz Windows/macOS en CI |
 | Diferida | Firma, notarización y publicación | 12.9 | Pendiente de credenciales y autorización |
 | Media | Bloquear rutas absolutas y secretos en informes CI; auditar telemetría | 12.10 | Completado con comprobaciones estáticas en CI |
-| Condicionada | Sandbox de playground, solo si se aprueba el producto | 12.11 | Implementación Linux verificada en un runner Ubuntu de GitHub y en un contenedor anidado; falla de forma cerrada sin namespaces; sin Windows/macOS |
+| Condicionada | Sandbox de playground, solo si se aprueba el producto | 12.11 | Completado con alcance Linux (ADR 0013): implementación verificada en un runner Ubuntu de GitHub y en un contenedor anidado; falla de forma cerrada sin namespaces; Windows/macOS y despliegue público fuera de alcance |
 
 ---
 
@@ -261,4 +261,4 @@ cargo run -p oxido-playground -- --check
 - [ ] Firma, notarización y publicación (12.9): requieren credenciales y autorización.
 - [x] Informes CI sin secretos ni rutas absolutas, con comprobación automática (12.10).
 - [x] Telemetría remota desactivada por defecto y sin SDK detectado (12.10).
-- [ ] Sandbox de playground: implementación Linux verificada en un runner Ubuntu de GitHub y en un contenedor anidado; falta soporte Windows/macOS y validación en un despliegue real (12.11).
+- [x] Sandbox de playground: cerrado con alcance Linux (ADR 0013); verificado en un runner Ubuntu de GitHub y en un contenedor anidado. Windows/macOS y despliegue público quedan fuera de la subfase.

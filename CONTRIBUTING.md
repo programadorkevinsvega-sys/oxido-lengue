@@ -11,3 +11,5 @@ cargo test --workspace --locked
 ```
 
 Los cambios deben conservar la semántica de Rust, incluir regresiones para el comportamiento nuevo y no introducir `unsafe` ni silenciamiento de resultados en el código interno.
+
+Al enviar una contribución aceptas que se distribuya bajo la doble licencia [MIT](LICENSE-MIT) o [Apache-2.0](LICENSE-APACHE) del proyecto.

@@ -357,7 +357,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** convertir capacidades verificadas en materiales confiables dentro del portal documental Markdown desplegable en Cloudflare Pages.
 
-**Estado:** en curso. Esta revisión añade las guías de [instalación](instalacion.md), [VS Code y LSP](vscode.md), [educación](education.md) y [preparación empresarial](enterprise-readiness.md), actualiza las páginas de audiencia y hace que el build del sitio verifique enlaces internos. Siguen pendientes: licencia explícita, tutoriales progresivos completos, validación de ejercicios con estudiantes, guía bilingüe mantenida y pilotos con evidencia. La publicación en Cloudflare Pages ya existe; no se modificó la infraestructura.
+**Estado:** en curso. Esta revisión añade las guías de [instalación](instalacion.md), [VS Code y LSP](vscode.md), [educación](education.md) y [preparación empresarial](enterprise-readiness.md), actualiza las páginas de audiencia y hace que el build del sitio verifique enlaces internos. La licencia se resolvió con doble MIT/Apache-2.0. Siguen pendientes: tutoriales progresivos completos, validación de ejercicios con estudiantes, guía bilingüe mantenida y pilotos con evidencia. La publicación en Cloudflare Pages ya existe; no se modificó la infraestructura.
 
 ### Subfases
 

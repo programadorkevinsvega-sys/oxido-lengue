@@ -46,7 +46,7 @@ def wait_for_server(process: subprocess.Popen[bytes]) -> int:
             status, body = request("/__test/instance")
             if status == 200:
                 return int(json.loads(body)["pid"])
-        except (OSError, ValueError, json.JSONDecodeError):
+        except (OSError, http.client.HTTPException, ValueError, json.JSONDecodeError):
             time.sleep(0.1)
     raise TimeoutError("el servidor no abrió el puerto de prueba en 30 segundos")
 

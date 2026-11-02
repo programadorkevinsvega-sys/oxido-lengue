@@ -11,6 +11,16 @@ El proyecto ya tiene lexer, parser y generación Rust. Las Fases 5–9 están co
 - Rust 1.99.1 o posterior; la edición objetivo del workspace es Rust 2024. CI usa Rust 1.99.1 para formato, lint, pruebas y auditoría de dependencias.
 - Cargo.
 
+## Primeros pasos
+
+```sh
+cargo install --path crates/oxido-cli --locked
+oxido nuevo demo
+oxido ejecutar demo/src/main.ox
+```
+
+La guía completa —requisitos, comandos, dependencias y solución de problemas— está en [docs/instalacion.md](docs/instalacion.md). Para el editor, consulta [docs/vscode.md](docs/vscode.md). El material educativo y los ejercicios propuestos están en [docs/education.md](docs/education.md), y los criterios de evaluación empresarial en [docs/enterprise-readiness.md](docs/enterprise-readiness.md).
+
 ## Ejemplo ejecutable inicial
 
 ```sh

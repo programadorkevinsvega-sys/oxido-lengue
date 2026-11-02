@@ -8,7 +8,8 @@ Estos casos guían el diseño del lenguaje y el material del sitio. El estado di
 | Desarrolladores | Analizar, generar y compilar `.ox` como Rust | CLI inicial: compilar/ejecutar, exportar/importar, `nuevo`, `formato`, `probar` e importación de árboles; límites en la matriz |
 | Empresas | Evaluar límites, seguridad y reproducibilidad | Reproducibilidad y controles de CLI documentados; el producto no está listo para producción y el código de dependencias no está sandboxeado |
 | Estudiantes | Aprender sintaxis bilingüe y relacionarla con Rust | Ejemplos ejecutables de bloques, estructuras iniciales e interoperabilidad Rust; características futuras marcadas como pendientes |
-| Docentes | Diseñar ejercicios verificables y progresivos | Propuesto para la fase de educación |
+| Docentes | Diseñar ejercicios verificables y progresivos | Material inicial con ejemplos verificados y ejercicios propuestos; sin validación en aula, ver [Educación](/referencia/education/) |
+| Empresas | Evaluar controles antes de un piloto | Lista de evaluación y riesgos residuales en [Preparación empresarial](/referencia/enterprise-readiness/) |
 | Mantenedores | Contribuir lexer, parser, CLI y documentación | Roadmap y arquitectura disponibles |
 
 Los casos se actualizarán cuando cambie el estado demostrado por pruebas.

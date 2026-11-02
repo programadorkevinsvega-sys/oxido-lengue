@@ -4,7 +4,7 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 ## Estado inicial
 
-**Fases 0–10: completadas en sus alcances documentados. Fase 11: completada en su alcance técnico. Fase 11.1: completada para ámbitos locales, renombrado e índice persistente. Distribución y benchmarks multiplataforma pasan a Fase 12. Fase 12: completada en su alcance documentado; 12.1–12.10 cerradas según sus informes (12.8 medido en Linux/Windows/macOS; 12.9 sin firma ni publicación; 12.10 con comprobaciones estáticas en CI) y 12.11 cerrada con alcance Linux según el [ADR 0013](adr/0013-cierre-12-11-alcance-linux.md), sin backend Windows/macOS ni despliegue público. Fases 13–14: pendientes.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
+**Fases 0–12: completadas en sus alcances documentados; la Fase 11 y su extensión 11.1 cerraron el editor/LSP con ámbitos locales, renombrado e índice persistente, y la Fase 12 cerró 12.11 con alcance Linux según el [ADR 0013](adr/0013-cierre-12-11-alcance-linux.md), sin backend Windows/macOS ni despliegue público. Fase 13: en curso; se añadieron guías de instalación, VS Code/LSP, educación y preparación empresarial, y el sitio comprueba enlaces en CI. Fase 14: pendiente.** La Fase 5 entrega una rebanada inicial ejecutable, no compatibilidad general con Rust. Las fases 6–8 amplían sintaxis e interoperabilidad en los subconjuntos indicados por sus matrices. La Fase 9 cuenta con regresiones para comandos, importación de árboles, diagnósticos JSON, formato de ambos modos, cobertura estructural documentada y CI remota en verde; no implica compatibilidad universal para expresiones Rust delegadas a Syn.
 
 ## Reglas para avanzar
 
@@ -357,6 +357,8 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** convertir capacidades verificadas en materiales confiables dentro del portal documental Markdown desplegable en Cloudflare Pages.
 
+**Estado:** en curso. Esta revisión añade las guías de [instalación](instalacion.md), [VS Code y LSP](vscode.md), [educación](education.md) y [preparación empresarial](enterprise-readiness.md), actualiza las páginas de audiencia y hace que el build del sitio verifique enlaces internos. Siguen pendientes: licencia explícita, tutoriales progresivos completos, validación de ejercicios con estudiantes, guía bilingüe mantenida y pilotos con evidencia. La publicación en Cloudflare Pages ya existe; no se modificó la infraestructura.
+
 ### Subfases
 
 1. README, contribución, seguridad, licencia y changelog coherentes.
@@ -424,7 +426,8 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 11 | Completada (alcance técnico) | [Informe de Fase 11](fase-11-vscode-lsp.md), [ADR 0011](adr/0011-cierre-fase-11-y-distribucion.md); `cargo test -p oxido-lsp --offline` y siete casos host de VS Code | Distribución y benchmarks multiplataforma trasladados a Fase 12 |
 | 11.1 | Completada | [ADR 0012](adr/0012-ambitos-locales-rename-e-indice-persistente.md); `cargo test -p oxido-lsp --offline` (61), `cargo test -p oxido-rust-backend --offline` (10) y host con rename/caché | No implica resolución de tipos universal ni mapeo de ediciones sin correspondencia exacta |
 | 12 | Completada (alcance documentado); 12.11 cerrada con alcance Linux | [Informe de Fase 12](fase-12-seguridad.md), [ADR 0013](adr/0013-cierre-12-11-alcance-linux.md); `cargo test -p oxido-language --test lexer --locked`, `cargo test -p oxido-language --test parser --locked`, `cargo test -p oxido-lsp --locked bounds_a_burst`, `tools/report-hygiene.sh docs/reports`, `cargo test -p oxido-playground --offline` | Sandbox solo Linux, sin backend Windows/macOS ni despliegue público; firma y publicación de 12.9 requieren credenciales y autorización |
-| 13–14 | Pendiente | Añadir evidencia al cerrar cada fase | Registrar solo bloqueos concretos |
+| 13 | En curso: guías, contenido de audiencias y verificación de enlaces en CI | `npm run build --prefix website`; `npm --prefix website run check:links` | Licencia, tutoriales completos, ejercicios validados, guía bilingüe y pilotos |
+| 14 | Pendiente | Añadir evidencia al cerrar | Registrar solo bloqueos concretos |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 

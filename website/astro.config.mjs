@@ -28,8 +28,11 @@ export default defineConfig({
           items: [
             { label: 'Instalación', link: '/referencia/instalacion/' },
             { label: 'Tutorial progresivo', link: '/referencia/tutorial/' },
-            { label: 'VS Code y LSP', link: '/referencia/vscode/' },
+            { label: 'Ejercicios', link: '/referencia/ejercicios/' },
             { label: 'Educación', link: '/referencia/education/' },
+            { label: 'Pilotos educativos', link: '/referencia/pilotos-educativos/' },
+            { label: 'English quickstart', link: '/referencia/en/quickstart/' },
+            { label: 'VS Code y LSP', link: '/referencia/vscode/' },
             { label: 'Preparación empresarial', link: '/referencia/enterprise-readiness/' },
           ],
         },

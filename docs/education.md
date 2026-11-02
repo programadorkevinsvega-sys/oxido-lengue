@@ -5,7 +5,7 @@ Esta página reúne la ruta de aprendizaje, los ejemplos verificados y los ejerc
 ## Estado
 
 - **Verificado:** los ejemplos de la tabla siguiente se ejecutan con la CLI actual y forman parte de las pruebas de extremo a extremo.
-- **Propuesto:** los ejercicios, la guía para docentes y el plan de pilotos son propuestas. No se han usado en un aula.
+- **Propuesto:** los ejercicios 4–9 del [libro de ejercicios](ejercicios.md), la guía para docentes, el [protocolo de pilotos](pilotos-educativos.md) y la guía en inglés son propuestas. No se han usado en un aula.
 - **Fuera de alcance:** una plataforma de cursos, cuentas de usuario, corrección automática en red y telemetría educativa.
 
 ## Ruta de aprendizaje
@@ -41,7 +41,9 @@ cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida targ
 
 ## Ejercicios propuestos
 
-Los ejercicios indican criterios observables. No hay corrección automática ni soluciones publicadas; el docente puede comprobar la salida y el diagnóstico.
+El [libro de ejercicios](ejercicios.md) organiza nueve tareas por nivel. Los ejercicios 1–3 incluyen archivo de inicio, solución de referencia y una prueba automática de salida; el resto indica criterios observables. No hay corrección automática en red. En esta página se conserva una selección introductoria:
+
+Los ejercicios indican criterios observables. El docente puede comprobar la salida y el diagnóstico.
 
 ### 1. Cambiar el saludo
 
@@ -94,7 +96,7 @@ Convierte un ejemplo en un archivo con una función `#[test]` y ejecútalo con `
 
 ## Plan de pilotos educativos
 
-Propuesta, sin ejecución ni resultados:
+El protocolo completo —diseño, instrumentos, consentimiento, privacidad, análisis y plantilla de informe— está en [Pilotos educativos](pilotos-educativos.md). **No se ha ejecutado ningún piloto.** Resumen:
 
 1. **Objetivo:** evaluar si el material permite completar los ejercicios 1–3 sin ayuda del docente y si los conceptos de Rust se comprenden mejor que con el material de control.
 2. **Diseño:** grupo piloto y grupo de comparación, mismos ejercicios y mismo tiempo, con pre y post prueba. La asignación debe ser voluntaria y reversible.
@@ -105,7 +107,7 @@ Propuesta, sin ejecución ni resultados:
 
 ## Material bilingüe
 
-La documentación canónica está en español. El sitio publica solo la locale `es`. Una guía en inglés se añadirá cuando exista una versión mantenida y revisada; no se traducirá automáticamente ni se presentará como equivalente sin revisión.
+La documentación canónica está en español. Se mantiene una [guía de inicio en inglés](en/quickstart.md) con instalación, primer programa, estructuras y enlaces a la referencia; el resto del sitio sigue en español y no se traduce automáticamente. La guía en inglés declara su alcance y no se presenta como equivalente completa. El libro de ejercicios y el protocolo de pilotos todavía no tienen versión inglesa mantenida.
 
 ## Añadir un ejemplo
 

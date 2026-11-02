@@ -102,6 +102,8 @@ const adrDirectory = join(sourceDocs, 'adr')
 await addMarkdownTree(adrDirectory, join(references, 'adr'))
 const promptsDirectory = join(sourceDocs, 'prompts')
 await addMarkdownTree(promptsDirectory, join(references, 'prompts'))
+const englishDirectory = join(sourceDocs, 'en')
+await addMarkdownTree(englishDirectory, join(references, 'en'))
 
 await addFrontmatter(
   resolve(repoRoot, 'ARCHITECTURE_RULES.md'),

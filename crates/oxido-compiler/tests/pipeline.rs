@@ -528,6 +528,34 @@ fn compiles_and_runs_the_progressive_tutorial_examples() {
 }
 
 #[test]
+fn compiles_and_runs_the_exercise_solutions() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let cases = [
+        (
+            include_str!("../../../examples/ejercicios/soluciones/01_promedio.ox"),
+            vec!["8.00"],
+        ),
+        (
+            include_str!("../../../examples/ejercicios/soluciones/02_inventario.ox"),
+            vec!["te: 6", "cafe: 7", "total: 13"],
+        ),
+        (
+            include_str!("../../../examples/ejercicios/soluciones/03_palabras.ox"),
+            vec!["1"],
+        ),
+    ];
+    for (text, expected) in cases {
+        let source = SourceFile::new(text);
+        let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+        assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
+        assert_eq!(result.program_output, expected);
+    }
+}
+
+#[test]
 fn compiles_and_runs_spanish_prelude_aliases_and_macros() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;

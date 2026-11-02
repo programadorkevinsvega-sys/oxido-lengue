@@ -16,6 +16,8 @@ cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
 
 `tutorial/01_saludo.ox`, `tutorial/02_condiciones.ox` y `tutorial/03_punto.ox` son las tres lecciones del [tutorial progresivo](../docs/tutorial.md). También tienen prueba automática de compilación y salida.
 
+`ejercicios/` contiene archivos de inicio y `ejercicios/soluciones/` las soluciones de referencia del [libro de ejercicios](../docs/ejercicios.md). Las soluciones se compilan y ejecutan en las pruebas; los archivos de inicio son incompletos a propósito.
+
 ```sh
 cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox

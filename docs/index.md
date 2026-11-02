@@ -14,8 +14,11 @@ Una sintaxis en español e inglés que busca generar Rust estándar y conservar 
 
 - [Instalación y primeros pasos](./instalacion)
 - [Tutorial progresivo](./tutorial)
+- [Libro de ejercicios](./ejercicios)
 - [VS Code y servidor LSP](./vscode)
-- [Educación y ejercicios](./education)
+- [Educación](./education)
+- [Pilotos educativos](./pilotos-educativos)
+- [English quickstart](./en/quickstart)
 - [Preparación empresarial](./enterprise-readiness)
 - [Especificación del lenguaje](./language-spec)
 - [Gramática inicial](./grammar)

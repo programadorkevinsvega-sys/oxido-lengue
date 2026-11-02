@@ -386,6 +386,8 @@ Este roadmap desglosa las fases 0–14 de `plan` en unidades implementables. Es 
 
 **Objetivo:** publicar solo un alcance cerrado y reproducible.
 
+**Estado:** preparación en curso. Hay evidencia de suite, auditoría, SBOM, reproducibilidad y regresiones de referencia en el [informe de estabilización](reports/fase-14/2026-11-02-estabilizacion.md). No se ha publicado, firmado ni desplegado nada; el lanzamiento sigue bloqueado por autorización, credenciales de firma, distribución y auditoría externa.
+
 ### Subfases
 
 1. Congelar el alcance de versión y matriz de compatibilidad.
@@ -426,8 +428,8 @@ Mantén una tabla de estado en cada revisión del proyecto:
 | 11 | Completada (alcance técnico) | [Informe de Fase 11](fase-11-vscode-lsp.md), [ADR 0011](adr/0011-cierre-fase-11-y-distribucion.md); `cargo test -p oxido-lsp --offline` y siete casos host de VS Code | Distribución y benchmarks multiplataforma trasladados a Fase 12 |
 | 11.1 | Completada | [ADR 0012](adr/0012-ambitos-locales-rename-e-indice-persistente.md); `cargo test -p oxido-lsp --offline` (61), `cargo test -p oxido-rust-backend --offline` (10) y host con rename/caché | No implica resolución de tipos universal ni mapeo de ediciones sin correspondencia exacta |
 | 12 | Completada (alcance documentado); 12.11 cerrada con alcance Linux | [Informe de Fase 12](fase-12-seguridad.md), [ADR 0013](adr/0013-cierre-12-11-alcance-linux.md); `cargo test -p oxido-language --test lexer --locked`, `cargo test -p oxido-language --test parser --locked`, `cargo test -p oxido-lsp --locked bounds_a_burst`, `tools/report-hygiene.sh docs/reports`, `cargo test -p oxido-playground --offline` | Sandbox solo Linux, sin backend Windows/macOS ni despliegue público; firma y publicación de 12.9 requieren credenciales y autorización |
-| 13 | En curso: guías, contenido de audiencias y verificación de enlaces en CI | `npm run build --prefix website`; `npm --prefix website run check:links` | Licencia, tutoriales completos, ejercicios validados, guía bilingüe y pilotos |
-| 14 | Pendiente | Añadir evidencia al cerrar | Registrar solo bloqueos concretos |
+| 13 | En curso: guías, tutorial, licencia y verificación de enlaces en CI | [Informe de Fase 13](reports/fase-13/2026-11-02-documentacion.md); `cargo test --workspace --locked`; `npm run build --prefix website` | Ejercicios validados con estudiantes, guía bilingüe mantenida y pilotos con evidencia |
+| 14 | En curso: preparación, sin lanzamiento | [Informe de estabilización](reports/fase-14/2026-11-02-estabilizacion.md); `cargo audit`, `cargo deny check`, `tools/verify-reproducible-build.sh`, `tools/generate-sbom.sh` | Autorización, firma/notarización, distribución, auditoría externa y validación de usuarios |
 
 Estados permitidos: **pendiente**, **en curso**, **bloqueada**, **completada**. No uses porcentajes sin una medición reproducible. Al cerrar una fase, registra commit, comandos ejecutados, resultados, criterios cumplidos y limitaciones.
 

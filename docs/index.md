@@ -2,7 +2,7 @@
 
 Una sintaxis en español e inglés que busca generar Rust estándar y conservar su semántica, interoperabilidad y herramientas.
 
-> **Estado del proyecto:** lexer, parser/AST inicial, generación y compilación Rust, modos de bloques, items indentados, CLI inicial, importación/exportación de árboles y la interoperabilidad Rust verificada están implementados para los subconjuntos documentados. El LSP ofrece transporte stdio, diagnósticos y semantic tokens; todavía no inicia compilaciones sin Workspace Trust. La CLI no sandboxa código de dependencias. El playground tiene un sandbox Linux verificado en un runner Ubuntu de GitHub, con red externa inaccesible y fallo cerrado; 12.11 se cerró con ese alcance ([ADR 0013](./adr/0013-cierre-12-11-alcance-linux)), no está desplegado ni cubre Windows/macOS. Los límites por característica están en la [matriz de compatibilidad](./compatibility) y el [roadmap](./roadmap); no se declara compatibilidad general.
+> **Estado del proyecto:** Óxido está en etapa temprana. Puedes instalar la CLI, ejecutar ejemplos, exportar Rust y usar el editor con LSP para el subconjunto documentado. La compatibilidad se limita a la [matriz de compatibilidad](./compatibility). No es un producto listo para producción: la CLI no aísla código de dependencias, el editor no está publicado en un marketplace y el playground solo se verificó en Linux y no está desplegado. Empieza por la [guía de instalación](./instalacion) o el [tutorial](./tutorial).
 
 <div class="audience-grid">
   <a class="audience-card" href="/audiencias/desarrolladores"><strong>Desarrolladores</strong><span>Arquitectura, compatibilidad con Rust y estado de la toolchain.</span></a>
@@ -25,12 +25,6 @@ Una sintaxis en español e inglés que busca generar Rust estándar y conservar 
 - [Modos de sintaxis](./syntax-modes)
 - [Matriz de compatibilidad](./compatibility)
 - [Builds reproducibles y SBOM](./reproducibilidad)
-- [Benchmark de análisis y LSP](./reports/fase-12/2026-10-30-benchmark-linux)
-- [Sandbox de playground: evidencia Linux](./reports/fase-12/2026-10-31-sandbox-linux)
-- [Fase 13: documentación y material educativo](./reports/fase-13/2026-11-02-documentacion)
-- [Fase 14: preparación de estabilización](./reports/fase-14/2026-11-02-estabilizacion)
-- [Roadmap](./roadmap)
-- [Decisiones de arquitectura (ADR)](./adr/)
 - [Casos de uso](./audiencias/casos-de-uso)
 
 ## Principio de documentación

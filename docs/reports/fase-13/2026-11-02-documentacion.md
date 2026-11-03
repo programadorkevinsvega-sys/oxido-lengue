@@ -15,7 +15,7 @@ Convertir capacidades ya verificadas en material utilizable: instalación, edito
 - Ejemplos `examples/tutorial/01_saludo.ox`, `02_condiciones.ox` y `03_punto.ox`, con una prueba que compila y ejecuta cada uno.
 - Doble licencia MIT o Apache-2.0 mediante `LICENSE-MIT` y `LICENSE-APACHE`; `license = "MIT OR Apache-2.0"` en el workspace y en cada crate.
 - Páginas de audiencia actualizadas para describir el LSP y el sandbox Linux reales, sin presentarlos como prototipos ni como productos desplegados.
-- El build del sitio reescribe los enlaces que salen de `docs/` hacia GitHub, publica `reports/`, `adr/` y `prompts/`, y ejecuta `scripts-check-links.mjs`.
+- El build del sitio reescribe los enlaces que salen de `docs/` hacia GitHub, publica solo la documentación de usuario y ejecuta `scripts-check-links.mjs`. Los informes internos, ADR, prompts y roadmap quedan fuera del sitio público.
 - Nuevo job `documentation` en CI con Node 22.23.4; el check forma parte de la protección de `main`.
 - Favicon propio en `website/public/favicon.svg`.
 

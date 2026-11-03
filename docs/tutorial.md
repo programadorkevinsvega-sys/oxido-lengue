@@ -86,7 +86,7 @@ Qué observar:
 
 **Ejercicio 2.1:** añade un tercer valor y una etiqueta nueva. Criterio: el brazo nuevo se ejecuta al menos una vez y los demás conservan su salida.
 
-**Ejercicio 2.2:** sustituye el array por un `Vector<i32>` y recorre su contenido con iteradores, como en `examples/fase_7_estructuras.ox`. Criterio: la salida es equivalente y el programa compila.
+**Ejercicio 2.2:** sustituye el array por un `Vector<i32>` y recorre su contenido con iteradores, como en `examples/estructuras.ox`. Criterio: la salida es equivalente y el programa compila.
 
 ## Lección 3: estructuras y métodos
 

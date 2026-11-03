@@ -1,10 +1,10 @@
 # Builds reproducibles y SBOM
 
-**Estado:** preparado y verificado localmente en Linux; la matriz de CI está configurada, pero la firma, la notarización y la publicación no se ejecutan en esta fase.
+**Estado:** preparado y verificado localmente en Linux; la matriz de CI está configurada, pero la firma, la notarización y la publicación no se ejecutan todavía.
 
 ## Alcance
 
-Esta preparación cubre la parte de Fase 12.9 que no requiere credenciales ni autorización de publicación:
+Esta preparación cubre la parte de reproducibilidad que no requiere credenciales ni autorización de publicación:
 
 - compilación release repetible con `SOURCE_DATE_EPOCH` y `--remap-path-prefix`;
 - comparación SHA-256 de dos compilaciones independientes;

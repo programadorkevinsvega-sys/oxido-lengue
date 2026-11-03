@@ -52,8 +52,6 @@ export default defineConfig({
           items: [
             { label: 'Arquitectura', link: '/referencia/arquitectura/' },
             { label: 'Pipeline', link: '/referencia/compiler-pipeline/' },
-            { label: 'Roadmap', link: '/referencia/roadmap/' },
-            { label: 'Decisiones de arquitectura (ADR)', link: '/referencia/adr/' },
           ],
         },
       ],

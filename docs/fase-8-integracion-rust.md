@@ -36,7 +36,7 @@ La sintaxis indentada inicial admite:
 
 Los encabezados, patrones, tipos y expresiones siguen tokens Rust con aliases Óxido documentados. Los argumentos de macros estándar que reciben expresiones pueden normalizar aliases anidados; las DSL externas y macros no allowlisted conservan sus tokens opacos. Syn valida cada item/contexto y Cargo/rustc mantiene la validación semántica.
 
-Ejemplo combinado: [fase_8_estructura_indentada.ox](../examples/fase_8_estructura_indentada.ox). Se ejecuta con `cargo run --locked -p oxido-cli -- ejecutar examples/fase_8_estructura_indentada.ox`.
+Ejemplo combinado: [estructura_indentada.ox](../examples/estructura_indentada.ox). Se ejecuta con `cargo run --locked -p oxido-cli -- ejecutar examples/estructura_indentada.ox`.
 
 Validación registrada: el ejemplo se compila y ejecuta mediante Cargo; el cierre más reciente ejecutó `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings` y `cargo test --workspace --locked`. Estos resultados corresponden a los comandos ejecutados en ese cambio, no a cada revisión futura.
 

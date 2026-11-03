@@ -11,9 +11,9 @@ Esta página reúne la ruta de aprendizaje, los ejemplos verificados y los ejerc
 ## Ruta de aprendizaje
 
 1. **Primer programa.** Sintaxis indentada, función `principal`/`main`, `imprimir!`/`println!` y ejecución con la CLI. Ejemplo: `examples/hola_mundo.ox`.
-2. **Estructuras y tipos.** `estructura`, `enumeracion`, `dejar`, mutabilidad y colecciones. Ejemplo: `examples/fase_7_estructuras.ox`.
-3. **Interoperabilidad con Rust.** Módulos, métodos, tuplas, referencias, `Result`, `Option`, `?` y `VecDeque`. Ejemplo: `examples/fase_7_interoperabilidad.ox`.
-4. **Estructura indentada.** `implementar`, `rasgo`, módulos anidados y `coincidir`. Ejemplo: `examples/fase_8_estructura_indentada.ox`.
+2. **Estructuras y tipos.** `estructura`, `enumeracion`, `dejar`, mutabilidad y colecciones. Ejemplo: `examples/estructuras.ox`.
+3. **Interoperabilidad con Rust.** Módulos, métodos, tuplas, referencias, `Result`, `Option`, `?` y `VecDeque`. Ejemplo: `examples/interoperabilidad.ox`.
+4. **Estructura indentada.** `implementar`, `rasgo`, módulos anidados y `coincidir`. Ejemplo: `examples/estructura_indentada.ox`.
 5. **Lectura del Rust generado.** Exportar, comparar con `rustfmt` y relacionar los diagnósticos con el código fuente. Ejemplo: `examples/hola_mundo.ox`.
 
 Consulta la [especificación del lenguaje](language-spec.md), los [modos de sintaxis](syntax-modes.md), los [alias](aliases.md) y la [matriz de compatibilidad](compatibility.md) antes de proponer sintaxis nueva.
@@ -25,11 +25,11 @@ Desde la raíz del repositorio:
 | Ejemplo | Concepto | Comando | Salida esperada |
 |---|---|---|---|
 | `examples/hola_mundo.ox` | Programa mínimo | `cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox` | `Hola, mundo.` |
-| `examples/fase_7_estructuras.ox` | Estructuras, enumeraciones y colecciones | `cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox` | `5:1` |
-| `examples/fase_7_interoperabilidad.ox` | Métodos, referencias y `?` | `cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox` | `5:1:3:5` |
-| `examples/fase_8_estructura_indentada.ox` | Rasgos y `coincidir` | `cargo run --locked -p oxido-cli -- ejecutar examples/fase_8_estructura_indentada.ox` | `valor 4: cuatro` |
+| `examples/estructuras.ox` | Estructuras, enumeraciones y colecciones | `cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox` | `5:1` |
+| `examples/interoperabilidad.ox` | Métodos, referencias y `?` | `cargo run --locked -p oxido-cli -- ejecutar examples/interoperabilidad.ox` | `5:1:3:5` |
+| `examples/estructura_indentada.ox` | Rasgos y `coincidir` | `cargo run --locked -p oxido-cli -- ejecutar examples/estructura_indentada.ox` | `valor 4: cuatro` |
 
-El ejemplo de Fase 8 puede emitir además un aviso `dead_code` de Rust; no impide la ejecución.
+El ejemplo de estructura indentada puede emitir además un aviso `dead_code` de Rust; no impide la ejecución.
 
 Para exportar y leer el Rust generado:
 
@@ -41,9 +41,7 @@ cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida targ
 
 ## Ejercicios propuestos
 
-El [libro de ejercicios](ejercicios.md) organiza nueve tareas por nivel. Los ejercicios 1–3 incluyen archivo de inicio, solución de referencia y una prueba automática de salida; el resto indica criterios observables. No hay corrección automática en red. En esta página se conserva una selección introductoria:
-
-Los ejercicios indican criterios observables. El docente puede comprobar la salida y el diagnóstico.
+El [libro de ejercicios](ejercicios.md) organiza nueve tareas por nivel. Los ejercicios 1–3 incluyen archivo de inicio, solución de referencia y una prueba automática de salida; el resto indica criterios observables. No hay corrección automática en red. En esta página se conserva una selección introductoria; el docente puede comprobar la salida y el diagnóstico.
 
 ### 1. Cambiar el saludo
 
@@ -55,7 +53,7 @@ Modifica una copia de `hola_mundo.ox` para que imprima tu nombre.
 
 ### 2. Añadir un campo a una estructura
 
-Parte de `fase_7_estructuras.ox` y añade un campo a la estructura existente.
+Parte de `estructuras.ox` y añade un campo a la estructura existente.
 
 - **Criterio:** el programa compila, se ejecuta y la salida conserva el formato esperado o el que documente el estudiante.
 - **Concepto:** tipos, inicialización, acceso a campos.

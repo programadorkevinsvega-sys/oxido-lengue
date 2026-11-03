@@ -16,7 +16,7 @@
 - El backend incorpora aliases para todas las macros estándar publicadas. La prueba `compiles_all_published_standard_macro_aliases_with_cargo_and_rustc` genera y compila con Cargo/rustc las aliases ejecutables; comprueba `error_de_compilacion!` como caso negativo. Las macros externas/desconocidas y DSLs de metaprogramación conservan sus argumentos opacos; los nombres Rust originales siguen válidos.
 - Atributos allowlisted `#[prueba]`, `#[permitir(...)]` y `#[derivar(...)]` pasan generación y validación Cargo; las colisiones de alias del prelude sugieren escape `r#`.
 - Un conjunto inicial de mensajes rustc se traduce a español desde eventos JSON sin perder código ni span; los códigos desconocidos conservan el mensaje original.
-- Pruebas end-to-end compilan y ejecutan [el ejemplo indentado](../examples/fase_7_estructuras.ox) y [el ejemplo de interoperabilidad](../examples/fase_7_interoperabilidad.ox). También hay un caso negativo para campos mal formados y matriz actualizada.
+- Pruebas end-to-end compilan y ejecutan [el ejemplo indentado](../examples/estructuras.ox) y [el ejemplo de interoperabilidad](../examples/interoperabilidad.ox). También hay un caso negativo para campos mal formados y matriz actualizada.
 
 ## Forma admitida para items indentados
 

@@ -71,7 +71,7 @@ edition = "2024"
 - Telemetría remota por defecto.
 - Convertir el proyecto Óxido en una API/backend o añadir infraestructura que la herramienta local no necesite.
 
-El contrato de preservación, interoperabilidad con bibliotecas/macros, `async`/`await` y `unsafe` está en [ADR 0007](adr/0007-contrato-interoperabilidad-rust.md).
+El contrato de preservación, interoperabilidad con bibliotecas/macros, `async`/`await` y `unsafe` está en el [pipeline del compilador](compiler-pipeline.md#contrato-de-interoperabilidad-con-rust).
 
 ## 7. Compatibilidad de edición
 

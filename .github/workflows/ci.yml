@@ -61,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: tools/audit-telemetry.sh
-      - run: tools/report-hygiene.sh docs/reports
+      - run: tools/report-hygiene.sh docs/reports docs/pilotos
   documentation:
     runs-on: ubuntu-latest
     steps:
@@ -73,6 +73,8 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - run: npm ci --prefix website
       - run: npm run build --prefix website
+      - run: python3 -m unittest tools/test_pilot_report.py
+      - run: python3 tools/pilot_report.py --participantes docs/pilotos/participantes-ejemplo.csv --ejercicios docs/pilotos/ejercicios-ejemplo.csv --salida target/informe-piloto-ejemplo.md --sintetico
   reproducible:
     runs-on: ubuntu-latest
     steps:

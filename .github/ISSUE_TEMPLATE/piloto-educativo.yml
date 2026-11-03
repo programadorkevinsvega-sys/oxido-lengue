@@ -1,0 +1,62 @@
+name: Solicitud de piloto educativo
+description: Un centro o docente quiere evaluar el material educativo de Óxido con estudiantes.
+title: "[Piloto] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Esta solicitud es pública. **No incluyas nombres de estudiantes, correos, rutas ni datos personales.** La participación requiere aprobación del centro, consentimiento informado y revisión de privacidad antes de recoger datos.
+
+        Lee el [protocolo](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/pilotos-educativos.md) y el [kit](https://github.com/programadorkevinsvega-sys/oxido-lengue/tree/main/docs/pilotos) antes de responder.
+  - type: input
+    id: centro
+    attributes:
+      label: Centro o institución
+      description: Nombre público del centro. No incluyas datos de estudiantes.
+    validations:
+      required: true
+  - type: dropdown
+    id: nivel
+    attributes:
+      label: Nivel educativo
+      options:
+        - Secundaria
+        - Formación profesional
+        - Universidad
+        - Otro
+    validations:
+      required: true
+  - type: input
+    id: participantes
+    attributes:
+      label: Número aproximado de participantes
+      description: Un intervalo es suficiente, por ejemplo 15–25.
+    validations:
+      required: true
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto y objetivos
+      description: Qué queréis evaluar y en qué asignatura o taller se usaría.
+    validations:
+      required: true
+  - type: checkboxes
+    id: requisitos
+    attributes:
+      label: Requisitos
+      options:
+        - label: El centro puede aprobar el piloto y revisar la privacidad.
+          required: true
+        - label: Se obtendrá consentimiento informado y, si hay menores, del tutor legal.
+          required: true
+        - label: Los datos se recogerán anonimizados y no se publicarán datos personales.
+          required: true
+        - label: Entiendo que el material es inicial y que no se declara eficacia educativa.
+          required: true
+  - type: textarea
+    id: contacto
+    attributes:
+      label: Contacto
+      description: Canal público o identificador de GitHub. No publiques correos personales de estudiantes.
+    validations:
+      required: true

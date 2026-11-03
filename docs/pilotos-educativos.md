@@ -45,6 +45,18 @@ No se afirma que Óxido mejore el aprendizaje, reduzca el abandono ni sea más f
 - Hoja de diagnóstico para registrar errores de instalación sin capturar rutas personales.
 - Cronómetro o registro del tiempo por tarea, sin identificar a la persona.
 
+## Kit de ejecución
+
+El repositorio incluye plantillas listas para adaptar:
+
+- [Consentimiento informado y asentimiento](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/pilotos/consentimiento.md).
+- [Pre-prueba, post-prueba y encuesta de claridad](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/pilotos/pre-post.md).
+- [Hoja de observación de sesión](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/pilotos/observacion.md).
+- [Instrucciones del kit y esquema de datos](https://github.com/programadorkevinsvega-sys/oxido-lengue/tree/main/docs/pilotos).
+- [`tools/pilot_report.py`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/tools/pilot_report.py) agrega los CSV anonimizados y escribe un informe descriptivo.
+
+El analizador rechaza correos, rutas absolutas y texto libre en los campos de diagnóstico. Los CSV de ejemplo del kit son **sintéticos** y no contienen resultados de estudiantes. El piloto sigue sin ejecutarse.
+
 ## Instrumentos
 
 ### Pre-prueba (15 minutos)
@@ -206,6 +218,11 @@ Incluye, como mínimo:
 
 ## Estado
 
-- **Propuesto:** todo el protocolo y los instrumentos.
-- **No ejecutado:** no hay centro, participantes, datos ni resultados.
+- **Propuesto:** el protocolo, los instrumentos y el kit de ejecución.
+- **Preparado:** las plantillas y el analizador descriptivo están en el repositorio y se prueban con datos sintéticos.
+- **No ejecutado:** no hay centro, participantes, datos ni resultados reales.
 - **Siguiente paso:** un centro interesado debe adaptar el protocolo a su normativa y fijar un commit antes de la primera sesión.
+
+## Cómo participar
+
+Si eres un centro o docente y quieres ejecutar el piloto, abre una [solicitud de piloto educativo](https://github.com/programadorkevinsvega-sys/oxido-lengue/issues/new?template=piloto-educativo.yml). La solicitud es pública: no incluyas datos de estudiantes. La conversación inicial sirve para comprobar requisitos, no para declarar el piloto ejecutado.

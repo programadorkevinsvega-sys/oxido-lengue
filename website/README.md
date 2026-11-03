@@ -29,8 +29,8 @@ El portal ya está publicado en Cloudflare Pages. En el proyecto de Pages, conse
 - `src/content/docs/index.mdx`: portada del portal.
 - `src/pages/404.astro`: página personalizada para rutas no encontradas, emitida como `404.html` para Cloudflare Pages.
 - `../docs/audiencias/*.md`: páginas fuente para desarrolladores, empresas y estudiantes.
-- `../docs/*.md`: especificaciones, roadmap e informes técnicos que se publican como referencia.
-- `../docs/reports/`, `../docs/adr/` y `../docs/prompts/`: subárboles que también se publican bajo `referencia/`.
+- `../docs/*.md`: especificaciones y guías de usuario que se publican como referencia. Los documentos internos de fase, el roadmap, la auditoría inicial, `reports/`, `adr/` y `prompts/` permanecen en el repositorio y no se publican en el sitio.
+- El sitio no expone números de fase ni tablas de evidencia internas en las páginas de audiencia.
 - El script genera copias bajo `src/content/docs/referencia/` y `audiencias/`; son artefactos locales y no se versionan.
 - `scripts-check-links.mjs` recorre el `dist` generado y falla si un enlace o recurso interno no existe. El build ejecuta esa comprobación después de Astro.
 - Los enlaces que salen de `docs/` se reescriben al archivo correspondiente en GitHub para que el sitio no apunte a rutas inexistentes.

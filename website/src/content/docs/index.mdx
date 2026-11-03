@@ -18,8 +18,8 @@ hero:
 
 import { Card, CardGrid, LinkCard, Aside } from '@astrojs/starlight/components'
 
-<Aside type="caution" title="Estado actual">
-Óxido tiene lexer, parser, generación de Rust, CLI y un editor con LSP. Las Fases 5–12 están completadas en sus alcances documentados: límites de seguridad, auditorías, fuzzing, benchmarks medidos, builds reproducibles, SBOM y un sandbox de playground limitado a Linux. La Fase 10 reúne siete pares diferenciales positivos, regresiones de importación/exportación, fuzzing semanal de 10.000 casos por target, pruebas LSP incrementales y de cancelación, informe de validación como artefacto de CI y referencias funcionales automatizadas. El benchmark release comparativo se ejecutó en GitHub Actions; sus medianas, rangos y límites están en el [informe de Fase 10](/referencia/reports/fase-10/2026-10-26-benchmark-release-github/). Es una medición exploratoria de esa carga, no una afirmación de rendimiento de producción. `oxido formato` aplica las convenciones propias de Óxido; el Rust exportado coincide con `rustfmt` 1.99.1 en la matriz de construcciones estructurales admitidas. La compatibilidad sigue limitada a la matriz de características probadas; la CLI no sandboxa código de dependencias y el proyecto no se declara listo para producción. El VSIX no está firmado ni publicado, y el sandbox del playground no cubre Windows/macOS. Consulta la [matriz de compatibilidad](/referencia/compatibility/) y el [roadmap](/referencia/roadmap/) para ver las pruebas y límites.
+<Aside type="note" title="Estado actual">
+Óxido está en etapa temprana. Ya puedes instalar la CLI, ejecutar ejemplos, exportar Rust y usar el editor con LSP. La compatibilidad se limita a la [matriz publicada](/referencia/compatibility/): no es un producto listo para producción, la CLI no aísla código de dependencias y el editor no está publicado en un marketplace. Empieza por la [guía de instalación](/referencia/instalacion/) o el [tutorial progresivo](/referencia/tutorial/).
 </Aside>
 
 <CardGrid stagger>

@@ -5,7 +5,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 ## Estado de evaluación
 
 - El compilador, la CLI y el LSP están en etapa temprana. La compatibilidad se limita a la [matriz publicada](compatibility.md).
-- No hay firma, notarización, publicación en marketplaces ni binarios distribuidos oficialmente. La subfase 12.9 se cerró sin publicar.
+- No hay firma, notarización, publicación en marketplaces ni binarios distribuidos oficialmente.
 - El sandbox del playground está verificado solo en Linux y no cubre la CLI ni el LSP. No está desplegado.
 - El código del repositorio se ofrece con doble licencia **MIT o Apache-2.0** (`LICENSE-MIT` y `LICENSE-APACHE`). Cada crate declara `license = "MIT OR Apache-2.0"`. El titular puede cambiar esta decisión, y la revisión legal del uso previsto sigue siendo responsabilidad de cada organización.
 - La documentación distingue entre lo implementado, lo especificado y lo propuesto. Los casos de uso no son compromisos de producto.
@@ -14,17 +14,17 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 
 | Área | Control | Evidencia | Límite |
 |---|---|---|---|
-| Entrada | Fuente máxima de 4 MiB, 1.000.000 de tokens, anidamiento de 256 y plazo cooperativo de 10 s | [Fase 12](fase-12-seguridad.md), pruebas de lexer y parser | No demuestra corrección semántica ni cubre todo Rust |
-| Memoria y CPU | Benchmarks con objetivos P95/RSS en Linux, Windows y macOS | [Informe de benchmark](reports/fase-12/2026-10-30-benchmark-linux.md) | Runners de CI no son producción; el RSS muestreado es una cota inferior |
-| `unsafe` | `#![forbid(unsafe_code)]` en los crates internos; política `--rechazar` para código analizado | [Fase 12](fase-12-seguridad.md) | El análisis léxico no detecta toda la superficie de riesgo |
-| Rutas | Canonicalización, rechazo de symlinks en el índice, caché fuera del workspace | [Fase 12](fase-12-seguridad.md), pruebas del LSP | No sustituye controles del sistema operativo |
-| Procesos | `Command` con argumentos separados, sin shell; cancelación que mata el árbol de Cargo | [Fase 12](fase-12-seguridad.md) | Depende de las garantías del sistema al matar procesos |
-| Editor | Workspace Trust `limited`; Restricted Mode no inicia Cargo ni `rust-analyzer` | [Guía de VS Code](vscode.md), [Fase 11](fase-11-vscode-lsp.md) | El comando Cargo autorizado no está sandboxeado |
-| Dependencias | `cargo-audit`, `cargo-deny`, `--locked`, revisión de licencias de terceros | [Política de dependencias](politica-dependencias.md), CI | La base RustSec y la detección de licencias tienen límites |
+| Entrada | Fuente máxima de 4 MiB, 1.000.000 de tokens, anidamiento de 256 y plazo cooperativo de 10 s | Pruebas automáticas de límites del lexer y del parser | No demuestra corrección semántica ni cubre todo Rust |
+| Memoria y CPU | Benchmarks con objetivos P95/RSS en Linux | [Criterios de pruebas](testing.md) y CI de benchmarks | Los runners de CI no son producción; el RSS muestreado es una cota inferior |
+| `unsafe` | `#![forbid(unsafe_code)]` en los crates internos; política `--rechazar` para código analizado | Manifiestos del workspace y auditoría estática de la CLI | El análisis léxico no detecta toda la superficie de riesgo |
+| Rutas | Canonicalización, rechazo de symlinks en el índice, caché fuera del workspace | Pruebas del LSP y de la CLI | No sustituye los controles del sistema operativo |
+| Procesos | `Command` con argumentos separados, sin shell; cancelación que mata el árbol de Cargo | Código de la CLI y pruebas de cancelación | Depende de las garantías del sistema al matar procesos |
+| Editor | Workspace Trust `limited`; Restricted Mode no inicia Cargo ni `rust-analyzer` | [Guía de VS Code](vscode.md) y pruebas de la extensión | El comando Cargo autorizado no está sandboxeado |
+| Dependencias | `cargo-audit`, `cargo-deny`, `--locked` y revisión de licencias de terceros | [Política de dependencias](politica-dependencias.md) y CI | La base RustSec y la detección de licencias tienen límites |
 | Reproducibilidad | Dos builds release con el mismo SHA-256 y SBOM CycloneDX sin rutas absolutas | [Reproducibilidad](reproducibilidad.md) | Verificado en Linux; la matriz completa no se ha ejecutado |
-| Informes | `report-hygiene.sh` bloquea rutas absolutas y credenciales; `audit-telemetry.sh` revisa SDK y endpoints | CI, [Fase 12](fase-12-seguridad.md) | Comprobaciones estáticas, no una auditoría dinámica de red |
-| Telemetría | Sin SDK ni envío remoto por defecto | [Fase 12](fase-12-seguridad.md) | El usuario puede añadir dependencias que envíen datos |
-| Playground | `bwrap`/`prlimit`, red sin acceso, límites y fallo cerrado | [Informe del sandbox](reports/fase-12/2026-10-31-sandbox-linux.md), [ADR 0013](adr/0013-cierre-12-11-alcance-linux.md) | Solo Linux, sin despliegue, sin autenticación ni cuotas |
+| Informes | `report-hygiene.sh` bloquea rutas absolutas y credenciales; `audit-telemetry.sh` revisa SDK y endpoints | CI del repositorio | Comprobaciones estáticas, no una auditoría dinámica de red |
+| Telemetría | Sin SDK ni envío remoto por defecto | Código propio y auditoría de dependencias | El usuario puede añadir dependencias que envíen datos |
+| Playground | `bwrap`/`prlimit`, red sin acceso, límites y fallo cerrado | Pruebas del sandbox y job `playground-sandbox` | Solo Linux, sin despliegue, sin autenticación ni cuotas |
 
 ## Riesgos residuales
 
@@ -81,4 +81,4 @@ Antes de producción:
 
 ## Contacto y vulnerabilidades
 
-No publiques detalles explotables en un issue público. Consulta [`SECURITY.md`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/SECURITY.md) y el [modelo de amenazas](fase-12-seguridad.md).
+No publiques detalles explotables en un issue público. Consulta [`SECURITY.md`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/SECURITY.md) y los riesgos residuales de esta página.

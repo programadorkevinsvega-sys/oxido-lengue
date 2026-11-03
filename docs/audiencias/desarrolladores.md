@@ -2,7 +2,7 @@
 
 ## Qué es hoy
 
-Óxido es una herramienta de lenguaje en etapa temprana. `oxido-language` tokeniza y parsea un subconjunto estructural; la CLI exporta, compila y ejecuta ejemplos reales. Fases 7–8 incluyen items indentados, aliases de prelude y macros estándar, además de interoperabilidad Rust en módulos, métodos, referencias, `Result`/`Option`, `?` y colecciones. Los límites por característica están en la matriz de compatibilidad.
+Óxido es una herramienta de lenguaje en etapa temprana. `oxido-language` tokeniza y parsea un subconjunto estructural; la CLI exporta, compila y ejecuta ejemplos reales. El subconjunto documentado incluye items indentados, aliases de prelude y macros estándar, además de interoperabilidad Rust en módulos, métodos, referencias, `Result`/`Option`, `?` y colecciones. Los límites por característica están en la [matriz de compatibilidad](../compatibility.md).
 
 Flujo disponible desde la raíz del repositorio:
 
@@ -10,11 +10,11 @@ Flujo disponible desde la raíz del repositorio:
 cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
 cargo run --locked -p oxido-cli -- compilar examples/hola_mundo.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
-cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_estructuras.ox
-cargo run --locked -p oxido-cli -- ejecutar examples/fase_7_interoperabilidad.ox
+cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox
+cargo run --locked -p oxido-cli -- ejecutar examples/interoperabilidad.ox
 ```
 
-Para generar y ejecutar con las optimizaciones del perfil release de Cargo, añade `--release` a `compilar` o `ejecutar`. Por ejemplo: `cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox --release`.
+Si instalaste el binario, sustituye `cargo run --locked -p oxido-cli --` por `oxido`. Para generar y ejecutar con las optimizaciones del perfil release de Cargo, añade `--release` a `compilar` o `ejecutar`. Por ejemplo: `oxido ejecutar examples/hola_mundo.ox --release`.
 
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` convierte un único archivo dentro del subconjunto reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol y mantiene los items Rust no convertidos como passthrough; `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 
@@ -39,7 +39,7 @@ Por defecto declara dependencias de crates.io con `version`. `oxido descargar-de
 
 El crate `oxido-lsp` habla LSP por stdio, publica diagnósticos léxicos y estructurales, semantic tokens, símbolos y, en workspace confiable, delega hover, completado, inlay hints, navegación y renombrado en `rust-analyzer`. La extensión de VS Code asocia `.ox`, declara Workspace Trust `limited` y ofrece `Óxido: Comprobar con Cargo`. Sigue siendo un alcance técnico: no hay publicación en marketplace, el VSIX no está firmado y la cobertura semántica no es universal. Consulta la [guía de VS Code y LSP](../vscode.md).
 
-Para instalar la CLI y ejecutar el primer programa, consulta la [guía de instalación](../instalacion.md).
+Para instalar la CLI y ejecutar el primer programa, consulta la [guía de instalación](../instalacion.md) y el [tutorial progresivo](../tutorial.md).
 
 ## Dirección técnica
 
@@ -49,8 +49,8 @@ Para instalar la CLI y ejecutar el primer programa, consulta la [guía de instal
 - Las macros estándar allowlisted traducen su nombre y pueden normalizar aliases en expresiones anidadas; DSLs de macros externos/no allowlisted y árboles de atributos desconocidos permanecen opacos.
 - El backend genera con `quote`/`proc_macro2`, valida con Syn, usa `prettyplease` como formato intermedio y aplica `rustfmt` 1.99.1 al Rust final; los spans se mapean sobre la salida generada.
 
-Consulta la [especificación](/referencia/language-spec/), [arquitectura](/referencia/arquitectura/), [pipeline](/referencia/compiler-pipeline/) y [compatibilidad](/referencia/compatibility/).
+Consulta la [especificación](../language-spec.md), [arquitectura](../architecture.md), [pipeline](../compiler-pipeline.md) y [compatibilidad](../compatibility.md).
 
 ## Contribuir
 
-Trabaja desde una fase del [roadmap](/referencia/roadmap/), añade casos positivos y negativos, y documenta cualquier límite que aún no pueda probarse.
+Antes de abrir un cambio, lee [`CONTRIBUTING.md`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/CONTRIBUTING.md). Añade casos positivos y negativos, ejecuta las pruebas del área y documenta cualquier límite que todavía no pueda probarse. Para orientarte, revisa las tareas abiertas del repositorio y la [arquitectura](../architecture.md).

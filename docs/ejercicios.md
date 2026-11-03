@@ -12,46 +12,103 @@ Empieza por el [tutorial progresivo](tutorial.md) si aún no ejecutaste un progr
 
 ## Cómo usar el libro
 
-1. Copia el archivo de inicio a un directorio de trabajo.
+1. Descarga el archivo de inicio del repositorio o cópialo a un directorio de trabajo.
 2. Ejecuta `oxido ejecutar archivo.ox` y compara con el criterio.
 3. Consulta la solución solo después de intentarlo.
 4. Anota el diagnóstico completo si el programa no compila.
 
 Los archivos de inicio compilan, pero emiten avisos de variables o campos sin usar y devuelven un resultado incompleto; es esperado hasta completar el ejercicio.
 
-Los archivos viven en `examples/ejercicios/`:
+Los archivos viven en [`examples/ejercicios/`](https://github.com/programadorkevinsvega-sys/oxido-lengue/tree/main/examples/ejercicios). Cada ejercicio enlaza al archivo de inicio y a su solución en el repositorio:
 
 | Ejercicio | Inicio | Solución | Salida esperada |
 |---|---|---|---|
-| 1. Promedio | [`01_promedio.ox`](../examples/ejercicios/01_promedio.ox) | [`soluciones/01_promedio.ox`](../examples/ejercicios/soluciones/01_promedio.ox) | `8.00` |
-| 2. Inventario | [`02_inventario.ox`](../examples/ejercicios/02_inventario.ox) | [`soluciones/02_inventario.ox`](../examples/ejercicios/soluciones/02_inventario.ox) | `te: 6`, `cafe: 7`, `total: 13` |
-| 3. Palabras largas | [`03_palabras.ox`](../examples/ejercicios/03_palabras.ox) | [`soluciones/03_palabras.ox`](../examples/ejercicios/soluciones/03_palabras.ox) | `1` |
+| 1. Promedio | [`01_promedio.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/01_promedio.ox) | [`soluciones/01_promedio.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/soluciones/01_promedio.ox) | `8.00` |
+| 2. Inventario | [`02_inventario.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/02_inventario.ox) | [`soluciones/02_inventario.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/soluciones/02_inventario.ox) | `te: 6`, `cafe: 7`, `total: 13` |
+| 3. Palabras largas | [`03_palabras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/03_palabras.ox) | [`soluciones/03_palabras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/soluciones/03_palabras.ox) | `1` |
 
 ## Nivel 1: fundamentos
 
 ### 1. Promedio de un array
 
-- **Inicio:** [`01_promedio.ox`](../examples/ejercicios/01_promedio.ox).
+Archivo de inicio: [`examples/ejercicios/01_promedio.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/01_promedio.ox)
+
+```ox
+sintaxis indentacion
+
+// Ejercicio 1 (inicio): completa el cálculo del promedio.
+// Criterio: la salida debe ser 8.00 para [8, 6, 10].
+funcion promedio(valores: &[i32]) -> f64:
+    // TODO: suma los valores y divide entre su cantidad.
+    0.0
+
+funcion principal():
+    dejar valores = [8, 6, 10]
+    imprimir!("{:.2}", promedio(&valores))
+```
+
 - **Tarea:** sumar los valores y dividir entre la cantidad, sin división entera.
 - **Conceptos:** `para`, `mutable`, conversión `como f64`, formato `{:.2}`.
 - **Criterio:** la salida es exactamente `8.00` y el proceso termina con código 0.
 - **Límite:** no se evalúa redondeo ni precisión más allá de dos decimales.
+- **Solución:** [`soluciones/01_promedio.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/soluciones/01_promedio.ox).
 
 ### 2. Inventario con estructuras
 
-- **Inicio:** [`02_inventario.ox`](../examples/ejercicios/02_inventario.ox).
+Archivo de inicio: [`examples/ejercicios/02_inventario.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/02_inventario.ox)
+
+```ox
+sintaxis indentacion
+
+// Ejercicio 2 (inicio): completa el inventario.
+// Criterio: imprimir cada producto y un total de 13.
+estructura Producto:
+    nombre: Cadena
+    cantidad: i32
+    precio: i32
+
+implementar Producto:
+    funcion subtotal(&mismo) -> i32:
+        0
+
+funcion principal():
+    dejar productos = vector![
+        Producto { nombre: "te".a_cadena(), cantidad: 2, precio: 3 },
+        Producto { nombre: "cafe".a_cadena(), cantidad: 1, precio: 7 },
+    ]
+    // TODO: recorre los productos, imprime "nombre: subtotal" y suma el total.
+    imprimir!("total: {}", 0)
+```
+
 - **Tarea:** implementar `subtotal` y recorrer el vector para imprimir cada producto y el total.
 - **Conceptos:** `estructura`, `implementar`, `&mismo`, `Vector`, `iter()`.
 - **Criterio:** se imprimen tres líneas y el total es `13`.
 - **Límite:** el orden de los productos debe conservarse; no se permiten dependencias externas.
+- **Solución:** [`soluciones/02_inventario.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/soluciones/02_inventario.ox).
 
 ### 3. Contar palabras largas
 
-- **Inicio:** [`03_palabras.ox`](../examples/ejercicios/03_palabras.ox).
+Archivo de inicio: [`examples/ejercicios/03_palabras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/03_palabras.ox)
+
+```ox
+sintaxis indentacion
+
+// Ejercicio 3 (inicio): cuenta palabras largas.
+// Criterio: con ["oxido", "rust", "metal", "aprender"] y mínimo 6, la salida es 1.
+funcion contar_largas(palabras: &[&str], minimo: usize) -> usize:
+    // TODO: usa iter(), filter() y count().
+    0
+
+funcion principal():
+    dejar palabras = ["oxido", "rust", "metal", "aprender"]
+    imprimir!("{}", contar_largas(&palabras, 6))
+```
+
 - **Tarea:** contar las palabras con longitud mayor o igual al mínimo usando iteradores.
 - **Conceptos:** `iter()`, `filter()`, `count()`, closures y `largo()`.
 - **Criterio:** con el array dado y mínimo 6, la salida es `1`.
 - **Límite:** no se evalúa el rendimiento; la solución debe ser funcional.
+- **Solución:** [`soluciones/03_palabras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/ejercicios/soluciones/03_palabras.ox).
 
 ## Nivel 2: colecciones y control de flujo
 

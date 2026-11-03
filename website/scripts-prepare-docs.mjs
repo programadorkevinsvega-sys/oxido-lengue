@@ -62,6 +62,9 @@ async function addFrontmatter(source, destination, fallbackTitle) {
       return `](${rewriteLink(target, sourceDirectory)})`
     })
     .replaceAll('](/referencia/architecture/)', '](/referencia/arquitectura/)')
+    // Starlight renders the frontmatter title as the page heading; drop the
+    // leading Markdown H1 to avoid showing the title twice.
+    .replace(/^#\s+.*(?:\r?\n)+/, '')
   const content = `---\ntitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(description)}\n---\n\n${rewritten}`
   await mkdir(dirname(destination), { recursive: true })
   await writeFile(destination, content)
@@ -69,6 +72,11 @@ async function addFrontmatter(source, destination, fallbackTitle) {
 
 for (const entry of await readdir(sourceDocs, { withFileTypes: true })) {
   if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name === 'index.md') continue
+  // Internal project artefacts (phase reports, roadmap and the initial audit)
+  // stay in the repository but are not published on the public site.
+  if (entry.name.startsWith('fase-') || entry.name === 'roadmap.md' || entry.name === 'auditoria-fase-0.md') {
+    continue
+  }
   const source = join(sourceDocs, entry.name)
   const destinationName = entry.name === 'architecture.md' ? 'arquitectura.md' : entry.name
   await addFrontmatter(source, join(references, destinationName), entry.name)
@@ -96,12 +104,6 @@ async function addMarkdownTree(sourceDirectory, destinationDirectory) {
   }
 }
 
-const reportsDirectory = join(sourceDocs, 'reports')
-await addMarkdownTree(reportsDirectory, join(references, 'reports'))
-const adrDirectory = join(sourceDocs, 'adr')
-await addMarkdownTree(adrDirectory, join(references, 'adr'))
-const promptsDirectory = join(sourceDocs, 'prompts')
-await addMarkdownTree(promptsDirectory, join(references, 'prompts'))
 const englishDirectory = join(sourceDocs, 'en')
 await addMarkdownTree(englishDirectory, join(references, 'en'))
 

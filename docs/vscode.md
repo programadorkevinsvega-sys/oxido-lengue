@@ -2,7 +2,7 @@
 
 El editor se compone de una extensión de VS Code (`editors/vscode-oxido`) y el servidor `oxido-lsp`. La extensión asocia archivos `.ox`, inicia el servidor y añade tres comandos. El análisis al editar es local y no ejecuta Cargo ni `rust-analyzer`; la comprobación con Cargo es una acción separada que exige Workspace Trust.
 
-El estado técnico y la evidencia están en el [informe de Fase 11](fase-11-vscode-lsp.md), [ADR 0010](adr/0010-frontera-lsp-y-confianza-editor.md) y [ADR 0012](adr/0012-ambitos-locales-rename-e-indice-persistente.md). La extensión no está publicada en un marketplace, el VSIX no está firmado y solo el paquete Linux x64 con servidor incluido se ha ejecutado de extremo a extremo.
+El estado técnico y la evidencia están descritos en esta guía y en la [preparación empresarial](enterprise-readiness.md). La extensión no está publicada en un marketplace, el VSIX no está firmado y solo el paquete Linux x64 con servidor incluido se ha ejecutado de extremo a extremo.
 
 ## Requisitos
 

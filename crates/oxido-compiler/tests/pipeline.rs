@@ -492,7 +492,7 @@ fn compiles_and_runs_indented_structs_enums_and_collections() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
-    let source = SourceFile::new(include_str!("../../../examples/fase_7_estructuras.ox"));
+    let source = SourceFile::new(include_str!("../../../examples/estructuras.ox"));
     let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);
@@ -560,7 +560,7 @@ fn compiles_and_runs_spanish_prelude_aliases_and_macros() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
-    let source = SourceFile::new(include_str!("../../../examples/fase_7_prelude_espanol.ox"));
+    let source = SourceFile::new(include_str!("../../../examples/prelude_espanol.ox"));
     let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     for rust in [
@@ -704,9 +704,7 @@ fn compiles_and_runs_indented_impl_traits_modules_and_match_arms() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
-    let source = SourceFile::new(include_str!(
-        "../../../examples/fase_8_estructura_indentada.ox"
-    ));
+    let source = SourceFile::new(include_str!("../../../examples/estructura_indentada.ox"));
     let generated = oxido_compiler::generate_ox(&source, LexOptions::default())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     for rust in [
@@ -1191,9 +1189,7 @@ fn runs_initial_rust_interop_features_through_the_braces_mode() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
-    let source = SourceFile::new(include_str!(
-        "../../../examples/fase_7_interoperabilidad.ox"
-    ));
+    let source = SourceFile::new(include_str!("../../../examples/interoperabilidad.ox"));
     let result = oxido_compiler::build_ox(&source, LexOptions::default(), CargoAction::Run)
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     assert!(result.success, "{} {:?}", result.stderr, result.diagnostics);

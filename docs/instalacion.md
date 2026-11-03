@@ -47,8 +47,8 @@ También puedes ejecutar los ejemplos del repositorio:
 
 ```sh
 oxido ejecutar examples/hola_mundo.ox
-oxido ejecutar examples/fase_7_estructuras.ox
-oxido ejecutar examples/fase_7_interoperabilidad.ox
+oxido ejecutar examples/estructuras.ox
+oxido ejecutar examples/interoperabilidad.ox
 ```
 
 ## Comandos disponibles

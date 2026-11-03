@@ -1,8 +1,8 @@
 # Arquitectura de Óxido
 
-El contrato normativo está en [ARCHITECTURE_RULES.md](../ARCHITECTURE_RULES.md). Este documento resume los crates que ya existen y los límites que siguen preparados para fases posteriores.
+El contrato normativo está en [ARCHITECTURE_RULES.md](../ARCHITECTURE_RULES.md). Este documento resume los crates que ya existen y los límites que siguen preparados para trabajo posterior.
 
-La decisión de limitar el parser propio a estructura Óxido y preservar fragmentos Rust está registrada en [ADR-0001](adr/0001-parser-hibrido.md). El objetivo normativo de interoperabilidad amplia con Rust, sin modificar bibliotecas externas, está en [ADR-0007](adr/0007-contrato-interoperabilidad-rust.md). La cobertura incompleta es una brecha de implementación/pruebas, no un límite permanente del lenguaje.
+El parser propio se limita a la estructura Óxido y preserva los fragmentos Rust. El objetivo normativo de interoperabilidad amplia con Rust, sin modificar bibliotecas externas, está descrito en el [pipeline del compilador](compiler-pipeline.md#contrato-de-interoperabilidad-con-rust). La cobertura incompleta es una brecha de implementación y pruebas, no un límite permanente del lenguaje.
 
 ## Componentes
 
@@ -13,7 +13,7 @@ La decisión de limitar el parser propio a estructura Óxido y preservar fragmen
 | `oxido-rust-backend` | Emitir Rust con quote/proc_macro2; validar con Syn, formato intermedio prettyplease y formato final rustfmt 1.99.1 | Adapter de salida |
 | `oxido-cli` | `analizar-rust`, `nuevo`, `formato`, `exportar`, `importar`, `importar-proyecto`, `compilar`, `probar` y `ejecutar` | Adapter de entrada |
 | `oxido-cargo` | Invocar Cargo por argv, limitar tiempo y leer mensajes JSON | Adapter de proceso |
-| `oxido-lsp` | Transporte stdio, sincronización de documentos, frontend compartido, diagnósticos y semantic tokens | Parcial: no invoca Cargo ni `rust-analyzer`; límites por subfase en [Fase 11](fase-11-vscode-lsp.md) |
+| `oxido-lsp` | Transporte stdio, sincronización de documentos, frontend compartido, diagnósticos y semantic tokens | Parcial: no invoca Cargo ni `rust-analyzer`; límites en la [guía de VS Code y LSP](vscode.md) |
 | `editors/vscode-oxido` | Cliente VS Code para `.ox`, configuración y comandos editoriales iniciales | Extensión mínima en desarrollo; declara Workspace Trust `limited`; host test cubre activación y diagnóstico básico en modo confiable/restringido |
 | `website` | Portal estático Markdown con documentación por audiencia y referencia | Frontend documental; Astro Starlight |
 
@@ -21,4 +21,4 @@ El producto corre localmente como herramienta de desarrollo. Las APIs entre esto
 
 ## Estado de los directorios
 
-Fases 2–10 materializaron el workspace, lexer/parser, generación, CLI, interoperabilidad inicial y laboratorio. La Fase 11 está en curso: existe extensión VS Code mínima y el LSP consume lexer/parser reales; un host test verifica diagnóstico básico en dos estados de confianza, pero aún faltan las capacidades marcadas en su [informe](fase-11-vscode-lsp.md), en particular `rust-analyzer` y diagnósticos Cargo. El contrato de confianza está en [ADR 0010](adr/0010-frontera-lsp-y-confianza-editor.md). `website/` contiene el portal Astro Starlight; las páginas de referencia se generan desde Markdown canónico en `docs/`. `oxido formato` conserva comentarios e idempotencia probados en ambos modos; el Rust que exporta pasa por `rustfmt` 1.99.1. La matriz estructural de Fase 9 cubre las producciones listadas en `testing.md`, pero no enumera exhaustivamente cada token/expresión que Syn delega a Rust; esa limitación se conserva explícita. `examples/` y `tests/` contienen los flujos reproducibles disponibles. La separación no obliga a crear un crate por cada carpeta interna.
+El workspace contiene el lexer/parser, la generación, la CLI, la interoperabilidad inicial y el laboratorio de conformidad. Existe una extensión de VS Code mínima y el LSP consume el lexer/parser reales; un host test verifica un diagnóstico básico en dos estados de confianza, pero aún faltan capacidades como `rust-analyzer` y los diagnósticos de Cargo. El contrato de confianza está descrito en la [guía de VS Code y LSP](vscode.md). `website/` contiene el portal Astro Starlight; las páginas de referencia se generan desde Markdown canónico en `docs/`. `oxido formato` conserva comentarios e idempotencia probados en ambos modos; el Rust que exporta pasa por `rustfmt` 1.99.1. La matriz estructural cubre las producciones listadas en `testing.md`, pero no enumera exhaustivamente cada token o expresión que Syn delega a Rust; esa limitación se conserva explícita. `examples/` y `tests/` contienen los flujos reproducibles disponibles. La separación no obliga a crear un crate por cada carpeta interna.

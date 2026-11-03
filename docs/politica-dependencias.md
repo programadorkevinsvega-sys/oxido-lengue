@@ -2,7 +2,7 @@
 
 **Estado:** vigente para el workspace de Óxido y sus herramientas internas. Este documento fija las reglas que aplican `cargo-deny` y `cargo-audit`; no declara que el árbol de dependencias esté libre de riesgos.
 
-**Alcance:** dependencias directas y transitivas declaradas en `Cargo.lock`, dependencias de `tools/validation-report`, `fuzz/` y los fixtures de prueba. Las acciones de CI y los artefactos distribuidos se tratan en el [informe de Fase 12](fase-12-seguridad.md).
+**Alcance:** dependencias directas y transitivas declaradas en `Cargo.lock`, dependencias de `tools/validation-report`, `fuzz/` y los fixtures de prueba. Las acciones de CI y los artefactos distribuidos se tratan en [`reproducibilidad.md`](reproducibilidad.md) y en la [guía de seguridad](enterprise-readiness.md).
 
 ---
 
@@ -64,7 +64,7 @@ Fijar la versión de `cargo-audit` evita que un cambio de formato o de base de d
 
 - **Cada push y pull request:** `cargo deny check` y `cargo audit` en CI.
 - **Semanal:** el workflow programado ejecuta el recolector con 10 000 iteraciones de fuzzing y conserva el informe como artefacto.
-- **Antes de publicar:** revisar avisos nuevos, licencias y `Cargo.lock`; la firma y el SBOM pertenecen a la subfase 12.9.
+- **Antes de publicar:** revisar avisos nuevos, licencias y `Cargo.lock`; la firma y el SBOM siguen pendientes.
 - **Al añadir o actualizar una dependencia:** ejecutar ambas auditorías y las pruebas del workspace en la misma revisión.
 
 ## 6. Límites
@@ -72,4 +72,4 @@ Fijar la versión de `cargo-audit` evita que un cambio de formato o de base de d
 - `cargo audit` y `cargo-deny` dependen de que la base de avisos esté actualizada y de que el aviso exista; no detectan vulnerabilidades desconocidas ni código malicioso en una dependencia legítima.
 - Las dependencias de compilación pueden ejecutar `build.rs` y macros procedurales cuando el usuario autoriza compilar. La auditoría no sustituye Workspace Trust ni un sandbox.
 - `cargo-deny` no prueba que una licencia sea compatible con el uso comercial previsto; esa revisión es jurídica.
-- El fuzzing y los límites de memoria/CPU se documentan en el [informe de seguridad](fase-12-seguridad.md) y en [`docs/testing.md`](testing.md).
+- El fuzzing y los límites de memoria/CPU se documentan en [`docs/testing.md`](testing.md) y en la [preparación empresarial](enterprise-readiness.md).

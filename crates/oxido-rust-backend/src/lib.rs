@@ -549,18 +549,25 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
             // declaraciones `mod` y archivos mixtos.
             continue;
         };
+        let requires_attribute_passthrough = function.attrs.iter().any(|attribute| {
+            !attribute.path().is_ident("doc")
+                && (attribute.path().segments.len() > 1
+                    || !matches!(attribute.meta, syn::Meta::Path(_)))
+        });
         if function.sig.constness.is_some()
             || function.sig.unsafety.is_some()
             || function.sig.abi.is_some()
             || function.sig.variadic.is_some()
-            || !function.attrs.is_empty()
+            || requires_attribute_passthrough
             || function_requires_lossless_passthrough(function)
         {
             // El frontend todavía no modela estos modificadores en `Function`,
             // pero el modo llaves puede conservar un item Rust completo. No
             // sustituimos `fn` por `funcion`: así `const fn`, `extern fn`, una
-            // firma ABI o un atributo (incluidos atributos procedurales) no
-            // pierden semántica durante una importación gradual.
+            // firma ABI, un `let` con patrón slice o un atributo con ruta o
+            // argumentos no pierden semántica durante una importación gradual.
+            // Los atributos simples (`#[inline]`, `#[test]`) sí siguen el AST
+            // estructural y se traducen a `funcion`.
             continue;
         }
         let expected = function.sig.fn_token.span().start();
@@ -595,12 +602,34 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
 }
 
 fn function_requires_lossless_passthrough(function: &syn::ItemFn) -> bool {
-    let body = function.block.to_token_stream().to_string();
-    // Los argumentos de macros externas pueden ser DSLs (por ejemplo tracing
-    // o sqlx) y los patrones slice de `let-else` se preservan mejor como el
-    // item Rust completo mientras el AST estructural no los modele. Cargo y
-    // rustc siguen validando el fragmento al compilar el `.ox` resultante.
-    body.contains('!') || body.contains("let [")
+    // Las macros con ruta (`tracing::info!`) y los patrones slice de
+    // `let-else` conservan DSLs que el AST estructural no modela. Las macros
+    // del prelude (`println!`, `matches!`, `write!`) sí son estructurales y
+    // deben traducirse a `funcion`; de lo contrario el formateador convertiría
+    // código Óxido válido en Rust opaco.
+    let body = function.block.to_token_stream();
+    contains_path_macro(body.clone()) || body.to_string().contains("let [")
+}
+
+fn contains_path_macro(tokens: TokenStream) -> bool {
+    let trees: Vec<TokenTree> = tokens.into_iter().collect();
+    for (index, tree) in trees.iter().enumerate() {
+        if let TokenTree::Punct(punct) = tree
+            && punct.as_char() == '!'
+            && index >= 3
+            && matches!(trees[index - 1], TokenTree::Ident(_))
+            && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')
+            && matches!(&trees[index - 3], TokenTree::Punct(punct) if punct.as_char() == ':')
+        {
+            return true;
+        }
+        if let TokenTree::Group(group) = tree
+            && contains_path_macro(group.stream())
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// Reescribe únicamente los valores de atributos `#[path = "..."]`, conservando el resto del archivo.
@@ -1772,19 +1801,25 @@ pub fn format(file: &RustFile) -> String {
 }
 
 /// Produce una representación estructural de tokens para comparar una
-/// importación con su regeneración. No usa el layout de `rustfmt` como prueba
-/// de equivalencia porque los argumentos de macros externas son opacos y dos
-/// secuencias de tokens iguales pueden recibir saltos distintos según sus
-/// spans. El orden, delimitadores, rutas, operadores y argumentos sí quedan
-/// comparados por completo.
+/// importación con su regeneración.
+///
+/// Ambos lados pasan por el mismo par `prettyplease` + `rustfmt` que usa el
+/// generador. Así se comparan estructura, rutas, operadores y argumentos, no
+/// el layout de la entrada: `rustfmt` elimina, por ejemplo, llaves redundantes
+/// en cuerpos de cierre o puntos y coma opcionales tras bloques. Los
+/// argumentos de macros externas siguen siendo opacos y sus tokens se
+/// comparan completos.
 pub fn format_for_roundtrip_comparison(file: &RustFile) -> Result<String, SynError> {
+    let pretty = prettyplease::unparse(&file.0);
+    let formatted = format_with_rustfmt(&pretty)?;
+    let canonical = syn::parse_file(&formatted)?;
     // El backend normaliza los `use` superiores mediante el formatter. En
     // Rust su orden no cambia el alcance del módulo, por lo que se comparan
     // ordenados; los demás items mantienen su orden exacto de tokens.
     let mut uses = Vec::new();
     let mut items = Vec::new();
-    for item in &file.0.items {
-        let tokens = item.to_token_stream().to_string();
+    for item in &canonical.items {
+        let tokens = normalize_trailing_commas(item.to_token_stream()).to_string();
         if matches!(item, syn::Item::Use(_)) {
             uses.push(tokens);
         } else {
@@ -1794,6 +1829,33 @@ pub fn format_for_roundtrip_comparison(file: &RustFile) -> Result<String, SynErr
     uses.sort_unstable();
     uses.extend(items);
     Ok(uses.join("\n"))
+}
+
+/// Elimina las comas finales opcionales antes de un delimitador de cierre.
+///
+/// `syn` no las emite al tokenizar la entrada, mientras que el generador y
+/// `prettyplease` sí las añaden. Compararlas literalmente declara pérdidas
+/// falsas en structs, enums, llamadas y listas de `use`.
+fn normalize_trailing_commas(tokens: TokenStream) -> TokenStream {
+    let mut trees: Vec<TokenTree> = tokens.into_iter().collect();
+    if matches!(trees.last(), Some(TokenTree::Punct(punct)) if punct.as_char() == ',') {
+        trees.pop();
+    }
+    let mut normalized = TokenStream::new();
+    for tree in trees {
+        match tree {
+            TokenTree::Group(group) => {
+                let mut replacement = proc_macro2::Group::new(
+                    group.delimiter(),
+                    normalize_trailing_commas(group.stream()),
+                );
+                replacement.set_span(group.span());
+                normalized.extend([TokenTree::Group(replacement)]);
+            }
+            other => normalized.extend([other]),
+        }
+    }
+    normalized
 }
 
 impl RustFile {

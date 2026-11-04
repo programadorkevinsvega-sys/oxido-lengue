@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `importar-proyecto` conserva cada archivo del árbol origen y genera un `.ox` solo cuando la conversión reversible se valida; los originales Rust convertidos quedan en `.oxido/original/` para no crear módulos ambiguos. El manifiesto distingue `translated-oxido` de `passthrough-rust` y registra el diagnóstico de cada fallback.
+- El passthrough del parser es selectivo (`const`/`unsafe`/`extern fn`, atributos con ruta o argumentos, macros con ruta y `let` con patrón slice); los errores estructurales de una función normal ya no se silencian convirtiéndola en un fragmento opaco. Los atributos simples como `#[inline]` y las macros del prelude siguen el AST estructural.
+- La validación de ida y vuelta canoniza ambos lados con `prettyplease` y `rustfmt`, normaliza comas finales y `use` superiores, y acepta la eliminación de llaves o puntos y coma redundantes que aplica el formateador; las diferencias semánticas siguen siendo fatales. Los atributos `#[path]` que escapan de la raíz o apuntan a fuentes inexistentes abortan la importación antes de escribir la salida.
 - Se reforzó la interoperabilidad con macros de Rust y la compilación reproducible con Cargo.
 - La CI valida el MSRV declarado y ejecuta `cargo-deny`.
 - Se publicó el modelo de amenazas y la matriz de límites de Fase 12; lexer y parser aceptan un plazo cooperativo de 10 s (`OX6001`) que el compilador, la CLI y el LSP aplican por fuente y por operación.

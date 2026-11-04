@@ -127,15 +127,62 @@ impl Parser<'_> {
                 continue;
             }
             let before = self.position;
+            let diagnostics_before_item = self.diagnostics.len();
             let attributes = self.parse_attributes();
             self.skip_comments();
             let visibility = self.parse_visibility();
             let asynchronous = self.consume_keyword("async");
             if self.is_keyword("fn") {
+                let function_keyword = self.position;
+                let is_original_rust_function =
+                    self.source.slice(self.tokens[function_keyword].span) == "fn";
+                if is_original_rust_function && !attributes.is_empty() {
+                    self.position = before;
+                    if let Some(item) = self.parse_passthrough_item() {
+                        items.push(Item::RustFragment(item));
+                        saw_item = true;
+                        continue;
+                    }
+                }
+                if self.source.slice(self.tokens[function_keyword].span) == "fn"
+                    && self.raw_function_contains_macro_invocation(function_keyword)
+                {
+                    self.position = before;
+                    if let Some(item) = self.parse_passthrough_item() {
+                        items.push(Item::RustFragment(item));
+                        saw_item = true;
+                        continue;
+                    }
+                }
+                let diagnostics_before_function = self.diagnostics.len();
                 if let Some(function) = self.parse_function(attributes, visibility, asynchronous) {
+                    if is_original_rust_function
+                        && self.has_error_since(diagnostics_before_function)
+                    {
+                        self.position = before;
+                        self.diagnostics.truncate(diagnostics_before_item);
+                        if let Some(item) = self.parse_passthrough_item() {
+                            items.push(Item::RustFragment(item));
+                            saw_item = true;
+                            continue;
+                        }
+                    }
                     items.push(Item::Function(Box::new(function)));
                     saw_item = true;
                     continue;
+                }
+                // Una función Rust original que no puede representarse aún
+                // con el AST estructural se conserva completa, pero solo si
+                // sigue escrita como `fn`. Las funciones propias de Óxido
+                // (`funcion`) mantienen sus diagnósticos estructurales.
+                if is_original_rust_function {
+                    self.position = before;
+                    self.diagnostics.truncate(diagnostics_before_item);
+                    if let Some(item) = self.parse_passthrough_item() {
+                        items.push(Item::RustFragment(item));
+                        saw_item = true;
+                        continue;
+                    }
                 }
                 self.recover_to_next_item();
                 continue;
@@ -355,6 +402,31 @@ impl Parser<'_> {
         None
     }
 
+    fn raw_function_contains_macro_invocation(&self, function_keyword: usize) -> bool {
+        let mut body_depth = 0usize;
+        let mut entered_body = false;
+        for token in self.tokens.iter().skip(function_keyword.saturating_add(1)) {
+            let text = self.token_text(token);
+            if text == "!" {
+                return true;
+            }
+            match text {
+                "{" => {
+                    body_depth = body_depth.saturating_add(1);
+                    entered_body = true;
+                }
+                "}" if entered_body => {
+                    body_depth = body_depth.saturating_sub(1);
+                    if body_depth == 0 {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
     fn parse_block(&mut self) -> Option<Block> {
         if self.block_depth >= MAX_BLOCK_DEPTH {
             self.error_current(
@@ -498,7 +570,18 @@ impl Parser<'_> {
             return None;
         }
         if self.is_keyword("let") {
+            if self.let_statement_has_else(style) {
+                return self.parse_passthrough_let_statement(style);
+            }
             return self.parse_let(style).map(Statement::Let);
+        }
+        // Los `use`, `const` y `static` de bloque son items válidos de Rust,
+        // no expresiones.  El AST inicial no los modela individualmente, por
+        // lo que se conservan como una instrucción Rust completa hasta el
+        // punto y coma. Esto mantiene su semántica al importar proyectos Rust
+        // sin confundirlos con la sintaxis declarativa propia de Óxido.
+        if self.is_keyword("use") || self.is_keyword("const") || self.is_keyword("static") {
+            return self.parse_passthrough_semicolon_statement(style);
         }
         if self.is_keyword("return") {
             return self.parse_control_statement(style).map(Statement::Return);
@@ -515,6 +598,66 @@ impl Parser<'_> {
                 .map(Statement::Control);
         }
         self.parse_expression(style).map(Statement::Expression)
+    }
+
+    /// Conserva `let patrón = expresión else { ... };` como una instrucción
+    /// Rust completa. El AST inicial representa declaraciones `let` simples,
+    /// pero el bloque `else` forma parte de la sintaxis de la declaración y no
+    /// puede validarse como una expresión inicializadora aislada.
+    fn parse_passthrough_let_statement(&mut self, style: BlockStyle) -> Option<Statement> {
+        let start = self.position;
+        self.position += 1;
+        let (parts, had_semicolon) = self.collect_line_or_semicolon(style);
+        if !had_semicolon || parts.is_empty() {
+            self.error_current(
+                "OX1001",
+                "la declaración `let ... else` debe terminar con ';'",
+            );
+            return None;
+        }
+        Some(Statement::RustItem(self.fragment(start, self.position)))
+    }
+
+    fn parse_passthrough_semicolon_statement(&mut self, style: BlockStyle) -> Option<Statement> {
+        let start = self.position;
+        self.position += 1;
+        let (parts, had_semicolon) = self.collect_line_or_semicolon(style);
+        if !had_semicolon || parts.is_empty() {
+            self.error_current(
+                "OX1001",
+                "el item Rust dentro de un bloque debe terminar con ';'",
+            );
+            return None;
+        }
+        Some(Statement::RustItem(self.fragment(start, self.position)))
+    }
+
+    fn let_statement_has_else(&self, style: BlockStyle) -> bool {
+        let mut index = self.position.saturating_add(1);
+        let mut depth = 0_usize;
+        while let Some(token) = self.tokens.get(index) {
+            if depth == 0
+                && ((style == BlockStyle::Braces && self.token_text(token) == "}")
+                    || (style == BlockStyle::Indentation
+                        && matches!(token.kind, TokenKind::Newline | TokenKind::Dedent)))
+            {
+                break;
+            }
+            let text = self.token_text(token);
+            if depth == 0 && text == ";" {
+                break;
+            }
+            if depth == 0 && self.is_keyword_at(index, "else") {
+                return true;
+            }
+            match text {
+                "(" | "[" | "{" => depth += 1,
+                ")" | "]" | "}" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+            index += 1;
+        }
+        false
     }
 
     fn parse_let(&mut self, style: BlockStyle) -> Option<LetStatement> {
@@ -709,13 +852,22 @@ impl Parser<'_> {
                 ControlAlternative::Block(block) => block.span,
                 ControlAlternative::ElseIf(nested) => nested.span,
             });
+        let had_semicolon = self.consume_text(";");
+        let span_end = if had_semicolon {
+            self.tokens
+                .get(self.position.saturating_sub(1))
+                .map_or(end, |token| token.span)
+        } else {
+            end
+        };
         Some(ControlExpression {
             kind,
             header,
             body,
             match_arms,
             alternative,
-            span: self.join_spans(start, end),
+            had_semicolon,
+            span: self.join_spans(start, span_end),
         })
     }
 
@@ -1161,9 +1313,9 @@ impl Parser<'_> {
     fn parse_passthrough_item(&mut self) -> Option<RustFragment> {
         let start = self.position;
         let item_start = self.passthrough_item_start(start)?;
-        let first = self.token_text(self.tokens.get(item_start)?);
+        let first = self.token_text(self.tokens.get(item_start)?).to_owned();
         let item_keyword = matches!(
-            first,
+            first.as_str(),
             "struct"
                 | "estructura"
                 | "enum"
@@ -1186,11 +1338,30 @@ impl Parser<'_> {
                 | "externo"
                 | "union"
                 | "macro_rules"
+                | "fn"
+                | "funcion"
         );
         let macro_call = self.is_macro_invocation_start(item_start);
         if !item_keyword && !macro_call {
             return None;
         }
+        // Estos items pueden ocupar varias líneas y contienen grupos que se
+        // cierran antes de su terminador. Cortarlos en el primer `}` o salto
+        // de línea deja un fragmento Rust incompleto: `use ruta::{A, B};` y
+        // `type Flujo = Pin<Box<dyn Stream<...>>>;` son ejemplos reales.
+        let requires_semicolon = matches!(
+            first.as_str(),
+            "use" | "usar" | "type" | "tipo" | "const" | "constante" | "static" | "estatico"
+        );
+        // Cabeceras de funciones y contenedores Rust pueden partirse en varias
+        // líneas antes de abrir `{` (por ejemplo `impl ... where ...`). El
+        // item debe seguir hasta el cierre de su cuerpo, no truncarse en la
+        // primera línea del encabezado.
+        let continues_across_lines = requires_semicolon
+            || matches!(
+                first.as_str(),
+                "fn" | "impl" | "trait" | "struct" | "enum" | "union"
+            );
         let mut depth = 0usize;
         let mut consumed = false;
         while let Some(token) = self.current() {
@@ -1198,6 +1369,7 @@ impl Parser<'_> {
             if consumed
                 && self.position >= item_start
                 && depth == 0
+                && !continues_across_lines
                 && matches!(token.kind, TokenKind::Newline)
             {
                 break;
@@ -1211,7 +1383,7 @@ impl Parser<'_> {
                 "(" | "[" | "{" => depth += 1,
                 ")" | "]" | "}" => {
                     depth = depth.saturating_sub(1);
-                    if depth == 0 && text == "}" {
+                    if depth == 0 && text == "}" && !requires_semicolon {
                         self.position += 1;
                         consumed = true;
                         break;
@@ -1223,7 +1395,11 @@ impl Parser<'_> {
             consumed = true;
         }
         if consumed {
-            self.check_passthrough_identifier_collisions(start, self.position);
+            let raw_rust_function =
+                first == "fn" && self.source.slice(self.tokens[item_start].span) == "fn";
+            if !raw_rust_function {
+                self.check_passthrough_identifier_collisions(start, self.position);
+            }
             Some(self.fragment(start, self.position))
         } else {
             None
@@ -1695,6 +1871,28 @@ impl Parser<'_> {
                 index = self.skip_balanced_tokens(index, "(", ")")?;
             }
         }
+        while self.tokens.get(index).is_some_and(|token| {
+            matches!(
+                self.token_text(token),
+                "async" | "asincrono" | "unsafe" | "inseguro"
+            )
+        }) {
+            index += 1;
+        }
+        if self
+            .tokens
+            .get(index)
+            .is_some_and(|token| matches!(self.token_text(token), "extern" | "externo"))
+        {
+            index += 1;
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|token| matches!(token.kind, TokenKind::StringLiteral))
+            {
+                index += 1;
+            }
+        }
         Some(index)
     }
 
@@ -1922,6 +2120,16 @@ impl Parser<'_> {
             )
             .is_some();
             if !is_keyword && !is_prelude_alias {
+                continue;
+            }
+            // `const fn` es una cabecera de función Rust, no una declaración
+            // cuyo identificador se llame `fn`. El chequeo de colisiones debe
+            // mirar el nombre posterior, no interpretar este modificador como
+            // un identificador reservado del usuario.
+            if self.is_keyword_at(index, "fn")
+                && index > start
+                && self.is_keyword_at(index - 1, "const")
+            {
                 continue;
             }
             let function_name = index > start && self.is_keyword_at(index - 1, "fn");
@@ -2154,6 +2362,13 @@ impl Parser<'_> {
             .iter()
             .any(|diagnostic| diagnostic.severity == crate::domain::diagnostics::Severity::Error)
     }
+
+    fn has_error_since(&self, index: usize) -> bool {
+        self.diagnostics[index..]
+            .iter()
+            .any(|diagnostic| diagnostic.severity == crate::domain::diagnostics::Severity::Error)
+    }
+
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Option<Span>) {
         if self.diagnostics.len() >= MAX_DIAGNOSTICS {
             self.suppressed_diagnostics = self.suppressed_diagnostics.saturating_add(1);

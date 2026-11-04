@@ -243,18 +243,66 @@ pub fn import_rust(source: &SourceFile) -> Result<String, String> {
     }
     let regenerated = generate_ox(&ox_source, options)
         .map_err(|diagnostics| format!("falló la validación de la importación: {diagnostics:?}"))?;
-    let original = oxido_rust_backend::format(
+    let original = oxido_rust_backend::format_for_roundtrip_comparison(
         &oxido_rust_backend::parse(source)
             .map_err(|error| format!("Rust de entrada inválido: {error}"))?,
-    );
-    let regenerated_semantics = oxido_rust_backend::format(
+    )
+    .map_err(|error| format!("no se pudo normalizar Rust de entrada: {error}"))?;
+    let regenerated_semantics = oxido_rust_backend::format_for_roundtrip_comparison(
         &oxido_rust_backend::parse(&SourceFile::new(&regenerated.rust))
             .map_err(|error| format!("Rust regenerado inválido: {error}"))?,
-    );
+    )
+    .map_err(|error| format!("no se pudo normalizar Rust regenerado: {error}"))?;
     if regenerated_semantics != original {
-        return Err("la importación cambia la estructura Rust al regenerarse".into());
+        return Err(format!(
+            "la importación cambia la estructura Rust al regenerarse ({})",
+            first_rust_difference(&original, &regenerated_semantics)
+        ));
     }
     Ok(imported)
+}
+
+fn first_rust_difference(original: &str, regenerated: &str) -> String {
+    let mut original_lines = original.lines();
+    let mut regenerated_lines = regenerated.lines();
+    let mut line = 1_usize;
+    loop {
+        match (original_lines.next(), regenerated_lines.next()) {
+            (Some(left), Some(right)) if left == right => line = line.saturating_add(1),
+            (Some(left), Some(right)) => {
+                return format!(
+                    "primera diferencia en línea {line}: original `{}`; regenerado `{}`",
+                    diagnostic_line(left),
+                    diagnostic_line(right)
+                );
+            }
+            (Some(left), None) => {
+                return format!(
+                    "el Rust regenerado termina antes de la línea {line}: original `{}`",
+                    diagnostic_line(left)
+                );
+            }
+            (None, Some(right)) => {
+                return format!(
+                    "el Rust regenerado añade la línea {line}: `{}`",
+                    diagnostic_line(right)
+                );
+            }
+            (None, None) => return "no se pudo localizar la diferencia".into(),
+        }
+    }
+}
+
+fn diagnostic_line(line: &str) -> String {
+    const MAX_DIAGNOSTIC_LINE_CHARS: usize = 160;
+    let mut preview = line
+        .chars()
+        .take(MAX_DIAGNOSTIC_LINE_CHARS)
+        .collect::<String>();
+    if line.chars().count() > MAX_DIAGNOSTIC_LINE_CHARS {
+        preview.push('…');
+    }
+    preview
 }
 
 /// Reescribe valores de `#[path]` de forma estructural sin alterar trivia del archivo.

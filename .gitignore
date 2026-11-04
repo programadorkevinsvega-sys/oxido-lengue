@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 editors/vscode-oxido/server/
 .vscode/
+prueba/backend-externo/backend/

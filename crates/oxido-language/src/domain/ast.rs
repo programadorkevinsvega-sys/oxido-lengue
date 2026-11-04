@@ -139,6 +139,9 @@ pub struct ControlExpression {
     pub body: Block,
     pub match_arms: Vec<MatchArm>,
     pub alternative: Option<ControlAlternative>,
+    /// Indica si la expresión de control era una instrucción terminada en `;`.
+    /// Es esencial para conservar el valor de bloque de Rust al importar.
+    pub had_semicolon: bool,
     pub span: Span,
 }
 

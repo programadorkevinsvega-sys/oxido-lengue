@@ -553,11 +553,15 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
             || function.sig.unsafety.is_some()
             || function.sig.abi.is_some()
             || function.sig.variadic.is_some()
+            || !function.attrs.is_empty()
+            || function_requires_lossless_passthrough(function)
         {
-            return Err(SynError::new(
-                function.sig.span(),
-                "esta función usa un modificador fuera del subconjunto reversible",
-            ));
+            // El frontend todavía no modela estos modificadores en `Function`,
+            // pero el modo llaves puede conservar un item Rust completo. No
+            // sustituimos `fn` por `funcion`: así `const fn`, `extern fn`, una
+            // firma ABI o un atributo (incluidos atributos procedurales) no
+            // pierden semántica durante una importación gradual.
+            continue;
         }
         let expected = function.sig.fn_token.span().start();
         let keyword = lexed.tokens.iter().find(|token| {
@@ -588,6 +592,15 @@ pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     }
     output.push_str(&source.text()[cursor..]);
     Ok(output)
+}
+
+fn function_requires_lossless_passthrough(function: &syn::ItemFn) -> bool {
+    let body = function.block.to_token_stream().to_string();
+    // Los argumentos de macros externas pueden ser DSLs (por ejemplo tracing
+    // o sqlx) y los patrones slice de `let-else` se preservan mejor como el
+    // item Rust completo mientras el AST estructural no los modele. Cargo y
+    // rustc siguen validando el fragmento al compilar el `.ox` resultante.
+    body.contains('!') || body.contains("let [")
 }
 
 /// Reescribe únicamente los valores de atributos `#[path = "..."]`, conservando el resto del archivo.
@@ -1018,13 +1031,16 @@ fn emit_statement(
         }
         Statement::Control(control) => {
             let expression = emit_control(control, mappings)?;
-            Ok(quote! { #expression; })
+            if control.had_semicolon {
+                Ok(quote! { #expression; })
+            } else {
+                Ok(quote! { #expression })
+            }
         }
         Statement::RustItem(fragment) => {
-            let parsed = syn::parse2::<syn::File>(parse_tokens(&fragment.text)?)?;
+            let parsed = syn::parse2::<syn::Stmt>(parse_tokens(&fragment.text)?)?;
             register_fragment(fragment, mappings)?;
-            let items = parsed.items;
-            Ok(quote! { #(#items)* })
+            Ok(quote! { #parsed })
         }
     }
 }
@@ -1753,6 +1769,31 @@ pub fn parse(source: &SourceFile) -> Result<RustFile, SynError> {
 #[must_use]
 pub fn format(file: &RustFile) -> String {
     prettyplease::unparse(&file.0)
+}
+
+/// Produce una representación estructural de tokens para comparar una
+/// importación con su regeneración. No usa el layout de `rustfmt` como prueba
+/// de equivalencia porque los argumentos de macros externas son opacos y dos
+/// secuencias de tokens iguales pueden recibir saltos distintos según sus
+/// spans. El orden, delimitadores, rutas, operadores y argumentos sí quedan
+/// comparados por completo.
+pub fn format_for_roundtrip_comparison(file: &RustFile) -> Result<String, SynError> {
+    // El backend normaliza los `use` superiores mediante el formatter. En
+    // Rust su orden no cambia el alcance del módulo, por lo que se comparan
+    // ordenados; los demás items mantienen su orden exacto de tokens.
+    let mut uses = Vec::new();
+    let mut items = Vec::new();
+    for item in &file.0.items {
+        let tokens = item.to_token_stream().to_string();
+        if matches!(item, syn::Item::Use(_)) {
+            uses.push(tokens);
+        } else {
+            items.push(tokens);
+        }
+    }
+    uses.sort_unstable();
+    uses.extend(items);
+    Ok(uses.join("\n"))
 }
 
 impl RustFile {

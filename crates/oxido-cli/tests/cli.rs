@@ -235,8 +235,16 @@ fn import_project_preserves_a_runnable_tree_and_export_roundtrips_it() {
     let imported_main = fs::read_to_string(ox_source.join("main.ox")).unwrap();
     let imported_module = fs::read_to_string(ox_source.join("utilidades.ox")).unwrap();
     assert!(imported_main.starts_with("sintaxis llaves\n// raíz Rust"));
-    assert!(imported_module.contains("// comentario conservado"));
-    assert!(imported_module.contains("funcion mensaje()"));
+    assert_eq!(
+        imported_main,
+        "sintaxis llaves\n// raíz Rust\nmod utilidades;\nfn main() { println!(\"{}\", utilidades::mensaje()); }\n",
+        "la importación por defecto debe conservar el código tal cual"
+    );
+    assert_eq!(
+        imported_module,
+        "sintaxis llaves\n// comentario conservado\npub fn mensaje() -> &'static str { \"árbol importado\" }\n",
+        "la importación por defecto no traduce `fn` a `funcion`"
+    );
 
     let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&temp.0)
@@ -399,14 +407,16 @@ fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
         .iter()
         .find(|entry| entry["source"] == "unsupported.rs")
         .unwrap();
-    assert_eq!(unsupported["strategy"], "passthrough-rust");
-    assert!(unsupported["diagnostic"].as_str().is_some());
+    assert_eq!(unsupported["strategy"], "verbatim-rust");
+    assert!(unsupported["diagnostic"].is_null());
     let main = files
         .iter()
         .find(|entry| entry["source"] == "main.rs")
         .unwrap();
-    assert_eq!(main["strategy"], "translated-oxido");
+    assert_eq!(main["strategy"], "verbatim-rust");
     assert_eq!(main["oxidoPath"], "main.ox");
+    assert_eq!(manifest["literalRustFiles"], 3);
+    assert_eq!(manifest["translatedRustFiles"], 0);
 }
 
 #[test]
@@ -539,6 +549,118 @@ fn import_project_rejects_a_symlink_output_destination() {
     assert!(!imported.status.success());
     assert!(String::from_utf8_lossy(&imported.stderr).contains("ya existe"));
     assert_eq!(fs::read_dir(outside).unwrap().count(), 0);
+}
+
+#[test]
+fn import_is_literal_by_default_and_translates_only_with_espanol() {
+    let temp = TestDirectory::new();
+    let source = "// comentario del autor\npub fn mensaje() -> &'static str { \"hola\" }\n";
+    fs::write(temp.0.join("origen.rs"), source).unwrap();
+
+    let literal = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar", "origen.rs", "--salida", "literal.ox"])
+        .output()
+        .unwrap();
+    assert!(
+        literal.status.success(),
+        "{}",
+        String::from_utf8_lossy(&literal.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(temp.0.join("literal.ox")).unwrap(),
+        format!("sintaxis llaves\n{source}"),
+        "la importación por defecto no debe modificar el código"
+    );
+
+    let translated = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "importar",
+            "origen.rs",
+            "--salida",
+            "espanol.ox",
+            "--espanol",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        translated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&translated.stderr)
+    );
+    assert!(
+        fs::read_to_string(temp.0.join("espanol.ox"))
+            .unwrap()
+            .contains("pub funcion mensaje()")
+    );
+}
+
+#[test]
+fn import_project_with_espanol_translates_functions_and_records_the_strategy() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir(&rust_source).unwrap();
+    fs::write(
+        rust_source.join("main.rs"),
+        "fn main() { println!(\"hola\"); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("unsupported.rs"),
+        "pub unsafe fn version() -> u32 { 1 }\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "importar-proyecto",
+            "rust",
+            "--salida",
+            "oxido",
+            "--espanol",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    assert!(
+        fs::read_to_string(ox_source.join("main.ox"))
+            .unwrap()
+            .contains("funcion main()")
+    );
+    assert!(
+        fs::read_to_string(ox_source.join("unsupported.ox"))
+            .unwrap()
+            .contains("pub unsafe fn version")
+    );
+
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(ox_source.join(".oxido/import-manifest.json")).unwrap())
+            .unwrap();
+    let files = manifest["files"].as_array().unwrap();
+    let main = files
+        .iter()
+        .find(|entry| entry["source"] == "main.rs")
+        .unwrap();
+    assert_eq!(main["strategy"], "translated-oxido");
+    let unsupported = files
+        .iter()
+        .find(|entry| entry["source"] == "unsupported.rs")
+        .unwrap();
+    assert_eq!(unsupported["strategy"], "passthrough-rust");
+    assert!(
+        unsupported["diagnostic"]
+            .as_str()
+            .is_some_and(|diagnostic| diagnostic.contains("passthrough"))
+    );
+    assert_eq!(manifest["translatedRustFiles"], 1);
+    assert_eq!(manifest["passthroughRustFiles"], 1);
 }
 
 #[test]

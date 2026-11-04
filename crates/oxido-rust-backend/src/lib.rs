@@ -532,7 +532,24 @@ fn line_end(text: &str, offset: usize) -> usize {
         .map_or(text.len(), |relative| start + relative)
 }
 
+/// Importa un archivo Rust conservando su texto tal cual.
+///
+/// Solo se antepone la cabecera que fija el modo de llaves. El código, sus
+/// comentarios y su formato no se modifican: `fn`, `let` y el resto de la
+/// sintaxis Rust ya son válidos en ese modo. La traducción a `funcion` es una
+/// decisión explícita del usuario, no parte de la importación.
+#[must_use]
+pub fn import_literal(source: &SourceFile) -> String {
+    let mut output = String::from("sintaxis llaves\n");
+    output.push_str(source.text());
+    output
+}
+
 /// Importa a sintaxis de Óxido el subconjunto reversible de funciones libres.
+///
+/// Esta es la variante `--espanol`: sustituye `fn` por `funcion` para que las
+/// funciones entren en el AST estructural. La importación por defecto es
+/// [`import_literal`].
 pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
     let file = syn::parse_file(source.text())?;
     let lexed = lex(

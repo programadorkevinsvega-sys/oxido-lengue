@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- `importar-proyecto` conserva cada archivo del árbol origen y genera un `.ox` solo cuando la conversión reversible se valida; los originales Rust convertidos quedan en `.oxido/original/` para no crear módulos ambiguos. El manifiesto distingue `translated-oxido` de `passthrough-rust` y registra el diagnóstico de cada fallback.
+- `importar` e `importar-proyecto` conservan por defecto el código Rust tal cual: solo anteponen la cabecera `sintaxis llaves`, sin cambiar `fn`, el formato ni los comentarios. La traducción a `funcion` queda detrás de `--espanol`, que mantiene la validación reversible. Los originales se guardan en `.oxido/original/` para no crear módulos ambiguos; el manifiesto distingue `verbatim-rust`, `translated-oxido` y `passthrough-rust` con su diagnóstico.
 - El passthrough del parser es selectivo (`const`/`unsafe`/`extern fn`, atributos con ruta o argumentos, macros con ruta y `let` con patrón slice); los errores estructurales de una función normal ya no se silencian convirtiéndola en un fragmento opaco. Los atributos simples como `#[inline]` y las macros del prelude siguen el AST estructural.
 - La validación de ida y vuelta canoniza ambos lados con `prettyplease` y `rustfmt`, normaliza comas finales y `use` superiores, y acepta la eliminación de llaves o puntos y coma redundantes que aplica el formateador; las diferencias semánticas siguen siendo fatales. Los atributos `#[path]` que escapan de la raíz o apuntan a fuentes inexistentes abortan la importación antes de escribir la salida.
 - Se reforzó la interoperabilidad con macros de Rust y la compilación reproducible con Cargo.

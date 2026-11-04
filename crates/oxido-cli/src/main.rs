@@ -662,14 +662,62 @@ fn cleanup_export_paths(files: &[PathBuf], directories: &[PathBuf]) -> Result<()
     }
 }
 
-fn import_rust(args: &[OsString]) -> Result<(), String> {
-    let [input, flag, output] = args else {
-        return Err("uso: oxido importar <archivo.rs> --salida <archivo.ox>".into());
-    };
-    if flag != "--salida" {
-        return Err("se esperaba --salida <archivo.ox>".into());
+struct ImportArguments {
+    input: PathBuf,
+    output: PathBuf,
+    spanish: bool,
+}
+
+fn parse_import_arguments(
+    args: &[OsString],
+    usage: &str,
+    output_description: &str,
+) -> Result<ImportArguments, String> {
+    let mut input = None;
+    let mut output = None;
+    let mut spanish = false;
+    let mut index = 0;
+    while index < args.len() {
+        let argument = &args[index];
+        if argument == "--salida" {
+            index += 1;
+            let value = args
+                .get(index)
+                .ok_or_else(|| format!("falta la ruta después de --salida\n{usage}"))?;
+            if output.replace(value).is_some() {
+                return Err(format!("--salida se indicó más de una vez\n{usage}"));
+            }
+        } else if argument == "--espanol" {
+            spanish = true;
+        } else if argument.to_string_lossy().starts_with("--") {
+            return Err(format!(
+                "opción desconocida: {}\n{usage}",
+                argument.to_string_lossy()
+            ));
+        } else if input.replace(argument).is_some() {
+            return Err(usage.to_owned());
+        }
+        index += 1;
     }
-    let input = PathBuf::from(input);
+    let input = input.ok_or_else(|| usage.to_owned())?;
+    let output = output.ok_or_else(|| format!("falta --salida <{output_description}>\n{usage}"))?;
+    Ok(ImportArguments {
+        input: PathBuf::from(input),
+        output: PathBuf::from(output),
+        spanish,
+    })
+}
+
+fn import_rust(args: &[OsString]) -> Result<(), String> {
+    let ImportArguments {
+        input,
+        output,
+        spanish,
+    } = parse_import_arguments(
+        args,
+        "uso: oxido importar <archivo.rs> --salida <archivo.ox> [--espanol]",
+        "archivo.ox",
+    )?;
     if input.extension() != Some(OsStr::new("rs")) {
         return Err("el archivo de entrada debe terminar en .rs".into());
     }
@@ -681,7 +729,6 @@ fn import_rust(args: &[OsString]) -> Result<(), String> {
     let text = fs::read_to_string(&input)
         .map_err(|error| format!("no se pudo leer {}: {error}", input.display()))?;
     let source = SourceFile::with_path(input, text);
-    let output = PathBuf::from(output);
     if output.extension() != Some(OsStr::new("ox")) {
         return Err("la ruta de salida debe terminar en .ox".into());
     }
@@ -689,27 +736,31 @@ fn import_rust(args: &[OsString]) -> Result<(), String> {
     if fs::symlink_metadata(&output).is_ok() {
         return Err("el archivo .ox de salida ya existe; elige otra ruta".into());
     }
-    let imported = oxido_compiler::import_rust(&source)?;
+    let imported = if spanish {
+        oxido_compiler::import_rust(&source)?
+    } else {
+        oxido_compiler::import_literal(&source)
+    };
     write_new(&output, imported.as_bytes())?;
     println!("Óxido importado a {}", output.display());
     Ok(())
 }
 
 fn import_project(args: &[OsString]) -> Result<(), String> {
-    let [input, flag, output] = args else {
-        return Err(
-            "uso: oxido importar-proyecto <directorio-rust> --salida <directorio-oxido>".into(),
-        );
-    };
-    if flag != "--salida" {
-        return Err("se esperaba --salida <directorio-oxido>".into());
-    }
-    let input = fs::canonicalize(input)
+    let ImportArguments {
+        input,
+        output,
+        spanish,
+    } = parse_import_arguments(
+        args,
+        "uso: oxido importar-proyecto <directorio-rust> --salida <directorio-oxido> [--espanol]",
+        "directorio-oxido",
+    )?;
+    let input = fs::canonicalize(&input)
         .map_err(|error| format!("no se pudo resolver el árbol Rust: {error}"))?;
     if !input.is_dir() {
         return Err("la entrada debe ser un directorio Rust".into());
     }
-    let output = PathBuf::from(output);
     validate_output_parent(&output)?;
     let output_parent = output
         .parent()
@@ -769,7 +820,7 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
     {
         rust_imports.insert(
             file.relative.clone(),
-            import_workspace_rust_file(file, &rust_sources, &ox_sources)?,
+            import_workspace_rust_file(file, &rust_sources, &ox_sources, spanish)?,
         );
     }
     let staging = import_staging_path(&canonical_output_parent, output_name)?;
@@ -785,7 +836,8 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         }
     }
     let mut manifest_files = Vec::with_capacity(files.len());
-    let mut converted = 0_usize;
+    let mut literal_rust = 0_usize;
+    let mut translated_rust = 0_usize;
     let mut passthrough = 0_usize;
     for file in &files {
         let contents = match fs::read(&file.source) {
@@ -800,16 +852,12 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         };
         let oxido_relative = file.relative.with_extension("ox");
         let conversion = rust_imports.get(&file.relative);
-        let imported = match conversion {
-            Some(RustImport::Imported(imported)) if !original_paths.contains(&oxido_relative) => {
-                Some(imported.as_str())
-            }
-            _ => None,
-        };
         // Si se genera un `.ox`, el `.rs` original se conserva fuera de la
         // ruta convencional de módulos para que el resolvedor no vea dos
         // fuentes para el mismo módulo.
-        let preserved_relative = if imported.is_some() {
+        let has_ox = matches!(conversion, Some(RustImport::Imported { .. }))
+            && !original_paths.contains(&oxido_relative);
+        let preserved_relative = if has_ox {
             Path::new(".oxido").join("original").join(&file.relative)
         } else {
             file.relative.clone()
@@ -832,36 +880,46 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
             "oxidoPath": null,
             "diagnostic": null,
         });
-        if let Some(imported) = imported {
-            if let Err(error) = write_import_file(
-                &staging,
-                &oxido_relative,
-                imported.as_bytes(),
-                &mut created_directories,
-                &mut created_files,
-            ) {
-                cleanup_import_project(&staging, &created_files, &created_directories)?;
-                return Err(error);
-            }
-            entry["oxidoPath"] = serde_json::json!(&oxido_relative);
-            if imported_contains_structured_function(imported) {
-                converted = converted.saturating_add(1);
-                entry["strategy"] = serde_json::json!("translated-oxido");
-            } else {
+        if let Some(RustImport::Imported { text, mode }) = conversion {
+            if original_paths.contains(&oxido_relative) {
                 passthrough = passthrough.saturating_add(1);
                 entry["strategy"] = serde_json::json!("passthrough-rust");
                 entry["diagnostic"] = serde_json::json!(format!(
-                    "se conservó como Rust passthrough dentro de {}",
+                    "no se creó el equivalente .ox porque ya existe {}",
                     oxido_relative.display()
                 ));
+            } else {
+                if let Err(error) = write_import_file(
+                    &staging,
+                    &oxido_relative,
+                    text.as_bytes(),
+                    &mut created_directories,
+                    &mut created_files,
+                ) {
+                    cleanup_import_project(&staging, &created_files, &created_directories)?;
+                    return Err(error);
+                }
+                entry["oxidoPath"] = serde_json::json!(&oxido_relative);
+                match mode {
+                    ImportMode::Literal => {
+                        literal_rust = literal_rust.saturating_add(1);
+                        entry["strategy"] = serde_json::json!("verbatim-rust");
+                    }
+                    ImportMode::Spanish => {
+                        if imported_contains_structured_function(text) {
+                            translated_rust = translated_rust.saturating_add(1);
+                            entry["strategy"] = serde_json::json!("translated-oxido");
+                        } else {
+                            passthrough = passthrough.saturating_add(1);
+                            entry["strategy"] = serde_json::json!("passthrough-rust");
+                            entry["diagnostic"] = serde_json::json!(format!(
+                                "se conservó como Rust passthrough dentro de {}",
+                                oxido_relative.display()
+                            ));
+                        }
+                    }
+                }
             }
-        } else if matches!(conversion, Some(RustImport::Imported(_))) {
-            passthrough = passthrough.saturating_add(1);
-            entry["strategy"] = serde_json::json!("passthrough-rust");
-            entry["diagnostic"] = serde_json::json!(format!(
-                "no se creó el equivalente .ox porque ya existe {}",
-                oxido_relative.display()
-            ));
         } else if let Some(RustImport::Passthrough(diagnostic)) = conversion {
             passthrough = passthrough.saturating_add(1);
             entry["strategy"] = serde_json::json!("passthrough-rust");
@@ -875,7 +933,8 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         "sourceFileCount": files.len(),
         "sourceDirectoryCount": directories.len(),
         "sourceBytes": total_bytes,
-        "translatedRustFiles": converted,
+        "literalRustFiles": literal_rust,
+        "translatedRustFiles": translated_rust,
         "passthroughRustFiles": passthrough,
         "files": manifest_files,
     });
@@ -897,19 +956,37 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
             "no se pudo publicar la importación sin pérdida: {error}"
         ));
     }
-    println!(
-        "Importación sin pérdida creada en {}: {} archivos preservados, {} Rust traducidos a .ox, {} Rust conservados como passthrough.",
-        output.display(),
-        files.len(),
-        converted,
-        passthrough
-    );
+    if spanish {
+        println!(
+            "Importación sin pérdida creada en {}: {} archivos preservados, {} Rust traducidos a .ox, {} Rust conservados como passthrough.",
+            output.display(),
+            files.len(),
+            translated_rust,
+            passthrough
+        );
+    } else {
+        println!(
+            "Importación sin pérdida creada en {}: {} archivos preservados, {} Rust importados tal cual, {} Rust conservados como passthrough.",
+            output.display(),
+            files.len(),
+            literal_rust,
+            passthrough
+        );
+    }
     Ok(())
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ImportMode {
+    /// Copia el archivo Rust sin modificar su código.
+    Literal,
+    /// Traduce `fn` a `funcion` para el subconjunto reversible.
+    Spanish,
+}
+
 enum RustImport {
-    /// El archivo se pudo convertir y tiene un `.ox` equivalente.
-    Imported(String),
+    /// El archivo se importó y tiene un `.ox` equivalente.
+    Imported { text: String, mode: ImportMode },
     /// El archivo se conserva como Rust; el motivo queda en el manifiesto.
     Passthrough(String),
 }
@@ -1005,6 +1082,7 @@ fn import_workspace_rust_file(
     file: &ProjectSourceFile,
     rust_sources: &BTreeSet<PathBuf>,
     ox_sources: &BTreeSet<PathBuf>,
+    spanish: bool,
 ) -> Result<RustImport, String> {
     let metadata = match fs::metadata(&file.source) {
         Ok(metadata) => metadata,
@@ -1043,12 +1121,29 @@ fn import_workspace_rust_file(
             if oxido_compiler::analyze_rust(&source).is_ok() {
                 return Err(error);
             }
-            return Ok(RustImport::Passthrough(error));
+            if spanish {
+                return Ok(RustImport::Passthrough(error));
+            }
+            return Ok(RustImport::Imported {
+                text: oxido_compiler::import_literal(&source),
+                mode: ImportMode::Literal,
+            });
         }
     };
-    match oxido_compiler::import_rust(&SourceFile::with_path(&file.source, rewritten)) {
-        Ok(imported) => Ok(RustImport::Imported(imported)),
-        Err(error) => Ok(RustImport::Passthrough(error)),
+    let rewritten_source = SourceFile::with_path(&file.source, rewritten);
+    if spanish {
+        match oxido_compiler::import_rust(&rewritten_source) {
+            Ok(imported) => Ok(RustImport::Imported {
+                text: imported,
+                mode: ImportMode::Spanish,
+            }),
+            Err(error) => Ok(RustImport::Passthrough(error)),
+        }
+    } else {
+        Ok(RustImport::Imported {
+            text: oxido_compiler::import_literal(&rewritten_source),
+            mode: ImportMode::Literal,
+        })
     }
 }
 

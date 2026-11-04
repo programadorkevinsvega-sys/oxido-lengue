@@ -226,7 +226,18 @@ pub fn build_ox_project_in_project_cancellable(
     Ok(result)
 }
 
+/// Importa Rust conservando el archivo tal cual, solo con la cabecera de modo.
+///
+/// No valida ni traduce: la importación literal debe reproducir el código que
+/// escribió el autor. `fn`, `let` y la sintaxis Rust son válidos en modo llaves.
+#[must_use]
+pub fn import_literal(source: &SourceFile) -> String {
+    oxido_rust_backend::import_literal(source)
+}
+
 /// Importa Rust al subconjunto reversible de Óxido y verifica que regenerarlo conserve Rust.
+///
+/// Esta es la variante `--espanol`; traduce `fn` a `funcion`.
 pub fn import_rust(source: &SourceFile) -> Result<String, String> {
     let imported = oxido_rust_backend::import_reversible(source)
         .map_err(|error| format!("Rust fuera del subconjunto importable: {error}"))?;

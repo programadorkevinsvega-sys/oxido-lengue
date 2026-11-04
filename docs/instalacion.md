@@ -58,8 +58,8 @@ oxido ejecutar examples/interoperabilidad.ox
 | `nuevo <dir>` | Crea un proyecto mínimo | Plantilla fija en modo indentado |
 | `formato <archivo.ox> [--comprobar]` | Formatea y comprueba idempotencia | Solo sintaxis cubierta por la matriz |
 | `exportar <archivo.ox> --salida <archivo.rs>` | Genera Rust, mapa de origen y resuelve módulos | El Rust final pasa por `rustfmt` |
-| `importar <archivo.rs> --salida <archivo.ox>` | Convierte un archivo Rust reversible | Subconjunto de funciones libres |
-| `importar-proyecto <dir> --salida <dir>` | Recorre un árbol Rust | Conserva cada archivo; los `.rs` convertidos quedan en `.oxido/original/` y los items no convertidos como passthrough |
+| `importar <archivo.rs> --salida <archivo.ox> [--espanol]` | Importa un archivo Rust | Por defecto conserva el código tal cual; `--espanol` traduce el subconjunto de funciones libres |
+| `importar-proyecto <dir> --salida <dir> [--espanol]` | Recorre un árbol Rust | Importa cada `.rs` tal cual; `--espanol` traduce el subconjunto reversible. Los originales quedan en `.oxido/original/` |
 | `analizar-rust <archivo.rs>` | Valida sintaxis Rust | No compila |
 | `compilar <archivo.ox>` | Comprueba el Rust generado con Cargo | Requiere `rustfmt` y `Cargo.lock` si hay dependencias |
 | `ejecutar <archivo.ox>` | Compila y ejecuta | Es la única orden que corre tu programa |

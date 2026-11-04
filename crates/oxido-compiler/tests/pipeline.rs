@@ -1240,6 +1240,15 @@ fn maps_rustc_control_header_errors_back_to_the_ox_header() {
 }
 
 #[test]
+fn imports_literally_without_translating_rust_keywords() {
+    let text = "// comentario del autor\npub fn mensaje() -> &'static str { \"hola\" }\n";
+    let imported = oxido_compiler::import_literal(&SourceFile::new(text));
+    assert_eq!(imported, format!("sintaxis llaves\n{text}"));
+    assert!(imported.contains("pub fn mensaje"));
+    assert!(!imported.contains("funcion"), "{imported}");
+}
+
+#[test]
 fn imports_rust_passthrough_items_during_tree_import() {
     let source = SourceFile::new("struct Dato { valor: i32 }\n");
     let imported = oxido_compiler::import_rust(&source).unwrap();

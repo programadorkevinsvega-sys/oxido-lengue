@@ -1327,6 +1327,30 @@ fn imports_const_functions_as_rust_passthrough_without_dropping_constness() {
 }
 
 #[test]
+fn imports_simple_attributes_structurally_and_keeps_parameterized_ones_opaque() {
+    let source = SourceFile::new(
+        "#[inline]\nfn rapido(valor: i32) -> i32 { valor }\n#[cfg(test)]\nfn solo_prueba() {}\n",
+    );
+    let imported = oxido_compiler::import_rust(&source)
+        .expect("los atributos simples no impiden la importación estructural");
+    assert!(imported.contains("funcion rapido"), "{imported}");
+    assert!(imported.contains("fn solo_prueba"), "{imported}");
+}
+
+#[test]
+fn imports_match_arms_with_redundant_blocks_without_declaring_a_loss() {
+    // `rustfmt` desenvuelve `Some(v) => { v + 1 }` a `Some(v) => v + 1`. La
+    // importación debe seguir siendo válida sin declarar pérdida semántica.
+    let source = SourceFile::new(
+        "fn clasificar(valor: Option<i32>) -> i32 { match valor { Some(v) => { v + 1 } None => 0 } }\n",
+    );
+    let imported = oxido_compiler::import_rust(&source)
+        .expect("los brazos con bloque de una sola expresión son equivalentes");
+    assert!(imported.contains("funcion clasificar"));
+    assert!(imported.contains("coincidir valor") || imported.contains("match valor"));
+}
+
+#[test]
 fn imports_and_runs_unsafe_functions_as_validated_rust_fragments() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
@@ -1348,14 +1372,14 @@ fn imports_and_runs_unsafe_functions_as_validated_rust_fragments() {
 }
 
 #[test]
-fn imports_macro_functions_as_lossless_rust_items_and_runs_them() {
+fn imports_prelude_macro_functions_as_structural_items_and_runs_them() {
     use oxido_compiler::application::cargo::CargoAction;
     use oxido_language::domain::syntax::LexOptions;
 
     let source = SourceFile::new("fn main() { println!(\"macro conservada\"); }\n");
-    let imported =
-        oxido_compiler::import_rust(&source).expect("las macros se conservan como tokens de Rust");
-    assert!(imported.contains("fn main"));
+    let imported = oxido_compiler::import_rust(&source)
+        .expect("las macros del prelude se conservan como expresiones estructurales");
+    assert!(imported.contains("funcion main"));
     let result = oxido_compiler::build_ox(
         &SourceFile::new(imported),
         LexOptions::default(),
@@ -1367,12 +1391,12 @@ fn imports_macro_functions_as_lossless_rust_items_and_runs_them() {
 }
 
 #[test]
-fn imports_attributed_async_functions_as_lossless_rust_items() {
+fn imports_attributed_async_functions_structurally_without_losing_the_attribute() {
     let source = SourceFile::new("#[inline]\nasync fn responder() -> u8 { 7 }\n");
     let imported = oxido_compiler::import_rust(&source)
-        .expect("los atributos deben conservar su semántica Rust");
+        .expect("los atributos simples conservan su semántica Rust");
     assert!(imported.contains("#[inline]"));
-    assert!(imported.contains("async fn responder"));
+    assert!(imported.contains("funcion responder"), "{imported}");
 }
 
 #[test]

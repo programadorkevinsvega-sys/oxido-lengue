@@ -127,62 +127,30 @@ impl Parser<'_> {
                 continue;
             }
             let before = self.position;
-            let diagnostics_before_item = self.diagnostics.len();
+            // El passthrough solo se activa para construcciones Rust que el
+            // AST estructural no modela todavía (macros con ruta, atributos
+            // con argumentos o ruta, `const`/`unsafe`/`extern fn`). Una
+            // función normal sigue pasando por el parser estructural aunque
+            // contenga `println!` o `matches!`, y sus errores nunca se
+            // silencian convirtiéndola en un fragmento opaco.
+            if self.mode == SyntaxMode::Braces && self.raw_function_requires_passthrough(before) {
+                self.position = before;
+                if let Some(item) = self.parse_passthrough_item() {
+                    items.push(Item::RustFragment(item));
+                    saw_item = true;
+                    continue;
+                }
+                self.position = before;
+            }
             let attributes = self.parse_attributes();
             self.skip_comments();
             let visibility = self.parse_visibility();
             let asynchronous = self.consume_keyword("async");
             if self.is_keyword("fn") {
-                let function_keyword = self.position;
-                let is_original_rust_function =
-                    self.source.slice(self.tokens[function_keyword].span) == "fn";
-                if is_original_rust_function && !attributes.is_empty() {
-                    self.position = before;
-                    if let Some(item) = self.parse_passthrough_item() {
-                        items.push(Item::RustFragment(item));
-                        saw_item = true;
-                        continue;
-                    }
-                }
-                if self.source.slice(self.tokens[function_keyword].span) == "fn"
-                    && self.raw_function_contains_macro_invocation(function_keyword)
-                {
-                    self.position = before;
-                    if let Some(item) = self.parse_passthrough_item() {
-                        items.push(Item::RustFragment(item));
-                        saw_item = true;
-                        continue;
-                    }
-                }
-                let diagnostics_before_function = self.diagnostics.len();
                 if let Some(function) = self.parse_function(attributes, visibility, asynchronous) {
-                    if is_original_rust_function
-                        && self.has_error_since(diagnostics_before_function)
-                    {
-                        self.position = before;
-                        self.diagnostics.truncate(diagnostics_before_item);
-                        if let Some(item) = self.parse_passthrough_item() {
-                            items.push(Item::RustFragment(item));
-                            saw_item = true;
-                            continue;
-                        }
-                    }
                     items.push(Item::Function(Box::new(function)));
                     saw_item = true;
                     continue;
-                }
-                // Una función Rust original que no puede representarse aún
-                // con el AST estructural se conserva completa, pero solo si
-                // sigue escrita como `fn`. Las funciones propias de Óxido
-                // (`funcion`) mantienen sus diagnósticos estructurales.
-                if is_original_rust_function {
-                    self.position = before;
-                    self.diagnostics.truncate(diagnostics_before_item);
-                    if let Some(item) = self.parse_passthrough_item() {
-                        items.push(Item::RustFragment(item));
-                        saw_item = true;
-                        continue;
-                    }
                 }
                 self.recover_to_next_item();
                 continue;
@@ -402,13 +370,59 @@ impl Parser<'_> {
         None
     }
 
-    fn raw_function_contains_macro_invocation(&self, function_keyword: usize) -> bool {
+    /// Decide si una función Rust debe conservarse como fragmento opaco.
+    ///
+    /// Solo se aceptan construcciones que el AST estructural no modela:
+    /// modificadores como `const`/`unsafe`/`extern`, atributos con ruta o
+    /// argumentos, y macros invocadas mediante una ruta (`tracing::info!`).
+    /// Las macros del prelude (`println!`, `matches!`, `write!`) y los
+    /// atributos simples (`#[inline]`) siguen el camino estructural.
+    fn raw_function_requires_passthrough(&self, start: usize) -> bool {
+        let Some(item_start) = self.passthrough_item_start(start) else {
+            return false;
+        };
+        let Some(first_token) = self.tokens.get(item_start) else {
+            return false;
+        };
+        let function_keyword = match self.token_text(first_token) {
+            "fn" => {
+                if self.has_unsafe_or_extern_modifier(start, item_start) {
+                    return true;
+                }
+                item_start
+            }
+            "const" | "constante" => {
+                let Some(index) = self.const_function_keyword(item_start) else {
+                    return false;
+                };
+                index
+            }
+            _ => return false,
+        };
+        if self.attributes_require_passthrough(start, item_start) {
+            return true;
+        }
+        self.raw_function_contains_slice_let(function_keyword)
+            || self.raw_function_contains_path_macro(function_keyword)
+    }
+
+    /// `let [a, b] = ...` (incluido `let-else`) no está modelado por el AST
+    /// estructural. El backend ya lo trata como passthrough al importar; el
+    /// parser debe reconocerlo para no intentar analizarlo como expresión.
+    fn raw_function_contains_slice_let(&self, function_keyword: usize) -> bool {
         let mut body_depth = 0usize;
         let mut entered_body = false;
-        for token in self.tokens.iter().skip(function_keyword.saturating_add(1)) {
-            let text = self.token_text(token);
-            if text == "!" {
+        for index in function_keyword.saturating_add(1)..self.tokens.len() {
+            let text = self.token_text(&self.tokens[index]);
+            if matches!(text, "let" | "dejar")
+                && self
+                    .next_significant_index(index.saturating_add(1))
+                    .is_some_and(|next| self.token_text(&self.tokens[next]) == "[")
+            {
                 return true;
+            }
+            if text == ";" && !entered_body {
+                return false;
             }
             match text {
                 "{" => {
@@ -425,6 +439,148 @@ impl Parser<'_> {
             }
         }
         false
+    }
+
+    fn has_unsafe_or_extern_modifier(&self, start: usize, item_start: usize) -> bool {
+        self.tokens[start..item_start].iter().any(|token| {
+            matches!(
+                self.token_text(token),
+                "unsafe" | "inseguro" | "extern" | "externo"
+            )
+        })
+    }
+
+    /// Devuelve el índice de `fn` cuando `const` encabeza una función
+    /// (`const fn`, `const unsafe fn`, `const extern "C" fn`) y no una
+    /// constante terminada en `;`.
+    fn const_function_keyword(&self, const_index: usize) -> Option<usize> {
+        let mut index = self.next_significant_index(const_index.checked_add(1)?)?;
+        if matches!(
+            self.token_text(self.tokens.get(index)?),
+            "unsafe" | "inseguro"
+        ) {
+            index = self.next_significant_index(index.checked_add(1)?)?;
+        }
+        if matches!(
+            self.token_text(self.tokens.get(index)?),
+            "extern" | "externo"
+        ) {
+            index = self.next_significant_index(index.checked_add(1)?)?;
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|token| matches!(token.kind, TokenKind::StringLiteral))
+            {
+                index = self.next_significant_index(index.checked_add(1)?)?;
+            }
+        }
+        (self.token_text(self.tokens.get(index)?) == "fn").then_some(index)
+    }
+
+    /// Los atributos con ruta (`#[tokio::test]`) o con argumentos
+    /// (`#[cfg(...)]`, `#[derive(...)]`) conservan semántica que el AST no
+    /// representa; `#[inline]` y otros atributos simples sí son estructurales.
+    fn attributes_require_passthrough(&self, start: usize, item_start: usize) -> bool {
+        let mut index = start;
+        while index < item_start {
+            let Some(token) = self.tokens.get(index) else {
+                return false;
+            };
+            if matches!(token.kind, TokenKind::Comment | TokenKind::Newline) {
+                index += 1;
+                continue;
+            }
+            if self.token_text(token) != "#" {
+                index += 1;
+                continue;
+            }
+            let mut bracket = index + 1;
+            if self
+                .tokens
+                .get(bracket)
+                .is_some_and(|token| self.token_text(token) == "!")
+            {
+                bracket += 1;
+            }
+            if self
+                .tokens
+                .get(bracket)
+                .is_none_or(|token| self.token_text(token) != "[")
+            {
+                return false;
+            }
+            let Some(end) = self.skip_balanced_tokens(bracket, "[", "]") else {
+                return false;
+            };
+            let inner_end = end.min(item_start);
+            if bracket < inner_end
+                && self.tokens[bracket..inner_end]
+                    .iter()
+                    .any(|token| matches!(self.token_text(token), "::" | "("))
+            {
+                return true;
+            }
+            index = end;
+        }
+        false
+    }
+
+    /// Detecta `ruta::macro!(...)` sin confundir `println!`, `matches!` ni
+    /// `write!`, que el parser estructural sí puede analizar.
+    fn raw_function_contains_path_macro(&self, function_keyword: usize) -> bool {
+        let mut body_depth = 0usize;
+        let mut entered_body = false;
+        for index in function_keyword.saturating_add(1)..self.tokens.len() {
+            let text = self.token_text(&self.tokens[index]);
+            if text == "!" {
+                let Some(previous) = self.previous_significant_index(index) else {
+                    continue;
+                };
+                if !matches!(self.tokens[previous].kind, TokenKind::Identifier { .. }) {
+                    continue;
+                }
+                let Some(before_previous) = self.previous_significant_index(previous) else {
+                    continue;
+                };
+                if self.token_text(&self.tokens[before_previous]) == "::" {
+                    return true;
+                }
+                continue;
+            }
+            if text == ";" && !entered_body {
+                return false;
+            }
+            match text {
+                "{" => {
+                    body_depth = body_depth.saturating_add(1);
+                    entered_body = true;
+                }
+                "}" if entered_body => {
+                    body_depth = body_depth.saturating_sub(1);
+                    if body_depth == 0 {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn previous_significant_index(&self, index: usize) -> Option<usize> {
+        (0..index).rev().find(|candidate| {
+            self.tokens
+                .get(*candidate)
+                .is_some_and(|token| !matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+        })
+    }
+
+    fn next_significant_index(&self, from: usize) -> Option<usize> {
+        (from..self.tokens.len()).find(|candidate| {
+            self.tokens
+                .get(*candidate)
+                .is_some_and(|token| !matches!(token.kind, TokenKind::Comment | TokenKind::Newline))
+        })
     }
 
     fn parse_block(&mut self) -> Option<Block> {
@@ -664,7 +820,17 @@ impl Parser<'_> {
         let start = self.current()?.span;
         self.position += 1;
         let (parts, had_semicolon) = self.collect_line_or_semicolon(style);
-        let equal = self.find_top_level_text(&parts, "=");
+        // Rust acepta `let valor: Vec<String>=origen;`: el lexer maximal
+        // convierte `>` y `=` en el token `>=`, pero el `=` sigue siendo el
+        // separador de la declaración. Solo se parte cuando no hay otro `=`
+        // de nivel superior y el `>=` aparece tras una anotación de tipo.
+        let split_equal = if self.find_top_level_text(&parts, "=").is_some() {
+            None
+        } else {
+            self.find_top_level_text(&parts, ">=")
+                .filter(|offset| self.find_colon_in_slice(&parts[..*offset]).is_some())
+        };
+        let equal = self.find_top_level_text(&parts, "=").or(split_equal);
         let Some(equal) = equal else {
             self.error(
                 "OX1001",
@@ -673,6 +839,7 @@ impl Parser<'_> {
             );
             return None;
         };
+        let split_equal = split_equal.is_some();
         let left = &parts[..equal];
         if left.is_empty() {
             self.error(
@@ -690,8 +857,16 @@ impl Parser<'_> {
         let pattern = self.fragment(pattern_start, pattern_last + 1);
         let type_annotation = colon.and_then(|colon| {
             let type_start = left.get(colon + 1).copied()?;
-            let type_end = *left.last()? + 1;
-            (type_start < type_end).then(|| self.fragment(type_start, type_end))
+            if split_equal {
+                // El tipo termina en el `>` del token `>=`, no antes.
+                let type_end = self.tokens[parts[equal]].span.start() + 1;
+                self.source
+                    .span(self.tokens[type_start].span.start(), type_end)
+                    .map(|span| self.fragment_span(span))
+            } else {
+                let type_end = *left.last()? + 1;
+                (type_start < type_end).then(|| self.fragment(type_start, type_end))
+            }
         });
         if colon.is_some() && type_annotation.is_none() {
             self.error(
@@ -701,7 +876,24 @@ impl Parser<'_> {
             );
             return None;
         }
-        let Some(initializer_start) = parts.get(equal + 1).copied() else {
+        let initializer_span = if split_equal {
+            // El token es `>=`: el tipo termina tras `>` y el inicializador
+            // comienza tras `=`.
+            let start_offset = self.tokens[parts[equal]].span.start() + 2;
+            let end_offset = self.tokens[*parts.last()?].span.end();
+            self.source.span(start_offset, end_offset)
+        } else {
+            let initializer_start = parts.get(equal + 1).copied()?;
+            let initializer_end = parts
+                .get(equal + 1..)
+                .and_then(|rest| rest.last())
+                .copied()?;
+            self.source.span(
+                self.tokens[initializer_start].span.start(),
+                self.tokens[initializer_end].span.end(),
+            )
+        };
+        let Some(initializer_span) = initializer_span else {
             self.error(
                 "OX1001",
                 "falta expresión inicializadora",
@@ -709,17 +901,7 @@ impl Parser<'_> {
             );
             return None;
         };
-        let Some(initializer_end) = parts.get(equal + 1..).and_then(|rest| rest.last()).copied()
-        else {
-            self.error(
-                "OX1001",
-                "falta expresión inicializadora",
-                self.span_for_indices(&parts),
-            );
-            return None;
-        };
-        let initializer_end = initializer_end + 1;
-        if initializer_start >= initializer_end {
+        if initializer_span.start() >= initializer_span.end() {
             self.error(
                 "OX1001",
                 "falta expresión inicializadora",
@@ -727,11 +909,15 @@ impl Parser<'_> {
             );
             return None;
         }
-        let match_initializer_index = if style == BlockStyle::Indentation
-            && self.is_keyword_at(initializer_start, "match")
-            && self.token_text(&self.tokens[initializer_end - 1]) == ":"
+        let initializer_index = parts.get(equal + 1).copied();
+        let match_initializer_index = if !split_equal
+            && style == BlockStyle::Indentation
+            && initializer_index.is_some_and(|index| self.is_keyword_at(index, "match"))
+            && parts
+                .last()
+                .is_some_and(|index| self.token_text(&self.tokens[*index]) == ":")
         {
-            Some(initializer_start)
+            initializer_index
         } else {
             None
         };
@@ -750,7 +936,7 @@ impl Parser<'_> {
                 )
             } else {
                 (
-                    self.fragment(initializer_start, initializer_end),
+                    self.fragment_span(initializer_span),
                     None,
                     self.tokens[parts.last().copied().unwrap_or(0)].span,
                 )
@@ -1336,6 +1522,8 @@ impl Parser<'_> {
                 | "estatico"
                 | "extern"
                 | "externo"
+                | "unsafe"
+                | "inseguro"
                 | "union"
                 | "macro_rules"
                 | "fn"
@@ -1345,22 +1533,38 @@ impl Parser<'_> {
         if !item_keyword && !macro_call {
             return None;
         }
+        // `const fn`, `const unsafe fn` y `const extern "C" fn` son funciones
+        // con cuerpo, no constantes terminadas en `;`. Confundirlas absorbe el
+        // item siguiente y convierte código válido en un fragmento gigante.
+        let const_function = matches!(first.as_str(), "const" | "constante")
+            && self.const_function_keyword(item_start).is_some();
         // Estos items pueden ocupar varias líneas y contienen grupos que se
         // cierran antes de su terminador. Cortarlos en el primer `}` o salto
         // de línea deja un fragmento Rust incompleto: `use ruta::{A, B};` y
         // `type Flujo = Pin<Box<dyn Stream<...>>>;` son ejemplos reales.
-        let requires_semicolon = matches!(
-            first.as_str(),
-            "use" | "usar" | "type" | "tipo" | "const" | "constante" | "static" | "estatico"
-        );
+        let requires_semicolon = !const_function
+            && matches!(
+                first.as_str(),
+                "use" | "usar" | "type" | "tipo" | "const" | "constante" | "static" | "estatico"
+            );
         // Cabeceras de funciones y contenedores Rust pueden partirse en varias
         // líneas antes de abrir `{` (por ejemplo `impl ... where ...`). El
         // item debe seguir hasta el cierre de su cuerpo, no truncarse en la
         // primera línea del encabezado.
         let continues_across_lines = requires_semicolon
+            || const_function
             || matches!(
                 first.as_str(),
-                "fn" | "impl" | "trait" | "struct" | "enum" | "union"
+                "fn" | "funcion"
+                    | "impl"
+                    | "implementar"
+                    | "trait"
+                    | "rasgo"
+                    | "struct"
+                    | "estructura"
+                    | "enum"
+                    | "enumeracion"
+                    | "union"
             );
         let mut depth = 0usize;
         let mut consumed = false;
@@ -1871,26 +2075,52 @@ impl Parser<'_> {
                 index = self.skip_balanced_tokens(index, "(", ")")?;
             }
         }
-        while self.tokens.get(index).is_some_and(|token| {
-            matches!(
-                self.token_text(token),
-                "async" | "asincrono" | "unsafe" | "inseguro"
-            )
-        }) {
-            index += 1;
+        while self
+            .tokens
+            .get(index)
+            .is_some_and(|token| matches!(self.token_text(token), "async" | "asincrono"))
+        {
+            index = self.next_significant_index(index.checked_add(1)?)?;
+        }
+        if self
+            .tokens
+            .get(index)
+            .is_some_and(|token| matches!(self.token_text(token), "unsafe" | "inseguro"))
+        {
+            let after = self.next_significant_index(index.checked_add(1)?)?;
+            if self
+                .tokens
+                .get(after)
+                .is_some_and(|token| self.token_text(token) == "fn")
+            {
+                index = after;
+            } else {
+                // `unsafe impl`, `unsafe trait`: el item empieza en `unsafe`.
+                return Some(index);
+            }
         }
         if self
             .tokens
             .get(index)
             .is_some_and(|token| matches!(self.token_text(token), "extern" | "externo"))
         {
-            index += 1;
+            let mut after = self.next_significant_index(index.checked_add(1)?)?;
             if self
                 .tokens
-                .get(index)
+                .get(after)
                 .is_some_and(|token| matches!(token.kind, TokenKind::StringLiteral))
             {
-                index += 1;
+                after = self.next_significant_index(after.checked_add(1)?)?;
+            }
+            if self
+                .tokens
+                .get(after)
+                .is_some_and(|token| self.token_text(token) == "fn")
+            {
+                index = after;
+            } else {
+                // `extern "C" { ... }` es un bloque, no un modificador de `fn`.
+                return Some(index);
             }
         }
         Some(index)
@@ -2205,6 +2435,10 @@ impl Parser<'_> {
             (Some(first), Some(last)) => self.join_spans(first.span, last.span),
             _ => Span::empty(),
         };
+        self.fragment_span(span)
+    }
+
+    fn fragment_span(&self, span: Span) -> RustFragment {
         RustFragment {
             text: self.source.slice(span).to_string(),
             span,
@@ -2359,12 +2593,6 @@ impl Parser<'_> {
     }
     fn has_errors(&self) -> bool {
         self.diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity == crate::domain::diagnostics::Severity::Error)
-    }
-
-    fn has_error_since(&self, index: usize) -> bool {
-        self.diagnostics[index..]
             .iter()
             .any(|diagnostic| diagnostic.severity == crate::domain::diagnostics::Severity::Error)
     }

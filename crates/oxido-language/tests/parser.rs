@@ -197,6 +197,41 @@ fn parses_rust_let_else_as_a_complete_passthrough_statement() {
 }
 
 #[test]
+fn preserves_slice_let_else_functions_as_opaque_rust_fragments() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn ejecutar(argumentos: &[String]) { let [accion, correo] = argumentos else { return; }; println!(\"{} {}\", accion, correo); }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let Item::RustFragment(fragment) = &file.items[0] else {
+        panic!("el let con patrón slice debe conservarse como Rust opaco")
+    };
+    assert!(fragment.text.contains("let [accion, correo]"));
+}
+
+#[test]
+fn parses_let_type_annotations_touching_the_equals_sign() {
+    // Rust acepta `Vec<String>=origen`; el lexer emite `>=` como un solo
+    // token y el parser debe separar el cierre genérico del inicializador.
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn crear() -> Vec<String> { let valores: Vec<String>=vec![]; valores }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let Item::Function(function) = &file.items[0] else {
+        panic!("se esperaba función")
+    };
+    let Statement::Let(statement) = &function.body.statements[0] else {
+        panic!("se esperaba let")
+    };
+    let annotation = statement.type_annotation.as_ref().expect("tipo anotado");
+    assert_eq!(annotation.text, "Vec<String>");
+    assert_eq!(statement.initializer.text, "vec![]");
+}
+
+#[test]
 fn preserves_block_items_that_are_not_expressions() {
     let source = SourceFile::new(
         "sintaxis llaves\nfn ejecutar() { use std::fmt::Write; const LIMITE: usize = 7; static CONTADOR: usize = 1; let mut texto = String::new(); write!(&mut texto, \"{}:{}\", LIMITE, CONTADOR).unwrap(); }\n",

@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     env,
     ffi::{OsStr, OsString},
     fs::{self, OpenOptions},
@@ -760,6 +760,18 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         .iter()
         .map(|file| file.relative.clone())
         .collect::<BTreeSet<_>>();
+    // Las rutas `#[path]` se validan antes de crear la salida. Un atributo que
+    // escapa de la raíz es un error fatal, no un fallback silencioso.
+    let mut rust_imports = BTreeMap::new();
+    for file in files
+        .iter()
+        .filter(|file| file.kind == ProjectSourceKind::Rust)
+    {
+        rust_imports.insert(
+            file.relative.clone(),
+            import_workspace_rust_file(file, &rust_sources, &ox_sources)?,
+        );
+    }
     let staging = import_staging_path(&canonical_output_parent, output_name)?;
     fs::create_dir(&staging)
         .map_err(|error| format!("no se pudo crear el staging de importación: {error}"))?;
@@ -786,9 +798,25 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
                 ));
             }
         };
+        let oxido_relative = file.relative.with_extension("ox");
+        let conversion = rust_imports.get(&file.relative);
+        let imported = match conversion {
+            Some(RustImport::Imported(imported)) if !original_paths.contains(&oxido_relative) => {
+                Some(imported.as_str())
+            }
+            _ => None,
+        };
+        // Si se genera un `.ox`, el `.rs` original se conserva fuera de la
+        // ruta convencional de módulos para que el resolvedor no vea dos
+        // fuentes para el mismo módulo.
+        let preserved_relative = if imported.is_some() {
+            Path::new(".oxido").join("original").join(&file.relative)
+        } else {
+            file.relative.clone()
+        };
         if let Err(error) = write_import_file(
             &staging,
-            &file.relative,
+            &preserved_relative,
             &contents,
             &mut created_directories,
             &mut created_files,
@@ -797,46 +825,47 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
             return Err(error);
         }
         let mut entry = serde_json::json!({
-            "source": file.relative,
-            "preservedPath": file.relative,
+            "source": &file.relative,
+            "preservedPath": &preserved_relative,
             "sha256": sha256_hex(&contents),
             "strategy": file.kind.manifest_strategy(),
             "oxidoPath": null,
             "diagnostic": null,
         });
-        if file.kind == ProjectSourceKind::Rust {
-            let conversion = import_workspace_rust_file(file, &rust_sources, &ox_sources);
-            let oxido_relative = file.relative.with_extension("ox");
-            match conversion {
-                Ok(imported) if !original_paths.contains(&oxido_relative) => {
-                    if let Err(error) = write_import_file(
-                        &staging,
-                        &oxido_relative,
-                        imported.as_bytes(),
-                        &mut created_directories,
-                        &mut created_files,
-                    ) {
-                        cleanup_import_project(&staging, &created_files, &created_directories)?;
-                        return Err(error);
-                    }
-                    converted = converted.saturating_add(1);
-                    entry["strategy"] = serde_json::json!("translated-oxido");
-                    entry["oxidoPath"] = serde_json::json!(oxido_relative);
-                }
-                Ok(_) => {
-                    passthrough = passthrough.saturating_add(1);
-                    entry["strategy"] = serde_json::json!("passthrough-rust");
-                    entry["diagnostic"] = serde_json::json!(format!(
-                        "no se creó el equivalente .ox porque ya existe {}",
-                        oxido_relative.display()
-                    ));
-                }
-                Err(error) => {
-                    passthrough = passthrough.saturating_add(1);
-                    entry["strategy"] = serde_json::json!("passthrough-rust");
-                    entry["diagnostic"] = serde_json::json!(error);
-                }
+        if let Some(imported) = imported {
+            if let Err(error) = write_import_file(
+                &staging,
+                &oxido_relative,
+                imported.as_bytes(),
+                &mut created_directories,
+                &mut created_files,
+            ) {
+                cleanup_import_project(&staging, &created_files, &created_directories)?;
+                return Err(error);
             }
+            entry["oxidoPath"] = serde_json::json!(&oxido_relative);
+            if imported_contains_structured_function(imported) {
+                converted = converted.saturating_add(1);
+                entry["strategy"] = serde_json::json!("translated-oxido");
+            } else {
+                passthrough = passthrough.saturating_add(1);
+                entry["strategy"] = serde_json::json!("passthrough-rust");
+                entry["diagnostic"] = serde_json::json!(format!(
+                    "se conservó como Rust passthrough dentro de {}",
+                    oxido_relative.display()
+                ));
+            }
+        } else if matches!(conversion, Some(RustImport::Imported(_))) {
+            passthrough = passthrough.saturating_add(1);
+            entry["strategy"] = serde_json::json!("passthrough-rust");
+            entry["diagnostic"] = serde_json::json!(format!(
+                "no se creó el equivalente .ox porque ya existe {}",
+                oxido_relative.display()
+            ));
+        } else if let Some(RustImport::Passthrough(diagnostic)) = conversion {
+            passthrough = passthrough.saturating_add(1);
+            entry["strategy"] = serde_json::json!("passthrough-rust");
+            entry["diagnostic"] = serde_json::json!(diagnostic);
         }
         manifest_files.push(entry);
     }
@@ -876,6 +905,13 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         passthrough
     );
     Ok(())
+}
+
+enum RustImport {
+    /// El archivo se pudo convertir y tiene un `.ox` equivalente.
+    Imported(String),
+    /// El archivo se conserva como Rust; el motivo queda en el manifiesto.
+    Passthrough(String),
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -969,31 +1005,66 @@ fn import_workspace_rust_file(
     file: &ProjectSourceFile,
     rust_sources: &BTreeSet<PathBuf>,
     ox_sources: &BTreeSet<PathBuf>,
-) -> Result<String, String> {
-    let metadata = fs::metadata(&file.source).map_err(|error| {
-        format!(
-            "no se pudo inspeccionar {}: {error}",
-            file.relative.display()
-        )
-    })?;
+) -> Result<RustImport, String> {
+    let metadata = match fs::metadata(&file.source) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            return Ok(RustImport::Passthrough(format!(
+                "no se pudo inspeccionar {}: {error}",
+                file.relative.display()
+            )));
+        }
+    };
     if metadata.len() > MAX_SOURCE_BYTES {
-        return Err(format!(
+        return Ok(RustImport::Passthrough(format!(
             "el archivo Rust supera el límite de 4 MiB para conversión: {}",
             file.relative.display()
-        ));
+        )));
     }
-    let text = fs::read_to_string(&file.source).map_err(|error| {
-        format!(
-            "no se pudo leer como UTF-8 {}: {error}",
-            file.relative.display()
-        )
-    })?;
+    let text = match fs::read_to_string(&file.source) {
+        Ok(text) => text,
+        Err(error) => {
+            return Ok(RustImport::Passthrough(format!(
+                "no se pudo leer como UTF-8 {}: {error}",
+                file.relative.display()
+            )));
+        }
+    };
     let source = SourceFile::with_path(&file.source, text);
     let source_parent = file.relative.parent().unwrap_or_else(|| Path::new(""));
-    let rewritten = oxido_compiler::rewrite_rust_module_paths(&source, |path| {
+    let rewritten = match oxido_compiler::rewrite_rust_module_paths(&source, |path| {
         rewrite_project_module_path(source_parent, path, rust_sources, ox_sources)
-    })?;
-    oxido_compiler::import_rust(&SourceFile::with_path(&file.source, rewritten))
+    }) {
+        Ok(rewritten) => rewritten,
+        Err(error) => {
+            // Un archivo Rust válido con una ruta rechazada aborta la
+            // importación; un archivo que ni siquiera es Rust válido se
+            // conserva tal cual y se registra en el manifiesto.
+            if oxido_compiler::analyze_rust(&source).is_ok() {
+                return Err(error);
+            }
+            return Ok(RustImport::Passthrough(error));
+        }
+    };
+    match oxido_compiler::import_rust(&SourceFile::with_path(&file.source, rewritten)) {
+        Ok(imported) => Ok(RustImport::Imported(imported)),
+        Err(error) => Ok(RustImport::Passthrough(error)),
+    }
+}
+
+fn imported_contains_structured_function(text: &str) -> bool {
+    let source = SourceFile::new(text);
+    let parsed = oxido_compiler::parse_ox(
+        &source,
+        LexOptions {
+            project_mode: Some(SyntaxMode::Braces),
+        },
+    );
+    parsed.file.is_some_and(|file| {
+        file.items
+            .iter()
+            .any(|item| matches!(item, oxido_language::domain::ast::Item::Function(_)))
+    })
 }
 
 fn write_import_file(

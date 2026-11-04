@@ -353,22 +353,31 @@ fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
     for relative in [
         "Cargo.toml",
         "Cargo.lock",
-        "platform/build.rs",
         "platform/proto/demo/service.proto",
         "modules/identity/migrations/001_init.sql",
         "README.md",
         "assets.bin",
-        "main.rs",
-        "unsupported.rs",
     ] {
         assert_eq!(
             fs::read(rust_source.join(relative)).unwrap(),
             fs::read(ox_source.join(relative)).unwrap(),
-            "el original debe preservarse byte por byte: {relative}"
+            "el archivo debe preservarse byte por byte: {relative}"
+        );
+    }
+    for relative in ["platform/build.rs", "main.rs", "unsupported.rs"] {
+        assert_eq!(
+            fs::read(rust_source.join(relative)).unwrap(),
+            fs::read(ox_source.join(".oxido/original").join(relative)).unwrap(),
+            "el original Rust debe conservarse fuera de la ruta de módulos: {relative}"
         );
     }
     assert!(ox_source.join("main.ox").is_file());
-    assert!(!ox_source.join("unsupported.ox").exists());
+    assert!(ox_source.join("unsupported.ox").is_file());
+    assert!(
+        fs::read_to_string(ox_source.join("unsupported.ox"))
+            .unwrap()
+            .contains("pub unsafe fn version")
+    );
     assert!(
         ox_source
             .join("modules/identity/empty-runtime-directory")

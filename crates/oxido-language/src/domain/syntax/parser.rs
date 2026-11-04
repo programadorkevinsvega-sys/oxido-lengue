@@ -883,15 +883,15 @@ impl Parser<'_> {
             let end_offset = self.tokens[*parts.last()?].span.end();
             self.source.span(start_offset, end_offset)
         } else {
-            let initializer_start = parts.get(equal + 1).copied()?;
-            let initializer_end = parts
-                .get(equal + 1..)
-                .and_then(|rest| rest.last())
-                .copied()?;
-            self.source.span(
-                self.tokens[initializer_start].span.start(),
-                self.tokens[initializer_end].span.end(),
-            )
+            let initializer_start = parts.get(equal + 1).copied();
+            let initializer_end = parts.get(equal + 1..).and_then(|rest| rest.last()).copied();
+            match (initializer_start, initializer_end) {
+                (Some(initializer_start), Some(initializer_end)) => self.source.span(
+                    self.tokens[initializer_start].span.start(),
+                    self.tokens[initializer_end].span.end(),
+                ),
+                _ => None,
+            }
         };
         let Some(initializer_span) = initializer_span else {
             self.error(

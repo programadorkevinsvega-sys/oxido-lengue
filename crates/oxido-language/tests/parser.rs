@@ -367,6 +367,23 @@ fn parses_every_initial_control_form_in_both_block_styles() {
 }
 
 #[test]
+fn reports_a_missing_initializer_in_a_let_statement() {
+    // Regresión del LSP: un `dejar valor =` incompleto debe conservar un
+    // diagnóstico local en lugar de desaparecer como si fuera válido.
+    let source = SourceFile::new("sintaxis indentacion\nfuncion pendiente():\n    dejar valor =\n");
+    let parsed = parse(&source, LexOptions::default());
+    assert!(parsed.has_errors());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "OX1001"),
+        "{:?}",
+        parsed.diagnostics
+    );
+}
+
+#[test]
 fn parser_reports_incomplete_headers_and_recovers_to_next_function() {
     let source = SourceFile::new(
         "sintaxis indentacion\nfuncion rota(\nfuncion bien():\n    1\nfuncion otra(\n",

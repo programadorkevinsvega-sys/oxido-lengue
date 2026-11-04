@@ -1,13 +1,14 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::VecDeque,
+    collections::{BTreeSet, VecDeque},
     env,
     ffi::{OsStr, OsString},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     process::ExitCode,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use oxido_compiler::{application::cargo::CargoAction, generate_ox};
@@ -18,8 +19,11 @@ use oxido_language::{
         syntax::{LexOptions, SyntaxMode},
     },
 };
+use sha2::{Digest, Sha256};
 
 const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_IMPORT_FILES: usize = 100_000;
+const MAX_IMPORT_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
 const STRUCTURED_ERROR_PREFIX: &str = "\u{1e}oxido-json:";
 
 fn main() -> ExitCode {
@@ -707,6 +711,21 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
     }
     let output = PathBuf::from(output);
     validate_output_parent(&output)?;
+    let output_parent = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let canonical_output_parent = fs::canonicalize(output_parent)
+        .map_err(|error| format!("no se pudo resolver el directorio de salida: {error}"))?;
+    let output_name = output
+        .file_name()
+        .ok_or_else(|| "el directorio de salida no tiene nombre".to_owned())?;
+    if canonical_output_parent
+        .join(output_name)
+        .starts_with(&input)
+    {
+        return Err("la salida de importación no puede estar dentro del árbol de entrada".into());
+    }
     match fs::symlink_metadata(&output) {
         Ok(_) => return Err("el directorio de salida ya existe; elige otra ruta".into()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -715,83 +734,147 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
         }
     }
     let mut files = Vec::new();
-    collect_project_sources(&input, &input, &mut files)?;
+    let mut directories = Vec::new();
+    let mut total_bytes = 0_u64;
+    collect_project_files(
+        &input,
+        &input,
+        &mut files,
+        &mut directories,
+        &mut total_bytes,
+    )?;
     if files.is_empty() {
-        return Err("el árbol no contiene archivos .rs ni .ox".into());
+        return Err("el árbol no contiene archivos regulares importables".into());
     }
     let rust_sources = files
         .iter()
         .filter(|file| file.kind == ProjectSourceKind::Rust)
         .map(|file| file.relative.clone())
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     let ox_sources = files
         .iter()
         .filter(|file| file.kind == ProjectSourceKind::Oxido)
         .map(|file| file.relative.clone())
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut outputs = Vec::with_capacity(files.len());
-    let mut destinations = std::collections::BTreeSet::new();
-    for file in &files {
-        let destination_relative = match file.kind {
-            ProjectSourceKind::Rust => file.relative.with_extension("ox"),
-            ProjectSourceKind::Oxido => file.relative.clone(),
-        };
-        if !destinations.insert(destination_relative.clone()) {
-            return Err(format!(
-                "varias fuentes producirían la misma salida: {}",
-                destination_relative.display()
-            ));
-        }
-        let metadata = fs::metadata(&file.source).map_err(|error| {
-            format!("no se pudo inspeccionar {}: {error}", file.source.display())
-        })?;
-        if metadata.len() > MAX_SOURCE_BYTES {
-            return Err(format!(
-                "el archivo supera el límite de 4 MiB: {}",
-                file.relative.display()
-            ));
-        }
-        let contents = match file.kind {
-            ProjectSourceKind::Rust => {
-                let text = fs::read_to_string(&file.source).map_err(|error| {
-                    format!("no se pudo leer {}: {error}", file.source.display())
-                })?;
-                let source = SourceFile::with_path(&file.source, text);
-                let source_parent = file.relative.parent().unwrap_or_else(|| Path::new(""));
-                let rewritten = oxido_compiler::rewrite_rust_module_paths(&source, |path| {
-                    rewrite_project_module_path(source_parent, path, &rust_sources, &ox_sources)
-                })?;
-                oxido_compiler::import_rust(&SourceFile::with_path(&file.source, rewritten))?
-                    .into_bytes()
-            }
-            ProjectSourceKind::Oxido => fs::read(&file.source)
-                .map_err(|error| format!("no se pudo leer {}: {error}", file.source.display()))?,
-        };
-        outputs.push((destination_relative, contents));
-    }
-
-    fs::create_dir(&output)
-        .map_err(|error| format!("no se pudo crear el directorio de salida: {error}"))?;
+        .collect::<BTreeSet<_>>();
+    let original_paths = files
+        .iter()
+        .map(|file| file.relative.clone())
+        .collect::<BTreeSet<_>>();
+    let staging = import_staging_path(&canonical_output_parent, output_name)?;
+    fs::create_dir(&staging)
+        .map_err(|error| format!("no se pudo crear el staging de importación: {error}"))?;
     let mut created_directories = Vec::new();
     let mut created_files = Vec::new();
-    for (relative, contents) in &outputs {
-        let parent = relative
-            .parent()
-            .ok_or_else(|| "una salida no tiene directorio padre".to_owned())?;
-        if let Err(error) = create_output_directories(&output, parent, &mut created_directories) {
-            cleanup_import_project(&output, &created_files, &created_directories)?;
+    for directory in &directories {
+        if let Err(error) = create_output_directories(&staging, directory, &mut created_directories)
+        {
+            cleanup_import_project(&staging, &created_files, &created_directories)?;
             return Err(error);
         }
-        let destination = output.join(relative);
-        if let Err(error) = write_new(&destination, contents) {
-            cleanup_import_project(&output, &created_files, &created_directories)?;
+    }
+    let mut manifest_files = Vec::with_capacity(files.len());
+    let mut converted = 0_usize;
+    let mut passthrough = 0_usize;
+    for file in &files {
+        let contents = match fs::read(&file.source) {
+            Ok(contents) => contents,
+            Err(error) => {
+                cleanup_import_project(&staging, &created_files, &created_directories)?;
+                return Err(format!(
+                    "no se pudo leer {}: {error}",
+                    file.relative.display()
+                ));
+            }
+        };
+        if let Err(error) = write_import_file(
+            &staging,
+            &file.relative,
+            &contents,
+            &mut created_directories,
+            &mut created_files,
+        ) {
+            cleanup_import_project(&staging, &created_files, &created_directories)?;
             return Err(error);
         }
-        created_files.push(destination);
+        let mut entry = serde_json::json!({
+            "source": file.relative,
+            "preservedPath": file.relative,
+            "sha256": sha256_hex(&contents),
+            "strategy": file.kind.manifest_strategy(),
+            "oxidoPath": null,
+            "diagnostic": null,
+        });
+        if file.kind == ProjectSourceKind::Rust {
+            let conversion = import_workspace_rust_file(file, &rust_sources, &ox_sources);
+            let oxido_relative = file.relative.with_extension("ox");
+            match conversion {
+                Ok(imported) if !original_paths.contains(&oxido_relative) => {
+                    if let Err(error) = write_import_file(
+                        &staging,
+                        &oxido_relative,
+                        imported.as_bytes(),
+                        &mut created_directories,
+                        &mut created_files,
+                    ) {
+                        cleanup_import_project(&staging, &created_files, &created_directories)?;
+                        return Err(error);
+                    }
+                    converted = converted.saturating_add(1);
+                    entry["strategy"] = serde_json::json!("translated-oxido");
+                    entry["oxidoPath"] = serde_json::json!(oxido_relative);
+                }
+                Ok(_) => {
+                    passthrough = passthrough.saturating_add(1);
+                    entry["strategy"] = serde_json::json!("passthrough-rust");
+                    entry["diagnostic"] = serde_json::json!(format!(
+                        "no se creó el equivalente .ox porque ya existe {}",
+                        oxido_relative.display()
+                    ));
+                }
+                Err(error) => {
+                    passthrough = passthrough.saturating_add(1);
+                    entry["strategy"] = serde_json::json!("passthrough-rust");
+                    entry["diagnostic"] = serde_json::json!(error);
+                }
+            }
+        }
+        manifest_files.push(entry);
     }
-    for path in created_files {
-        println!("Óxido importado a {}", path.display());
+    let manifest = serde_json::json!({
+        "schemaVersion": 1,
+        "kind": "oxido-lossless-workspace-import",
+        "sourceFileCount": files.len(),
+        "sourceDirectoryCount": directories.len(),
+        "sourceBytes": total_bytes,
+        "translatedRustFiles": converted,
+        "passthroughRustFiles": passthrough,
+        "files": manifest_files,
+    });
+    let contents = serde_json::to_vec_pretty(&manifest)
+        .map_err(|error| format!("no se pudo serializar el manifiesto de importación: {error}"))?;
+    if let Err(error) = write_import_file(
+        &staging,
+        &Path::new(".oxido").join("import-manifest.json"),
+        &contents,
+        &mut created_directories,
+        &mut created_files,
+    ) {
+        cleanup_import_project(&staging, &created_files, &created_directories)?;
+        return Err(error);
     }
+    if let Err(error) = fs::rename(&staging, &output) {
+        cleanup_import_project(&staging, &created_files, &created_directories)?;
+        return Err(format!(
+            "no se pudo publicar la importación sin pérdida: {error}"
+        ));
+    }
+    println!(
+        "Importación sin pérdida creada en {}: {} archivos preservados, {} Rust traducidos a .ox, {} Rust conservados como passthrough.",
+        output.display(),
+        files.len(),
+        converted,
+        passthrough
+    );
     Ok(())
 }
 
@@ -799,6 +882,17 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
 enum ProjectSourceKind {
     Rust,
     Oxido,
+    Other,
+}
+
+impl ProjectSourceKind {
+    fn manifest_strategy(self) -> &'static str {
+        match self {
+            Self::Rust => "pending-rust-conversion",
+            Self::Oxido => "preserved-oxido",
+            Self::Other => "preserved-file",
+        }
+    }
 }
 
 struct ProjectSourceFile {
@@ -807,10 +901,12 @@ struct ProjectSourceFile {
     kind: ProjectSourceKind,
 }
 
-fn collect_project_sources(
+fn collect_project_files(
     root: &Path,
     project_root: &Path,
     files: &mut Vec<ProjectSourceFile>,
+    directories: &mut Vec<PathBuf>,
+    total_bytes: &mut u64,
 ) -> Result<(), String> {
     for entry in fs::read_dir(root)
         .map_err(|error| format!("no se pudo leer {}: {error}", root.display()))?
@@ -820,21 +916,37 @@ fn collect_project_sources(
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| format!("no se pudo inspeccionar {}: {error}", path.display()))?;
         if metadata.file_type().is_symlink() {
-            continue;
+            return Err(format!(
+                "la importación sin pérdida no admite enlaces simbólicos: {}",
+                path.display()
+            ));
         }
         if metadata.is_dir() {
-            if path
-                .file_name()
-                .is_some_and(|name| matches!(name.to_str(), Some("target" | ".git")))
-            {
+            if path.file_name().is_some_and(|name| name == ".git") {
                 continue;
             }
-            collect_project_sources(&path, project_root, files)?;
+            let relative = path
+                .strip_prefix(project_root)
+                .map_err(|_| "la ruta de un directorio escapa del árbol de entrada")?
+                .to_path_buf();
+            if !relative.as_os_str().is_empty() {
+                directories.push(relative);
+            }
+            collect_project_files(&path, project_root, files, directories, total_bytes)?;
         } else if metadata.is_file() {
+            if files.len() >= MAX_IMPORT_FILES {
+                return Err(format!(
+                    "la importación supera el límite de {MAX_IMPORT_FILES} archivos"
+                ));
+            }
+            *total_bytes = total_bytes.saturating_add(metadata.len());
+            if *total_bytes > MAX_IMPORT_TOTAL_BYTES {
+                return Err("la importación supera el límite total de 1 GiB".into());
+            }
             let kind = match path.extension() {
                 Some(extension) if extension == "rs" => ProjectSourceKind::Rust,
                 Some(extension) if extension == "ox" => ProjectSourceKind::Oxido,
-                _ => continue,
+                _ => ProjectSourceKind::Other,
             };
             let relative = path
                 .strip_prefix(project_root)
@@ -848,7 +960,72 @@ fn collect_project_sources(
         }
     }
     files.sort_by(|left, right| left.source.cmp(&right.source));
+    directories.sort();
+    directories.dedup();
     Ok(())
+}
+
+fn import_workspace_rust_file(
+    file: &ProjectSourceFile,
+    rust_sources: &BTreeSet<PathBuf>,
+    ox_sources: &BTreeSet<PathBuf>,
+) -> Result<String, String> {
+    let metadata = fs::metadata(&file.source).map_err(|error| {
+        format!(
+            "no se pudo inspeccionar {}: {error}",
+            file.relative.display()
+        )
+    })?;
+    if metadata.len() > MAX_SOURCE_BYTES {
+        return Err(format!(
+            "el archivo Rust supera el límite de 4 MiB para conversión: {}",
+            file.relative.display()
+        ));
+    }
+    let text = fs::read_to_string(&file.source).map_err(|error| {
+        format!(
+            "no se pudo leer como UTF-8 {}: {error}",
+            file.relative.display()
+        )
+    })?;
+    let source = SourceFile::with_path(&file.source, text);
+    let source_parent = file.relative.parent().unwrap_or_else(|| Path::new(""));
+    let rewritten = oxido_compiler::rewrite_rust_module_paths(&source, |path| {
+        rewrite_project_module_path(source_parent, path, rust_sources, ox_sources)
+    })?;
+    oxido_compiler::import_rust(&SourceFile::with_path(&file.source, rewritten))
+}
+
+fn write_import_file(
+    output_root: &Path,
+    relative: &Path,
+    contents: &[u8],
+    directories: &mut Vec<PathBuf>,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let parent = relative
+        .parent()
+        .ok_or_else(|| "una salida no tiene directorio padre".to_owned())?;
+    create_output_directories(output_root, parent, directories)?;
+    let destination = output_root.join(relative);
+    write_new(&destination, contents)?;
+    files.push(destination);
+    Ok(())
+}
+
+fn import_staging_path(parent: &Path, output_name: &OsStr) -> Result<PathBuf, String> {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("el reloj del sistema no es válido para importar: {error}"))?
+        .as_nanos();
+    Ok(parent.join(format!(
+        ".{}.oxido-staging-{timestamp}",
+        output_name.to_string_lossy()
+    )))
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 fn rewrite_project_module_path(

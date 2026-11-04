@@ -81,12 +81,29 @@ fn parses_braced_function_and_nested_if_else_with_shared_ast() {
     };
     assert_eq!(control.header.text, "x");
     assert!(control.alternative.is_some());
+    assert!(!control.had_semicolon);
+}
+
+#[test]
+fn retains_the_semicolon_of_a_braced_control_statement() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn ejecutar() { if true { println!(\"sí\"); }; println!(\"fin\"); }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let Item::Function(function) = &parsed.file.expect("archivo").items[0] else {
+        panic!("se esperaba función")
+    };
+    let Statement::Control(control) = &function.body.statements[0] else {
+        panic!("se esperaba control")
+    };
+    assert!(control.had_semicolon);
 }
 
 #[test]
 fn parses_visibility_attributes_async_and_rust_passthrough_items() {
     let source = SourceFile::new(
-        "sintaxis llaves\n#[inline]\npub async fn cargar() {}\n#[derive(Clone)]\npub struct Dato { valor: i32 }\npub(crate) use crate::modulo;\n",
+        "sintaxis llaves\n#[inline]\npub async fn cargar() {}\n#[derive(Clone)]\npub struct Dato { valor: i32 }\npub(crate) use crate::{modulo, otro_modulo};\n",
     );
     let parsed = parse(&source, LexOptions::default());
     assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
@@ -111,6 +128,171 @@ fn parses_visibility_attributes_async_and_rust_passthrough_items() {
         panic!("se esperaba use passthrough")
     };
     assert!(import.text.starts_with("pub(crate) use"));
+    assert!(import.text.ends_with("};"));
+}
+
+#[test]
+fn preserves_consecutive_grouped_use_items_in_source_order() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nuse axum::http::{HeaderMap, StatusCode};\nuse axum::response::Response;\nfn entrada() {}\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    assert_eq!(file.items.len(), 3);
+    let Item::RustFragment(first) = &file.items[0] else {
+        panic!("se esperaba el primer use")
+    };
+    let Item::RustFragment(second) = &file.items[1] else {
+        panic!("se esperaba el segundo use")
+    };
+    assert!(first.text.contains("axum::http::{HeaderMap, StatusCode};"));
+    assert!(second.text.contains("axum::response::Response;"));
+}
+
+#[test]
+fn preserves_all_grouped_uses_before_a_restricted_function() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nuse axum::http::{HeaderMap, StatusCode};\nuse axum::response::Response;\nuse tonic::Request;\nuse tonic::metadata::MetadataValue;\n\nuse crate::authentication::{cookie_value, error_response, inject_trace_context};\n\npub(crate) fn session_credentials() {}\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let fragments = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::RustFragment(fragment) => Some(fragment.text.as_str()),
+            Item::Function(_) => None,
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fragments.len(), 5, "{fragments:?}");
+    assert!(fragments[0].contains("axum::http"), "{fragments:?}");
+    assert!(fragments[1].contains("axum::response"), "{fragments:?}");
+    assert!(fragments[2].contains("tonic::Request"), "{fragments:?}");
+    assert!(fragments[3].contains("tonic::metadata"), "{fragments:?}");
+    assert!(
+        fragments[4].contains("crate::authentication"),
+        "{fragments:?}"
+    );
+}
+
+#[test]
+fn parses_rust_let_else_as_a_complete_passthrough_statement() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn buscar(valor: Option<i32>) -> i32 { let Some(encontrado) = valor else { return 0; }; encontrado }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let Item::Function(function) = &file.items[0] else {
+        panic!("se esperaba función")
+    };
+    let Some(Statement::RustItem(statement)) = function.body.statements.first() else {
+        panic!("se esperaba let else preservado")
+    };
+    assert!(statement.text.contains("let Some(encontrado) = valor else"));
+    assert!(statement.text.ends_with(";"));
+}
+
+#[test]
+fn preserves_block_items_that_are_not_expressions() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn ejecutar() { use std::fmt::Write; const LIMITE: usize = 7; static CONTADOR: usize = 1; let mut texto = String::new(); write!(&mut texto, \"{}:{}\", LIMITE, CONTADOR).unwrap(); }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let Item::Function(function) = &file.items[0] else {
+        panic!("se esperaba función")
+    };
+    assert!(matches!(
+        function.body.statements[0],
+        Statement::RustItem(_)
+    ));
+    assert!(matches!(
+        function.body.statements[1],
+        Statement::RustItem(_)
+    ));
+    assert!(matches!(
+        function.body.statements[2],
+        Statement::RustItem(_)
+    ));
+}
+
+#[test]
+fn preserves_unsafe_rust_functions_as_validated_items() {
+    let source =
+        SourceFile::new("sintaxis llaves\nunsafe fn identidad(valor: u32) -> u32 { valor }\n");
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let Item::RustFragment(function) = &file.items[0] else {
+        panic!("la función Rust debe preservarse completa")
+    };
+    assert!(function.text.contains("unsafe fn identidad"));
+}
+
+#[test]
+fn falls_back_to_raw_rust_function_for_macro_dsls_that_the_structural_ast_cannot_parse() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nfn registrar(valor: &str) { tracing::info!(evento = \"registro\", valor, \"mensaje\"); }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let Item::RustFragment(function) = &parsed.file.expect("archivo").items[0] else {
+        panic!("la función con DSL debe preservarse")
+    };
+    assert!(function.text.contains("tracing::info!"));
+}
+
+#[test]
+fn preserves_attributed_async_rust_tests_with_result_signatures_and_macros() {
+    let source = SourceFile::new(
+        "sintaxis llaves\n#[tokio::test]\nasync fn integracion() -> Result<(), Box<dyn std::error::Error + Send + Sync>> { println!(\"ok\"); Ok(()) }\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let Item::RustFragment(function) = &parsed.file.expect("archivo").items[0] else {
+        panic!("la prueba Rust completa debe preservarse")
+    };
+    assert!(function.text.contains("#[tokio::test]"));
+    assert!(function.text.contains("async fn integracion"));
+}
+
+#[test]
+fn preserves_multiline_trait_impls_with_associated_types() {
+    let source = SourceFile::new(
+        "sintaxis llaves\nimpl<S, RequestBody> Servicio<RequestBody> for Adaptador<S>\nwhere\n    S: Send + 'static,\n    RequestBody: Send + 'static,\n{\n    type Respuesta = S;\n    fn atender(&self) -> Self::Respuesta { self.interno }\n}\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+}
+
+#[test]
+fn preserves_top_level_type_aliases_with_nested_generic_bounds() {
+    let source = SourceFile::new(
+        "sintaxis llaves\ntype EventStream = Pin<Box<dyn Stream<Item = Result<Mensaje, Estado>> + Send>>;\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    assert!(matches!(file.items[0], Item::RustFragment(_)));
+}
+
+#[test]
+fn preserves_multiline_type_aliases_until_their_semicolon() {
+    let source = SourceFile::new(
+        "sintaxis llaves\ntype EventStream =\n    Pin<Box<dyn Stream<Item = Result<Mensaje, Estado>> + Send>>;\n",
+    );
+    let parsed = parse(&source, LexOptions::default());
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let file = parsed.file.expect("el archivo se analiza");
+    let Item::RustFragment(alias) = &file.items[0] else {
+        panic!("se esperaba alias de tipo Rust")
+    };
+    assert!(alias.text.ends_with(';'));
 }
 
 #[test]

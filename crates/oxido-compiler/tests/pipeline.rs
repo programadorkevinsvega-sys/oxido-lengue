@@ -1247,6 +1247,143 @@ fn imports_rust_passthrough_items_during_tree_import() {
 }
 
 #[test]
+fn imports_consecutive_grouped_rust_uses_without_reordering_them() {
+    let source = SourceFile::new(
+        "use axum::http::{HeaderMap, StatusCode};\nuse axum::response::Response;\nfn entrada() {}\n",
+    );
+    let imported = oxido_compiler::import_rust(&source).expect("el use agrupado es reversible");
+    assert!(imported.contains("funcion entrada"));
+}
+
+#[test]
+fn imports_grouped_uses_before_restricted_visibility_functions() {
+    let source = SourceFile::new(
+        "use axum::http::{HeaderMap, StatusCode};\nuse axum::response::Response;\nuse tonic::Request;\nuse tonic::metadata::MetadataValue;\n\nuse crate::authentication::{cookie_value, error_response, inject_trace_context};\n\npub(crate) fn session_credentials(headers: &HeaderMap) -> Result<(), Box<Response>> { Ok(()) }\n",
+    );
+    let imported = oxido_compiler::import_rust(&source).expect("el archivo mantiene sus uses");
+    assert!(imported.contains("pub(crate) funcion session_credentials"));
+}
+
+#[test]
+fn imports_and_runs_rust_let_else_without_losing_its_block() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "fn elegir(valor: Option<i32>) -> i32 { let Some(encontrado) = valor else { return 0; }; encontrado }\nfn main() { println!(\"{}:{}\", elegir(Some(7)), elegir(None)); }\n",
+    );
+    let imported = oxido_compiler::import_rust(&source).expect("let else es reversible");
+    assert!(imported.contains("let Some(encontrado) = valor else"));
+    let result = oxido_compiler::build_ox(
+        &SourceFile::new(imported),
+        LexOptions::default(),
+        CargoAction::Run,
+    )
+    .expect("el programa importado se construye");
+    assert!(result.success, "{:?}", result.diagnostics);
+    assert_eq!(result.program_output, ["7:0"]);
+}
+
+#[test]
+fn imports_and_runs_local_use_and_const_items_without_reclassifying_them_as_expressions() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "fn main() { use std::fmt::Write; const LIMITE: usize = 7; let mut texto = String::new(); write!(&mut texto, \"{}\", LIMITE).unwrap(); println!(\"{texto}\"); }\n",
+    );
+    let imported =
+        oxido_compiler::import_rust(&source).expect("los items de bloque son reversibles");
+    assert!(imported.contains("use std::fmt::Write;"));
+    assert!(imported.contains("const LIMITE: usize = 7;"));
+    let result = oxido_compiler::build_ox(
+        &SourceFile::new(imported),
+        LexOptions::default(),
+        CargoAction::Run,
+    )
+    .expect("el programa importado se construye");
+    assert!(result.success, "{:?}", result.diagnostics);
+    assert_eq!(result.program_output, ["7"]);
+}
+
+#[test]
+fn imports_const_functions_as_rust_passthrough_without_dropping_constness() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "pub const fn limite() -> u32 { 7 }\nfn main() { println!(\"{}\", limite()); }\n",
+    );
+    let imported = oxido_compiler::import_rust(&source).expect("const fn es preservable");
+    assert!(imported.contains("pub const fn limite"));
+    let result = oxido_compiler::build_ox(
+        &SourceFile::new(imported),
+        LexOptions::default(),
+        CargoAction::Run,
+    )
+    .expect("el const fn importado se construye");
+    assert!(result.success, "{:?}", result.diagnostics);
+    assert_eq!(result.program_output, ["7"]);
+}
+
+#[test]
+fn imports_and_runs_unsafe_functions_as_validated_rust_fragments() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new(
+        "unsafe fn identidad(valor: u32) -> u32 { valor }\nfn main() { println!(\"{}\", unsafe { identidad(7) }); }\n",
+    );
+    let imported = oxido_compiler::import_rust(&source)
+        .expect("la función unsafe debe preservarse como un item Rust válido");
+    assert!(imported.contains("unsafe fn identidad"));
+    let result = oxido_compiler::build_ox(
+        &SourceFile::new(imported),
+        LexOptions::default(),
+        CargoAction::Run,
+    )
+    .expect("el programa importado se construye");
+    assert!(result.success, "{:?}", result.diagnostics);
+    assert_eq!(result.program_output, ["7"]);
+}
+
+#[test]
+fn imports_macro_functions_as_lossless_rust_items_and_runs_them() {
+    use oxido_compiler::application::cargo::CargoAction;
+    use oxido_language::domain::syntax::LexOptions;
+
+    let source = SourceFile::new("fn main() { println!(\"macro conservada\"); }\n");
+    let imported =
+        oxido_compiler::import_rust(&source).expect("las macros se conservan como tokens de Rust");
+    assert!(imported.contains("fn main"));
+    let result = oxido_compiler::build_ox(
+        &SourceFile::new(imported),
+        LexOptions::default(),
+        CargoAction::Run,
+    )
+    .expect("el programa importado se construye");
+    assert!(result.success, "{:?}", result.diagnostics);
+    assert_eq!(result.program_output, ["macro conservada"]);
+}
+
+#[test]
+fn imports_attributed_async_functions_as_lossless_rust_items() {
+    let source = SourceFile::new("#[inline]\nasync fn responder() -> u8 { 7 }\n");
+    let imported = oxido_compiler::import_rust(&source)
+        .expect("los atributos deben conservar su semántica Rust");
+    assert!(imported.contains("#[inline]"));
+    assert!(imported.contains("async fn responder"));
+}
+
+#[test]
+fn import_reports_the_first_regenerated_rust_difference() {
+    let original = "fn principal() {}\n";
+    let error = oxido_compiler::import_rust(&SourceFile::new(original))
+        .expect_err("principal is reserved by Óxido and cannot roundtrip as a Rust name");
+    assert!(error.contains("primera diferencia"), "{error}");
+}
+
+#[test]
 fn returns_a_parser_error_for_invalid_rust() {
     let source = SourceFile::new("fn { ");
     assert!(oxido_compiler::analyze_rust(&source).is_err());

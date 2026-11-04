@@ -298,6 +298,109 @@ fn import_project_preserves_a_runnable_tree_and_export_roundtrips_it() {
 }
 
 #[test]
+fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir_all(rust_source.join("platform/proto/demo")).unwrap();
+    fs::create_dir_all(rust_source.join("modules/identity/migrations")).unwrap();
+    fs::create_dir_all(rust_source.join("modules/identity/empty-runtime-directory")).unwrap();
+    fs::write(
+        rust_source.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"platform\"]\n",
+    )
+    .unwrap();
+    fs::write(rust_source.join("Cargo.lock"), "version = 4\n").unwrap();
+    fs::write(
+        rust_source.join("platform/build.rs"),
+        "fn main() { println!(\"cargo:rerun-if-changed=proto/demo.proto\"); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("platform/proto/demo/service.proto"),
+        "syntax = \"proto3\";\npackage demo;\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("modules/identity/migrations/001_init.sql"),
+        "CREATE TABLE account (id UUID PRIMARY KEY);\n",
+    )
+    .unwrap();
+    fs::write(rust_source.join("README.md"), "# backend\n").unwrap();
+    fs::write(rust_source.join("assets.bin"), [0_u8, 1, 2, 255]).unwrap();
+    fs::write(
+        rust_source.join("main.rs"),
+        "fn main() { println!(\"hola\"); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("unsupported.rs"),
+        "pub unsafe fn version() -> u32 { 1 }\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+
+    for relative in [
+        "Cargo.toml",
+        "Cargo.lock",
+        "platform/build.rs",
+        "platform/proto/demo/service.proto",
+        "modules/identity/migrations/001_init.sql",
+        "README.md",
+        "assets.bin",
+        "main.rs",
+        "unsupported.rs",
+    ] {
+        assert_eq!(
+            fs::read(rust_source.join(relative)).unwrap(),
+            fs::read(ox_source.join(relative)).unwrap(),
+            "el original debe preservarse byte por byte: {relative}"
+        );
+    }
+    assert!(ox_source.join("main.ox").is_file());
+    assert!(!ox_source.join("unsupported.ox").exists());
+    assert!(
+        ox_source
+            .join("modules/identity/empty-runtime-directory")
+            .is_dir()
+    );
+
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(ox_source.join(".oxido/import-manifest.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["kind"], "oxido-lossless-workspace-import");
+    assert_eq!(manifest["sourceFileCount"], 9);
+    assert!(
+        manifest["sourceDirectoryCount"]
+            .as_u64()
+            .is_some_and(|count| count >= 5)
+    );
+    let files = manifest["files"].as_array().unwrap();
+    let unsupported = files
+        .iter()
+        .find(|entry| entry["source"] == "unsupported.rs")
+        .unwrap();
+    assert_eq!(unsupported["strategy"], "passthrough-rust");
+    assert!(unsupported["diagnostic"].as_str().is_some());
+    let main = files
+        .iter()
+        .find(|entry| entry["source"] == "main.rs")
+        .unwrap();
+    assert_eq!(main["strategy"], "translated-oxido");
+    assert_eq!(main["oxidoPath"], "main.ox");
+}
+
+#[test]
 fn import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree() {
     let temp = TestDirectory::new();
     let rust_source = temp.0.join("rust");

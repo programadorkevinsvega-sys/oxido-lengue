@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "sourceFile": "apps/module-runtime/src/commercial_billing_service/authorization.ox",
+  "generatedFile": "commercial_billing_service/authorization.rs",
+  "mappings": [
+    {
+      "sourceStart": 16,
+      "sourceEnd": 34,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 19,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 18
+    },
+    {
+      "sourceStart": 16,
+      "sourceEnd": 34,
+      "sourceStartLine": 2,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 2,
+      "sourceEndColumn": 19,
+      "generatedStartLine": 1,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 1,
+      "generatedEndColumn": 18
+    },
+    {
+      "sourceStart": 35,
+      "sourceEnd": 50,
+      "sourceStartLine": 3,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 3,
+      "sourceEndColumn": 16,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 2,
+      "generatedEndColumn": 15
+    },
+    {
+      "sourceStart": 35,
+      "sourceEnd": 50,
+      "sourceStartLine": 3,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 3,
+      "sourceEndColumn": 16,
+      "generatedStartLine": 2,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 2,
+      "generatedEndColumn": 15
+    },
+    {
+      "sourceStart": 51,
+      "sourceEnd": 139,
+      "sourceStartLine": 4,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 4,
+      "sourceEndColumn": 89,
+      "generatedStartLine": 3,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 3,
+      "generatedEndColumn": 88
+    },
+    {
+      "sourceStart": 51,
+      "sourceEnd": 139,
+      "sourceStartLine": 4,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 4,
+      "sourceEndColumn": 89,
+      "generatedStartLine": 3,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 3,
+      "generatedEndColumn": 88
+    },
+    {
+      "sourceStart": 140,
+      "sourceEnd": 208,
+      "sourceStartLine": 5,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 69,
+      "generatedStartLine": 4,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 68
+    },
+    {
+      "sourceStart": 140,
+      "sourceEnd": 208,
+      "sourceStartLine": 5,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 5,
+      "sourceEndColumn": 69,
+      "generatedStartLine": 4,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 4,
+      "generatedEndColumn": 68
+    },
+    {
+      "sourceStart": 209,
+      "sourceEnd": 356,
+      "sourceStartLine": 6,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 9,
+      "sourceEndColumn": 3,
+      "generatedStartLine": 5,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 8,
+      "generatedEndColumn": 2
+    },
+    {
+      "sourceStart": 209,
+      "sourceEnd": 356,
+      "sourceStartLine": 6,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 9,
+      "sourceEndColumn": 3,
+      "generatedStartLine": 5,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 8,
+      "generatedEndColumn": 2
+    },
+    {
+      "sourceStart": 358,
+      "sourceEnd": 2632,
+      "sourceStartLine": 11,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 57,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 9,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 63,
+      "generatedEndColumn": 1
+    },
+    {
+      "sourceStart": 358,
+      "sourceEnd": 2632,
+      "sourceStartLine": 11,
+      "sourceStartColumn": 1,
+      "sourceEndLine": 57,
+      "sourceEndColumn": 2,
+      "generatedStartLine": 9,
+      "generatedStartColumn": 0,
+      "generatedEndLine": 63,
+      "generatedEndColumn": 1
+    }
+  ]
+}

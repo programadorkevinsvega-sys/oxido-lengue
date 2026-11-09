@@ -11,6 +11,7 @@ pub mod application {
     pub mod format;
     pub mod modules;
     pub mod source_map;
+    pub mod workspace;
 }
 
 use application::source_map::SourceMap;

@@ -1,0 +1,67 @@
+[cargo.manifest.dependencies.serde_json]
+workspace = true
+
+[cargo.manifest.dependencies.sha2]
+workspace = true
+
+[cargo.manifest.dependencies.sqlx]
+workspace = true
+
+[cargo.manifest.dependencies.thiserror]
+workspace = true
+
+[cargo.manifest.dependencies.uuid]
+workspace = true
+
+[cargo.manifest.dependencies.xovyra-shared-kernel]
+workspace = true
+
+[cargo.manifest.dev-dependencies.async-nats]
+workspace = true
+
+[cargo.manifest.dev-dependencies.dotenvy]
+workspace = true
+
+[cargo.manifest.dev-dependencies.futures-util]
+workspace = true
+
+[cargo.manifest.dev-dependencies.opentelemetry]
+workspace = true
+
+[cargo.manifest.dev-dependencies.sqlx]
+workspace = true
+
+[cargo.manifest.dev-dependencies.tokio]
+workspace = true
+
+[cargo.manifest.dev-dependencies.tracing]
+workspace = true
+
+[cargo.manifest.dev-dependencies.tracing-opentelemetry]
+workspace = true
+
+[cargo.manifest.dev-dependencies.xovyra-platform]
+path = "../../platform"
+
+[cargo.manifest.dev-dependencies.xovyra-realtime]
+path = "../realtime"
+
+[cargo.manifest.lints]
+workspace = true
+
+[cargo.manifest.package]
+name = "xovyra-platform-control"
+version = "0.1.0"
+
+[cargo.manifest.package.edition]
+workspace = true
+
+[cargo.manifest.package.license]
+workspace = true
+
+[cargo.manifest.package.rust-version]
+workspace = true
+
+[language]
+edition = "2024"
+syntax = "braces"

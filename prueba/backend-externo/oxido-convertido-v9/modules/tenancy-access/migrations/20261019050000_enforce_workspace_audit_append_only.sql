@@ -1,0 +1,1 @@
+REVOKE UPDATE, DELETE ON tenancy_access.workspace_audit_events FROM xovyra_tenancy_access_runtime;

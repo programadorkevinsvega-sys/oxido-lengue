@@ -10,12 +10,16 @@ use std::{
 const MAX_CONFIG_BYTES: usize = 64 * 1024;
 
 /// Configuración admitida durante el arranque del proyecto.
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectConfig {
     pub language: LanguageConfig,
     #[serde(default)]
     pub dependencies: BTreeMap<String, PathDependency>,
+    /// Manifiesto Cargo convertido por `oxido importar-proyecto`.
+    /// Se mantiene como datos TOML; la configuración nunca admite comandos.
+    #[serde(default)]
+    pub cargo: Option<toml::Value>,
 }
 
 /// Dependencia Cargo local declarada sin comandos ni opciones ejecutables.
@@ -67,6 +71,9 @@ impl ProjectConfig {
             return Err("oxido.toml supera el límite de 64 KiB".into());
         }
         let config: Self = toml::from_str(input).map_err(|error| error.to_string())?;
+        if config.cargo.as_ref().is_some_and(|value| !value.is_table()) {
+            return Err("la sección `cargo` de oxido.toml debe ser una tabla de datos".into());
+        }
         if config.language.edition != "2024" {
             return Err(format!(
                 "edición Rust no soportada: {}; la edición inicial es 2024",

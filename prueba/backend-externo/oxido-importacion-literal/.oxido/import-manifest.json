@@ -1,0 +1,2612 @@
+{
+  "files": [
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": ".env",
+      "sha256": "d1ed6d73482bbdb6132039cada0b483a534c768a442e5a33446fb34f81e92905",
+      "source": ".env",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": ".env.example",
+      "sha256": "a2feebe646ae44ccbf78de84db46b3ff40eb55953ca85789cde93d3607c8770d",
+      "source": ".env.example",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": ".gitignore",
+      "sha256": "377d8586d8889e9918ecf007df05a565642529ea6a356e71989c22d1d57effd6",
+      "source": ".gitignore",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "AGENTS.md",
+      "sha256": "254132494660264746297a084bb09b84e83220242af668d9683ea984cc677fb0",
+      "source": "AGENTS.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "ARCHITECTURE_RULES.md",
+      "sha256": "8573c4087756cd4ba5e9b2d28e24b445128367bcfd9590ab7962c1471c752545",
+      "source": "ARCHITECTURE_RULES.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "Cargo.lock",
+      "sha256": "73de797e16ca87601dfe41301f5a40ace9cd8440bf2392ae95d3015d917bf8f2",
+      "source": "Cargo.lock",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "Cargo.toml",
+      "sha256": "34ccf194f2ba9789ea00d0f09332201aa5a13339440aed5cac34e61d2e6650ee",
+      "source": "Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "PROJECT_RULES.md",
+      "sha256": "dda206a77f5d33f30327b0c2bb71a2afac210fbb1fd7e941b200b0843f288ad4",
+      "source": "PROJECT_RULES.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "PROMPT_MAESTRO_ENTERPRISE_QUALITY_ENGINEERING_PARA_PROYECTOS_RUST.md",
+      "sha256": "223875e78fc8c6f9355811dabd4de488f4c45553a2b95059dc112d189df39efb",
+      "source": "PROMPT_MAESTRO_ENTERPRISE_QUALITY_ENGINEERING_PARA_PROYECTOS_RUST.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "PROMPT_MAESTRO_IMPLEMENTACION_DE_OBSERVABILIDAD_TRAZABILIDAD_Y_MONITOREO_EMPRESARIAL_EN_RUST.md",
+      "sha256": "d92902619e6f34501b4ac15c28762703448e835561f18e22b48b8efec5e642cf",
+      "source": "PROMPT_MAESTRO_IMPLEMENTACION_DE_OBSERVABILIDAD_TRAZABILIDAD_Y_MONITOREO_EMPRESARIAL_EN_RUST.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "README.md",
+      "sha256": "184f1b8bf2a654010b44aa0b64abf3cd4a13daefc1876a24b39153d67ab23072",
+      "source": "README.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "apps/bff/Cargo.toml",
+      "sha256": "e5f066f70449a8371aceafda23408e50c497aec1634e89d247234ee8ff0667ba",
+      "source": "apps/bff/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_http.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_http.rs",
+      "sha256": "1344ae6b57d8e6e600bc0facb31373f0716725ab25806a3c8e66e27182cba256",
+      "source": "apps/bff/src/account_http.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_password.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_password.rs",
+      "sha256": "978249502adddb48148f6d816b82969d926fa00f6674963acfffcbfed100f9b1",
+      "source": "apps/bff/src/account_password.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_profile.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_profile.rs",
+      "sha256": "c887de723a3e1977e8668ceb23a31b3135d7330fc18bc94f316baea0a80b78e5",
+      "source": "apps/bff/src/account_profile.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_security_events.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_security_events.rs",
+      "sha256": "6a2139ebed8a472ca6547cd3ed8b375792e785c6fc831309ba81ffa8bb0601a3",
+      "source": "apps/bff/src/account_security_events.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_sessions/list.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_sessions/list.rs",
+      "sha256": "f2c0b314ccb496719f6b279a850e232652bab5562495939c053540512906625a",
+      "source": "apps/bff/src/account_sessions/list.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_sessions/revoke.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_sessions/revoke.rs",
+      "sha256": "2900e234d9e96140220982a0b3fec155843900654499bbf44058d13762280fb5",
+      "source": "apps/bff/src/account_sessions/revoke.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/account_sessions.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/account_sessions.rs",
+      "sha256": "4170e748b9eddb70912409f52a481688b6eaec63ef75032a085e6c03c964860d",
+      "source": "apps/bff/src/account_sessions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/assets.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/assets.rs",
+      "sha256": "9f301025a02785e86f99edbc6100abd7e9aa5a604d8a7747aeb80db722b6b3d5",
+      "source": "apps/bff/src/assets.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/authentication.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/authentication.rs",
+      "sha256": "a15de4d074764e6da54e4e32c55d67a543ffba9b0219b1fbc42f46ba0c5810e4",
+      "source": "apps/bff/src/authentication.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/billing/platform_catalog.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/billing/platform_catalog.rs",
+      "sha256": "128b7a30ee44a4413e5288d55b8624868db8a2dcd3e4a9de197e2119d8886635",
+      "source": "apps/bff/src/billing/platform_catalog.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/billing.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/billing.rs",
+      "sha256": "5af7e196726d884c523cbc6f4f36c8eda057fe650671459708e43211d3cc3a68",
+      "source": "apps/bff/src/billing.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/correlation_id.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/correlation_id.rs",
+      "sha256": "d67a4c15dbb26c916988af6242099583736a9e7dcb081583a3e3431247cd57d9",
+      "source": "apps/bff/src/correlation_id.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/cors.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/cors.rs",
+      "sha256": "08b60e8dde46683a81174e0a946f2d986d2017e0e9e35c8e677f91bfe92b0fc4",
+      "source": "apps/bff/src/cors.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/health_response.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/health_response.rs",
+      "sha256": "c57a4e1f320632b68985493a0fa43faf4635932835518b483c021e49f16ce21a",
+      "source": "apps/bff/src/health_response.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/jobs.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/jobs.rs",
+      "sha256": "ca6b13db9587c8bbb0d349ad91adc1aa9fe721de08d29e38184b170996311a52",
+      "source": "apps/bff/src/jobs.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/main.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/main.rs",
+      "sha256": "ff8c5006dade9d133d86c4113cfc52acf4e10839ec7e64ec2c2e793bd896f950",
+      "source": "apps/bff/src/main.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/notification_inbox.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/notification_inbox.rs",
+      "sha256": "1834f8a924b2e819434c95afc3ed1bd8d69fa7d6ef92c19fb3f3448475747971",
+      "source": "apps/bff/src/notification_inbox.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/openapi.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/openapi.rs",
+      "sha256": "a3490d5aa435f2b16eb8626c7e00a79d820c2dfcef8dd5f13c2da58adc92c7f6",
+      "source": "apps/bff/src/openapi.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_auth/login.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_auth/login.rs",
+      "sha256": "e87f45e815f8a6f04bfcd52c8c79ddfa43fc418590888cbf9564e9d16505d798",
+      "source": "apps/bff/src/platform_auth/login.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_auth/permissions.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_auth/permissions.rs",
+      "sha256": "85b3d7e62eb312236677aac38093fe014101953050d7f80c04fb4f39f5f215db",
+      "source": "apps/bff/src/platform_auth/permissions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_auth/session.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_auth/session.rs",
+      "sha256": "09b2ec496930685cf2a03f58f5ba934c226ca58bf361566e046945d8820883d7",
+      "source": "apps/bff/src/platform_auth/session.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_auth.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_auth.rs",
+      "sha256": "6ea66a4c67f82d01e7eacc9e7b850cf50d18aa3ed3bcc5033707e1b03cbb2140",
+      "source": "apps/bff/src/platform_auth.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_console/directory.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_console/directory.rs",
+      "sha256": "679bcaf95cf4a4df7ece43a55c6b620489e023e081c9af0b59b8414a64db4ca4",
+      "source": "apps/bff/src/platform_console/directory.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_console/support.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_console/support.rs",
+      "sha256": "422b67bd227b1bd0077f8db52def07444327e0b467fc02deac7884f52da6a420",
+      "source": "apps/bff/src/platform_console/support.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/platform_console.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/platform_console.rs",
+      "sha256": "4ed032d6df5b657d39e032cc2901a1c2805285b60a478143ebd73c8fcbf3a47c",
+      "source": "apps/bff/src/platform_console.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/realtime.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/realtime.rs",
+      "sha256": "34dd639ec00e4829311df99f60e5053bf7916e79201d401f84f6cb7a2ec404f1",
+      "source": "apps/bff/src/realtime.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/workspace_team.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/workspace_team.rs",
+      "sha256": "03f539d93165c3c8e5752927eea67fe73f980076ed6acd2a89318e1b398ac093",
+      "source": "apps/bff/src/workspace_team.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/bff/src/workspaces.ox",
+      "preservedPath": ".oxido/original/apps/bff/src/workspaces.rs",
+      "sha256": "5a9cdda425c0f5534f4b3d23083ceb722f14ab2997cd868e5f6f11cc72c8885d",
+      "source": "apps/bff/src/workspaces.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "apps/migrator/Cargo.toml",
+      "sha256": "27d7847e28a782af17554f6e46908eaf9447d2df0984b8296568eef264b627d4",
+      "source": "apps/migrator/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/migrator/src/main.ox",
+      "preservedPath": ".oxido/original/apps/migrator/src/main.rs",
+      "sha256": "0a989ed3aaecff58fc63d5b60d642c1261f9c8fbaea5f9b35bf4a3b29b394b34",
+      "source": "apps/migrator/src/main.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/migrator/src/migration_coordinator.ox",
+      "preservedPath": ".oxido/original/apps/migrator/src/migration_coordinator.rs",
+      "sha256": "c48590d0de64bcda52237fe3fbf98e40f93dce94df5c2c7e5381e5413827062f",
+      "source": "apps/migrator/src/migration_coordinator.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/migrator/src/migration_target.ox",
+      "preservedPath": ".oxido/original/apps/migrator/src/migration_target.rs",
+      "sha256": "60717a3fb7b858f5df31cc16eca9a919effb54eac2c115c58290b00f10c9a673",
+      "source": "apps/migrator/src/migration_target.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "apps/module-runtime/Cargo.toml",
+      "sha256": "48b1f824086c8a516ffe8f39c2257d6642fc1ec319654fc751818acfd928f6a0",
+      "source": "apps/module-runtime/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/asset_deletion_worker.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/asset_deletion_worker.rs",
+      "sha256": "7d54cdb9ebf853bd6f16cfda6d06a781702592db1d4fb9b3b4712db3a9067a4f",
+      "source": "apps/module-runtime/src/asset_deletion_worker.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/asset_storage_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/asset_storage_outbox_relay.rs",
+      "sha256": "559ba17a23535ccbde489d1072d061dbd2530cbdce61972d83a73dd969dfb161",
+      "source": "apps/module-runtime/src/asset_storage_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/asset_storage_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/asset_storage_service.rs",
+      "sha256": "8abf24704f4c0f95c1d50aeb5dfdbb7ecbb23d5d7f5aae591a1b7596027a7e71",
+      "source": "apps/module-runtime/src/asset_storage_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_outbox_relay.rs",
+      "sha256": "1d4dc4e6d96c5e5a3ecdfe27b780a0ed999c250bab17d656de0df8298e5e81b0",
+      "source": "apps/module-runtime/src/commercial_billing_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/authorization.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/authorization.rs",
+      "sha256": "6b55162367f579504e2a6d65b78bfafe901a8c2981e1dd3c8dd6ce047a1ce1d0",
+      "source": "apps/module-runtime/src/commercial_billing_service/authorization.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/lifecycle.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/lifecycle.rs",
+      "sha256": "5c59d73b4fe40704e53328a615bf0624eb4a2a63b5b0489cfa3479dab5269032",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/lifecycle.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/save.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/save.rs",
+      "sha256": "e76800f290efe4b23865b4ece3c0c77588f4992b6c8133135aaa787cc02c8499",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/save.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/simulation.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/simulation.rs",
+      "sha256": "775d6e34924ec9d97cd0a0d3eb42305de32749b897353132bcd6eb8d68d44705",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands/simulation.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_admin/commands.rs",
+      "sha256": "0eee9f9539bcc87e54b0c3578a7be58254ea6004b1cc3dbd8fd256791fbe86f3",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_admin/commands.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_admin/queries.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_admin/queries.rs",
+      "sha256": "b3a115af93f25d0fa9b958ba002a72d8bdb767acf30d14007446b49dcb56a683",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_admin/queries.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_admin.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_admin.rs",
+      "sha256": "d3e3ce8e586eeca76de949ef245c36cadc47cca265e66f173f287d8e06fe4862",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_admin.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/catalog_cache.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/catalog_cache.rs",
+      "sha256": "9230a4a1dd23c3a140dd24258e19480afa85c89d56cb35602100c5caa0ce0840",
+      "source": "apps/module-runtime/src/commercial_billing_service/catalog_cache.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/stripe.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/stripe.rs",
+      "sha256": "1bd59cb1bd40ddf79de197c7e5dc54529648b7def6dce510976aa6fd046a6f69",
+      "source": "apps/module-runtime/src/commercial_billing_service/stripe.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service/webhook.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service/webhook.rs",
+      "sha256": "72487523c86c1cb9d6c0e8870bf8a5c2319d2ecf44b26e24c2a5630d9e73a415",
+      "source": "apps/module-runtime/src/commercial_billing_service/webhook.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/commercial_billing_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/commercial_billing_service.rs",
+      "sha256": "6b0d7553fc57fe4abfe4aa9072ec35d4a5199989f30c71e22a2fe1cfd3c15ebc",
+      "source": "apps/module-runtime/src/commercial_billing_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account/mod.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account/mod.rs",
+      "sha256": "987dbb70f66bcd7b786ebbe3df18a6658ad4132dd3e9f729b1289841dbccdfa5",
+      "source": "apps/module-runtime/src/identity_account/mod.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account/platform_permissions.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account/platform_permissions.rs",
+      "sha256": "0714545ff6371113419ec5ce95d35aa7cdb2d8611452f491f5b7dbae7211af10",
+      "source": "apps/module-runtime/src/identity_account/platform_permissions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account/profile.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account/profile.rs",
+      "sha256": "ffb7dd872598d6ee525f2f3c4f2aca3a952290f5c04d488ba30aeec64308d61f",
+      "source": "apps/module-runtime/src/identity_account/profile.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account/security_events.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account/security_events.rs",
+      "sha256": "27259f81cd0ed725f743561158298a19f04fa2f39f346007876006836a726c33",
+      "source": "apps/module-runtime/src/identity_account/security_events.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account/sessions.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account/sessions.rs",
+      "sha256": "c0441e6300a2ed084e4b7ac3cd2cc810bb1a2d9e1f77cef477f7f193e658cd80",
+      "source": "apps/module-runtime/src/identity_account/sessions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account/shared.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account/shared.rs",
+      "sha256": "6d2252aaf1021dd7f71c6422c1d4025100e890425734943a0f3f4bdbdbb55732",
+      "source": "apps/module-runtime/src/identity_account/shared.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_account_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_account_service.rs",
+      "sha256": "d939a0fd04efb5389033d13a83b8bf74c46e7344ccb20330d6e6095e63827450",
+      "source": "apps/module-runtime/src/identity_account_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/identity_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/identity_outbox_relay.rs",
+      "sha256": "1cd0b5b54e169a701bc176f0f8a56a6806292353f0e732a5853ea039dbacb7db",
+      "source": "apps/module-runtime/src/identity_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/jobs_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/jobs_outbox_relay.rs",
+      "sha256": "e34fe95ec10bd974beffff77d92187773e6c2375223f579d716c5a2eafd75afe",
+      "source": "apps/module-runtime/src/jobs_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/main.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/main.rs",
+      "sha256": "9b0be2ed3caa619466efbc7109e074e0c29ade6e8d0980b292fb0e16fa2620eb",
+      "source": "apps/module-runtime/src/main.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/notification_inbox_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/notification_inbox_service.rs",
+      "sha256": "5c9e0b173201a1600ed213ece9109203322ff34e21093091028e3c4f5639c84f",
+      "source": "apps/module-runtime/src/notification_inbox_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/notifications_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/notifications_outbox_relay.rs",
+      "sha256": "f5f958f567ad9cc71255bd7adf48cd8f475e152f180afae4d222fdb3e4ffb0c4",
+      "source": "apps/module-runtime/src/notifications_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/notifications_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/notifications_service.rs",
+      "sha256": "2ae5a596b410ffb904bd18c542567601ffc96a648bebd03f9e581df5fd49bf4b",
+      "source": "apps/module-runtime/src/notifications_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/platform_control_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/platform_control_outbox_relay.rs",
+      "sha256": "1b5f5b4b6763582bd2434c7b9751b96d8f8627a821a6487264f11d87a67ada55",
+      "source": "apps/module-runtime/src/platform_control_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/platform_control_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/platform_control_service.rs",
+      "sha256": "67e934d9846f3f7f38290b95d2cfa4ea8504d945f981cb378fff75dc0b66c98f",
+      "source": "apps/module-runtime/src/platform_control_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/r2_storage.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/r2_storage.rs",
+      "sha256": "a8af143c04449be61d97fa3cbe8d76bd3d939f74bf40d54f11578fd950d00f5d",
+      "source": "apps/module-runtime/src/r2_storage.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/readiness_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/readiness_service.rs",
+      "sha256": "858d5843b69caec98cc57b15b363093215e5eb58eca1eaed60f36fb93104bc2e",
+      "source": "apps/module-runtime/src/readiness_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/realtime_event_worker.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/realtime_event_worker.rs",
+      "sha256": "d862317de82c40e13dfac043249e243ba9bce7b4837a264472b931254fc1fbd2",
+      "source": "apps/module-runtime/src/realtime_event_worker.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/realtime_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/realtime_service.rs",
+      "sha256": "cd754b890468dc76085894e0c6008bdb4a468bdd7e3da5c77f086e198d8ca5e3",
+      "source": "apps/module-runtime/src/realtime_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/scratch_cleanup_worker.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/scratch_cleanup_worker.rs",
+      "sha256": "24aef082a3697fb671b7c4c06a159dd6a09cd4f2a3c8ef39b3dfbcd014044419",
+      "source": "apps/module-runtime/src/scratch_cleanup_worker.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/tenancy_invitation_worker.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/tenancy_invitation_worker.rs",
+      "sha256": "ee42d49b129ce0e0540cd32f9764b26fffae668dc7e68c029d9d5a424df84e35",
+      "source": "apps/module-runtime/src/tenancy_invitation_worker.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/tenancy_outbox_relay.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/tenancy_outbox_relay.rs",
+      "sha256": "a2f907eb4a467fdcd571367c3b488d7a7d4e8758df77e855e6efbed72c4f3724",
+      "source": "apps/module-runtime/src/tenancy_outbox_relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/tenancy_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/tenancy_service.rs",
+      "sha256": "e4196a8cc17d38c34e00ca663d09a43117d3e6bc75bdee0ac5500b3784885f21",
+      "source": "apps/module-runtime/src/tenancy_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/tenancy_teams_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/tenancy_teams_service.rs",
+      "sha256": "c3ee880f64c54d66b8517000b5e0f474f3452e5f8453f569cc22c9848697766f",
+      "source": "apps/module-runtime/src/tenancy_teams_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/tenant_jobs_service.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/tenant_jobs_service.rs",
+      "sha256": "e5d3478dc146e01030850feed2cb18101448ec317e1e87cb4b86254ca56faf96",
+      "source": "apps/module-runtime/src/tenant_jobs_service.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/src/worker_auth.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/src/worker_auth.rs",
+      "sha256": "739641b30fd229cfbd2ff1630c5b636ce5b3ad3d719b1cbbefc742338f0e38ef",
+      "source": "apps/module-runtime/src/worker_auth.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/tests/billing_outbox_real.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/tests/billing_outbox_real.rs",
+      "sha256": "a6a4866ebdebdfe5fcf6fc49ee47822bdcd866054a418ec629681e0a9586dfc9",
+      "source": "apps/module-runtime/tests/billing_outbox_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/module-runtime/tests/jetstream_real.ox",
+      "preservedPath": ".oxido/original/apps/module-runtime/tests/jetstream_real.rs",
+      "sha256": "be53427de5d37f190cc3313702acfb2ea53dc08b248f91a726fabcc21124c0dd",
+      "source": "apps/module-runtime/tests/jetstream_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "apps/platform-operator-provisioner/Cargo.toml",
+      "sha256": "19a9805684f6a61f01e64d3432acabbf8eb7c1e3a8f6c6768dad3f6a23c82241",
+      "source": "apps/platform-operator-provisioner/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "apps/platform-operator-provisioner/src/main.ox",
+      "preservedPath": ".oxido/original/apps/platform-operator-provisioner/src/main.rs",
+      "sha256": "14d8a8940cf2466e15c380cb10a8c0780830b531cf13b9807bbe6d721554049a",
+      "source": "apps/platform-operator-provisioner/src/main.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "buf.yaml",
+      "sha256": "fec1aca7ddf6aadd6453401ed04a3389921761aea83c3cbb7fc96abb914e7ce7",
+      "source": "buf.yaml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "compose.yaml",
+      "sha256": "2cb77c8380dbaba5ef76594729389ef71c03768ad1c73496a3757af04e7711e6",
+      "source": "compose.yaml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/auditoria-estado-2026-10-27.md",
+      "sha256": "7e98af114a9777bb4d6968d20cb5276f4ea4079b21d3dffe2f58c11751ab48cb",
+      "source": "docs/auditoria-estado-2026-10-27.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/decision-comercial-v1.md",
+      "sha256": "3adf0a4a0fc34e5d115f76fc7570acb8920b6bd534fcc57781a3e5a7e11f621e",
+      "source": "docs/decision-comercial-v1.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/fase-1-auditoria-y-diseno.md",
+      "sha256": "fc8aac190945d2719dc4377d1805bd252e7052b0d3d48a3b83a71e2db59a6d1c",
+      "source": "docs/fase-1-auditoria-y-diseno.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/fase-2-infraestructura-y-base-de-datos.md",
+      "sha256": "73d1ad8679c225118ba747e37f754cad530202fc662470e674b4dfb3372e1b40",
+      "source": "docs/fase-2-infraestructura-y-base-de-datos.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/fase-3-seguridad-y-usuarios.md",
+      "sha256": "a07e31139a016ced02e641d886de3b087c1e91226471bd039ad540ddee4c8e71",
+      "source": "docs/fase-3-seguridad-y-usuarios.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/fase-4-multi-tenancy-y-equipos.md",
+      "sha256": "d44e0dd9b3789e86d28013cb3e9597b03e5ca700b58c1def0da4026f5c97ff6e",
+      "source": "docs/fase-4-multi-tenancy-y-equipos.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "docs/fase-5-monetizacion-y-consumo.md",
+      "sha256": "0db53f66d0bc7345dfa3cd6e8d86e5a283b4952daf08ba2a80a26b2fca3707ee",
+      "source": "docs/fase-5-monetizacion-y-consumo.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "infra/postgres/001-context-roles.sh",
+      "sha256": "7580f38e30d1aaa3562e9c50219000dda9fdf281da950b4c6b92ca31b64c5913",
+      "source": "infra/postgres/001-context-roles.sh",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/analytics/Cargo.toml",
+      "sha256": "d96584d37adf993ddd18e9e56c9f34b0d2b201637a2f570296681ff602a7a0cc",
+      "source": "modules/analytics/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/analytics/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/analytics/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/analytics/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/analytics/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/analytics/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/analytics/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/analytics/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/analytics/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/analytics/src/module_public_api.rs",
+      "sha256": "34dad676b3f2efe1350b2ba60cfb26e61794c7389d9056984329abe69b792a96",
+      "source": "modules/analytics/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/approvals/Cargo.toml",
+      "sha256": "d3ad38064449131c7a263c8ff8e5c4a7149853176096ea4ca7ae7acd2f8491d6",
+      "source": "modules/approvals/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/approvals/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/approvals/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/approvals/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/approvals/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/approvals/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/approvals/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/approvals/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/approvals/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/approvals/src/module_public_api.rs",
+      "sha256": "798479160b2e1ec299e63e04c4b25106fed2347536af259a23cb6eaae3f35d16",
+      "source": "modules/approvals/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/Cargo.toml",
+      "sha256": "e835d0b474b3aed8c992655c06a2f7955c1fd4ad12d711fccf56312de5acfb6b",
+      "source": "modules/asset-storage/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/asset-storage/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/asset-storage/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/migrations/20261020000000_create_private_assets.sql",
+      "sha256": "ea44e1f7bdda535853619e52bd18e5a1fc660070baea72ab023cc03550f402e1",
+      "source": "modules/asset-storage/migrations/20261020000000_create_private_assets.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/migrations/20261021100000_runtime_schema_grants.sql",
+      "sha256": "fd31f5594a674075dda42a04086f316511ccacf7f55a2c8df25e0843ee36df92",
+      "source": "modules/asset-storage/migrations/20261021100000_runtime_schema_grants.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/migrations/20261021110000_runtime_outbox_grants.sql",
+      "sha256": "61ec6215917a2b52e0da8cfd44aed6a4bc0626910569b0a5371d81ff7536ae94",
+      "source": "modules/asset-storage/migrations/20261021110000_runtime_outbox_grants.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/asset-storage/migrations/20261021120000_normalize_asset_search_terms.sql",
+      "sha256": "ccb0fe7a84cf4d34edef0dd611caae0e15b254605e4bfc1c1fc8c8ad4a9c5d87",
+      "source": "modules/asset-storage/migrations/20261021120000_normalize_asset_search_terms.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/asset-storage/src/assets.ox",
+      "preservedPath": ".oxido/original/modules/asset-storage/src/assets.rs",
+      "sha256": "8bede03e6177cd2e9694fac17e29eff9fcb67ea87c0c35ef1b9e3114750ddcc1",
+      "source": "modules/asset-storage/src/assets.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/asset-storage/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/asset-storage/src/lib.rs",
+      "sha256": "fe198429762ebe299e4dc74e834dcb1fcd43c3f797d49efecfbfc3137b675d84",
+      "source": "modules/asset-storage/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/asset-storage/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/asset-storage/src/module_public_api.rs",
+      "sha256": "bb30eca1f5724c73aa9b238cae12919926b1dac4c475275fff6033312aa2703d",
+      "source": "modules/asset-storage/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/asset-storage/tests/assets_real.ox",
+      "preservedPath": ".oxido/original/modules/asset-storage/tests/assets_real.rs",
+      "sha256": "f6764a50fe77b06d002b98a07823a07e41d708f09b73d93e29ae63332cb6767f",
+      "source": "modules/asset-storage/tests/assets_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/audit/Cargo.toml",
+      "sha256": "4b71afc01967138fd681b3389a1b0ed2db9519271a19435acf0774c4ad6d6284",
+      "source": "modules/audit/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/audit/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/audit/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/audit/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/audit/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/audit/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/audit/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/audit/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/audit/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/audit/src/module_public_api.rs",
+      "sha256": "299860b184662f2c60b634f1ba204f60cff89c4130b932a641f5938b7bb4d8a0",
+      "source": "modules/audit/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/Cargo.toml",
+      "sha256": "56112fba3486081496c3387699c65dd6793d1b4ea6a9390cc2a10df4dfe35f82",
+      "source": "modules/commercial-billing/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/commercial-billing/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/commercial-billing/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000000_create_versioned_catalog_and_subscriptions.sql",
+      "sha256": "6a924066111b7e7b58b3c57201bd4ee7032d00cf1b5534db40ec4697a6262ca6",
+      "source": "modules/commercial-billing/migrations/20261027000000_create_versioned_catalog_and_subscriptions.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000001_subscription_history_constraints.sql",
+      "sha256": "6176585c4195935648f83c7cb12e4ab1749e6f632ce148760de8be5ce5f143ec",
+      "source": "modules/commercial-billing/migrations/20261027000001_subscription_history_constraints.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000002_catalog_publication_gates.sql",
+      "sha256": "0cf49b38940a87e02f3a489fafb5b4cf57a9aaa8bd02ca2a7b53ea8460859634",
+      "source": "modules/commercial-billing/migrations/20261027000002_catalog_publication_gates.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000003_runtime_role_privileges.sql",
+      "sha256": "e9f35fa1508f962b2a3298f0066a561bd4f7e5476954879fc8760165dfe4787e",
+      "source": "modules/commercial-billing/migrations/20261027000003_runtime_role_privileges.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000004_catalog_admin_audit.sql",
+      "sha256": "53fe2464d2fad531c09c465f84fe8eaef3d688f636427ff11ebe4e01f5a902b3",
+      "source": "modules/commercial-billing/migrations/20261027000004_catalog_admin_audit.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000005_profitability_scenarios.sql",
+      "sha256": "6264d6026559bdac27f292e8aa75cfa64d40da5d4b80d9044bd31abe1d6bb744",
+      "source": "modules/commercial-billing/migrations/20261027000005_profitability_scenarios.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000006_catalog_draft_idempotency.sql",
+      "sha256": "cb8ac73a64869bcf6c05257636cc3565d3224b342e7e35f14fa5e85d20a3b049",
+      "source": "modules/commercial-billing/migrations/20261027000006_catalog_draft_idempotency.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/commercial-billing/migrations/20261027000007_subscription_plan_schedules.sql",
+      "sha256": "5f76d35abc5640bdbf6e23d97e542c3983d6663673f46339109548c8613fdab1",
+      "source": "modules/commercial-billing/migrations/20261027000007_subscription_plan_schedules.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/commercial-billing/src/catalog.ox",
+      "preservedPath": ".oxido/original/modules/commercial-billing/src/catalog.rs",
+      "sha256": "880aef6ef7ff7b8cf56035b2750e83a20d7e878c0236826c9764fe6bc3041920",
+      "source": "modules/commercial-billing/src/catalog.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/commercial-billing/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/commercial-billing/src/lib.rs",
+      "sha256": "28ca68f9735521f28392a1ed902aa62c4fd0686986516a8b4f555fd31b96b54e",
+      "source": "modules/commercial-billing/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/commercial-billing/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/commercial-billing/src/module_public_api.rs",
+      "sha256": "b256447a50ff36a6aeb1788d7e5e9f5f758ec5ccae587e447e580f2c88eea5bd",
+      "source": "modules/commercial-billing/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/commercial-billing/src/subscriptions.ox",
+      "preservedPath": ".oxido/original/modules/commercial-billing/src/subscriptions.rs",
+      "sha256": "fc273c93d8348e7e035af150558fa1b910ee772822c1baf433ec54d3259a70c2",
+      "source": "modules/commercial-billing/src/subscriptions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/commercial-billing/tests/catalog_real.ox",
+      "preservedPath": ".oxido/original/modules/commercial-billing/tests/catalog_real.rs",
+      "sha256": "2414724a87b3e78efb704466e5cf166c6a07484e2b8768e59f1db5119ecc4db4",
+      "source": "modules/commercial-billing/tests/catalog_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/commercial-billing/tests/subscription_schedule_real.ox",
+      "preservedPath": ".oxido/original/modules/commercial-billing/tests/subscription_schedule_real.rs",
+      "sha256": "b8f2bf53bb1948762696e6177af8cd1dfdfba7b97e0591c14c21503e62ae56bc",
+      "source": "modules/commercial-billing/tests/subscription_schedule_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/financial-research/Cargo.toml",
+      "sha256": "684545ba0b06c2543e9f073207b2f0607aac514604c1e78196e1760fdfb58696",
+      "source": "modules/financial-research/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/financial-research/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/financial-research/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/financial-research/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/financial-research/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/financial-research/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/financial-research/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/financial-research/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/financial-research/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/financial-research/src/module_public_api.rs",
+      "sha256": "cf4e919c07283c66236749e7888791888a4cf9faaeade280d4ce6b672bd486ff",
+      "source": "modules/financial-research/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/generation/Cargo.toml",
+      "sha256": "b4d3fbd4c65422632905aa0731d7a57001daf5ea15ffb01936cd647c4ac03204",
+      "source": "modules/generation/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/generation/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/generation/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/generation/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/generation/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/generation/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/generation/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/generation/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/generation/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/generation/src/module_public_api.rs",
+      "sha256": "c22c5f6c347e3a511455ec904fe30b0839268300b47a1ad288a0f6901fa63d19",
+      "source": "modules/generation/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/Cargo.toml",
+      "sha256": "cd0f9e459e68c5d22d29feb8469b07f2ec6343e2d103aaa4463153e0f11d1996",
+      "source": "modules/identity/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/identity/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/identity/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000002_create_identity_accounts_and_sessions.sql",
+      "sha256": "bf66943aeafabbdff327bee545519d42219807fe89c87968b7e859e08a3dc886",
+      "source": "modules/identity/migrations/20261018000002_create_identity_accounts_and_sessions.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000003_add_verification_and_marketing_consent.sql",
+      "sha256": "aa774e2c4f7f6803be891d0545179077369944b63457db10650449693dd73091",
+      "source": "modules/identity/migrations/20261018000003_add_verification_and_marketing_consent.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000004_add_email_delivery_events.sql",
+      "sha256": "e28d91bd3c3e55c79e872c6bdde13d684f861d045c2a192fc3b9be60d641dd53",
+      "source": "modules/identity/migrations/20261018000004_add_email_delivery_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000005_add_account_security_and_platform_access.sql",
+      "sha256": "73e7cde572d9843a08af9eb932bdefda6878b4c15cc813eb6d63adae99382693",
+      "source": "modules/identity/migrations/20261018000005_add_account_security_and_platform_access.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000006_unique_provider_email_message_id.sql",
+      "sha256": "f03897c95f3f1afec888af90044cec21b1d21e88332bb55a39af65aed2fcc45a",
+      "source": "modules/identity/migrations/20261018000006_unique_provider_email_message_id.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261018000007_add_email_verification_codes.sql",
+      "sha256": "77945fd3b5d29d1ce6fc86b608f83baf569a4ce8a5bcffede922390866c2512a",
+      "source": "modules/identity/migrations/20261018000007_add_email_verification_codes.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261021000001_platform_support_permissions.sql",
+      "sha256": "066602fac9eb993cb79e96c9c50e7b878688ac885af132299de0823390b13f2e",
+      "source": "modules/identity/migrations/20261021000001_platform_support_permissions.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/identity/migrations/20261027000008_platform_billing_management_permission.sql",
+      "sha256": "72eafcbf573e360ebad5ebf68c7375415d947351310e359bffe65aae17c46050",
+      "source": "modules/identity/migrations/20261027000008_platform_billing_management_permission.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/account/cursor.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/account/cursor.rs",
+      "sha256": "20cefd824c96fbaf58c1f3d8354391c61d72aa6f0c26c26ae8c9b7caaff26286",
+      "source": "modules/identity/src/authentication/account/cursor.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/account/password_change.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/account/password_change.rs",
+      "sha256": "47338076fee5476c60a65e3e57eb361c5307838ab49e17fa8c7fcea93eee714e",
+      "source": "modules/identity/src/authentication/account/password_change.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/account/profile.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/account/profile.rs",
+      "sha256": "c38f538fd66adb131cf5b8848fef5eed4bcd235ff96e9f3bf71f5a5a539eda55",
+      "source": "modules/identity/src/authentication/account/profile.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/account/security_events.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/account/security_events.rs",
+      "sha256": "280a971f6d9ba325879e660bd7d8dbc273ddb7dfbbb41e1f07826d0bad815195",
+      "source": "modules/identity/src/authentication/account/security_events.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/account/sessions.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/account/sessions.rs",
+      "sha256": "93fff8fea89550540e84e5c90f51eed53678c81cf88b8fa7f0480bf2674eb79e",
+      "source": "modules/identity/src/authentication/account/sessions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/account.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/account.rs",
+      "sha256": "a390443846f27388f23b588385a551c5693ea29fb83be7806ace8df16a40c803",
+      "source": "modules/identity/src/authentication/account.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/email_actions.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/email_actions.rs",
+      "sha256": "7aada864c8a6ba4836e33d31094dfd3077eb9df68de2abe19d347e0f116917c4",
+      "source": "modules/identity/src/authentication/email_actions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/helpers.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/helpers.rs",
+      "sha256": "a8fef0ccd9ebfc0cacf507d40b424d91f9a0346a3dfe51ab71308acf5b864e9b",
+      "source": "modules/identity/src/authentication/helpers.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/login.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/login.rs",
+      "sha256": "f89eec9c7130573bf753e6977627832d75a6d0a996613b9c793fe1d7dba40d08",
+      "source": "modules/identity/src/authentication/login.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/login_rate_limit.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/login_rate_limit.rs",
+      "sha256": "1f7a54de302e2906d3f4c1d76b1161ed961af37092e12bd641578a139e802826",
+      "source": "modules/identity/src/authentication/login_rate_limit.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/marketing_consent.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/marketing_consent.rs",
+      "sha256": "118caa10590c67757b0237fb946229180674404159485dfefefea4cd23429946",
+      "source": "modules/identity/src/authentication/marketing_consent.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/outbox.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/outbox.rs",
+      "sha256": "b01585157e0d65273a85070d39d4b5ff3ab7beb482aa368ff2398d4d83498aec",
+      "source": "modules/identity/src/authentication/outbox.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/password_recovery.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/password_recovery.rs",
+      "sha256": "d23bd1f7b2091418a8307f5ae5ce2698eadae45124cd2bf6a0bf10b5ae2203eb",
+      "source": "modules/identity/src/authentication/password_recovery.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/platform_access/provisioning.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/platform_access/provisioning.rs",
+      "sha256": "405318f7c7bb7ab6343e19b1e65ad5b97b945ed19582c0bbadafeeb3c90ab221",
+      "source": "modules/identity/src/authentication/platform_access/provisioning.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/platform_access.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/platform_access.rs",
+      "sha256": "ec92b869089ac777c259a41fe6847bf7a9fa20070e15871d557575d0586ff2f8",
+      "source": "modules/identity/src/authentication/platform_access.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/provider_events.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/provider_events.rs",
+      "sha256": "a3fee05b8953b1b17cfb4d5f896f531ff0d9e5c4f17387aa62e4b4c6f80ebea9",
+      "source": "modules/identity/src/authentication/provider_events.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/registration.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/registration.rs",
+      "sha256": "132ddd9482242ba282903a555f5c97719bd70463250e06fccd19edb1902cf3e4",
+      "source": "modules/identity/src/authentication/registration.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/session_creation.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/session_creation.rs",
+      "sha256": "d7756f25f2feab94830ad10bd95c97dea2f5b2be1f60fa8874d26080656b3c6a",
+      "source": "modules/identity/src/authentication/session_creation.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/session_validation.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/session_validation.rs",
+      "sha256": "cd738418197776f2223c2d0d7c03e5d29cd3787550c899fc944b703dd5c619c6",
+      "source": "modules/identity/src/authentication/session_validation.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication/verification.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication/verification.rs",
+      "sha256": "10e8fe6df146f9b44b61e02958d0a5be46ca34c4c36a9aa43786631bf269ff9b",
+      "source": "modules/identity/src/authentication/verification.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/authentication.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/authentication.rs",
+      "sha256": "b614ec61390b9e77534459c2606ea4eab24f678ebbba317f87862845be904f8a",
+      "source": "modules/identity/src/authentication.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/lib.rs",
+      "sha256": "226a8b3abe4a03710cf5b5e79ce27480a8f950b3cb81e9ffb1df29cafda335d3",
+      "source": "modules/identity/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/identity/src/module_public_api.rs",
+      "sha256": "c7e031ab8efe5e23614742bc7aeefac5d3e4f4dcf4972233ecf3c1278aea557d",
+      "source": "modules/identity/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/replicas_real.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/replicas_real.rs",
+      "sha256": "6ee0a20743778f09715a94d2f26a4717221b0f6e3c9b9044c8136f79c2337fef",
+      "source": "modules/identity/tests/replicas_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/account_sessions.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/account_sessions.rs",
+      "sha256": "7dce06e9e09da05d19f774e7977f2bd2cc037a07a101e0054aea5188a7720034",
+      "source": "modules/identity/tests/security_real/account_sessions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/bff_contract.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/bff_contract.rs",
+      "sha256": "7707babe310e47164dd7081c637f2cafc11deaae2ab50ccafa91c078e70dbf33",
+      "source": "modules/identity/tests/security_real/bff_contract.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/delivery.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/delivery.rs",
+      "sha256": "addfee94774e4d1a3fc164ed9f8edd0c2dac2e47c4d6ec6f6a4f60aeaf7fe348",
+      "source": "modules/identity/tests/security_real/delivery.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/flows.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/flows.rs",
+      "sha256": "5f780aed84f6ecf4b19f80c9934984b9e4c213a7b20a0f37f3c952fd1a4c91e9",
+      "source": "modules/identity/tests/security_real/flows.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/operator.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/operator.rs",
+      "sha256": "82b63a9d1f5f9901acce83442661ddaedeea01ebc7e163ba2c9dffdf61e37d74",
+      "source": "modules/identity/tests/security_real/operator.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/platform_console.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/platform_console.rs",
+      "sha256": "8fb87c90365c82938bb3b28efe33b7a1edbe1f094b20e2077860aff2816d5736",
+      "source": "modules/identity/tests/security_real/platform_console.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/replica_services.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/replica_services.rs",
+      "sha256": "717e21fe8561f75492cb06371d82f071c802b4aea5eec0cddead6cd338c50ed9",
+      "source": "modules/identity/tests/security_real/replica_services.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real/services.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real/services.rs",
+      "sha256": "7959bb6757e990d8418cdf6ab7f2bd2e070d38fc53fcf54694fe9f60d5d83a2b",
+      "source": "modules/identity/tests/security_real/services.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/identity/tests/security_real.ox",
+      "preservedPath": ".oxido/original/modules/identity/tests/security_real.rs",
+      "sha256": "1d243b2b528934e48b53433701389355af9613607f72927f473b14984fa09185",
+      "source": "modules/identity/tests/security_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/integrations/Cargo.toml",
+      "sha256": "45f576956733517730bdaf4e4a1c1824778bf2765f88efa175d5e9eb286288c0",
+      "source": "modules/integrations/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/integrations/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/integrations/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/integrations/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/integrations/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/integrations/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/integrations/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/integrations/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/integrations/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/integrations/src/module_public_api.rs",
+      "sha256": "d46bd73e12f301aba60b18049af1aa3e01d7898b2b5f7a13bc44b794ebdbb62a",
+      "source": "modules/integrations/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/jobs/Cargo.toml",
+      "sha256": "4fade935bfca0ea430f48cf9cdac0e784ac772ceb5f79f01fe2f418cabf03488",
+      "source": "modules/jobs/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/jobs/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/jobs/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/jobs/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/jobs/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/jobs/migrations/20261020000000_create_tenant_jobs.sql",
+      "sha256": "e9ec8e4fbcc442b77ae2534786d6dc7a4177ea89acffdc3da4ef7915c468c006",
+      "source": "modules/jobs/migrations/20261020000000_create_tenant_jobs.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/jobs/migrations/20261021100000_runtime_schema_grants.sql",
+      "sha256": "0846617779f0290e582304ca77093f05c6fa9d861e288d021a64308fc3c328c8",
+      "source": "modules/jobs/migrations/20261021100000_runtime_schema_grants.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/jobs/migrations/20261021110000_runtime_outbox_grants.sql",
+      "sha256": "673c29c75a9f7e634701188b860408130afb001c74f70f9b463a6e5f11c1475b",
+      "source": "modules/jobs/migrations/20261021110000_runtime_outbox_grants.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/jobs/src/jobs.ox",
+      "preservedPath": ".oxido/original/modules/jobs/src/jobs.rs",
+      "sha256": "0e80e64f985d64ee39732ac97b20ae8ef1439390c1dc7e598cce128aebc0ce0f",
+      "source": "modules/jobs/src/jobs.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/jobs/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/jobs/src/lib.rs",
+      "sha256": "566d57636f9cd0d5a81dfe1b426abf7e84852b68351da8f063c49c472d13f360",
+      "source": "modules/jobs/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/jobs/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/jobs/src/module_public_api.rs",
+      "sha256": "33ce876e42b462dacda4f2dc06561cd82362ea0b56ee947bfecac4f31617f1d6",
+      "source": "modules/jobs/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/jobs/src/scratch.ox",
+      "preservedPath": ".oxido/original/modules/jobs/src/scratch.rs",
+      "sha256": "6aa1d6f21615b10488aa5b165a8d48708d28de5c40b0948bffca602a11907ac0",
+      "source": "modules/jobs/src/scratch.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/jobs/tests/jobs_real.ox",
+      "preservedPath": ".oxido/original/modules/jobs/tests/jobs_real.rs",
+      "sha256": "1b7c3de382e5b9f44375d003a1f1f42e4cbca2494128de7a1d0d14e7a1ce810f",
+      "source": "modules/jobs/tests/jobs_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/media-pipeline/Cargo.toml",
+      "sha256": "73926c846c33f1e1766d870fdaaa923092061fc4747344ab77cb19b07d0afbe1",
+      "source": "modules/media-pipeline/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/media-pipeline/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/media-pipeline/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/media-pipeline/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/media-pipeline/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/media-pipeline/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/media-pipeline/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/media-pipeline/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/media-pipeline/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/media-pipeline/src/module_public_api.rs",
+      "sha256": "cd40ff8417e3f9342221bbee0ac446719d4a8fa87b31148606dd5805385e81cc",
+      "source": "modules/media-pipeline/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/Cargo.toml",
+      "sha256": "ca197211cd800abcffb08394db46b9ab997ce6f78ade8899ae4b18a40f4c85fe",
+      "source": "modules/notifications/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/notifications/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/notifications/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261019110000_create_notification_inbox.sql",
+      "sha256": "70785d3cfe1931e0464016663f218fe2046a51efec7dacaf0afb59de7bde5ed2",
+      "source": "modules/notifications/migrations/20261019110000_create_notification_inbox.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261019130000_notification_scope_cursors.sql",
+      "sha256": "186081899f3c95b6a2339a9c25baad760e866d9da40622b5b28d7841d9f6bf0e",
+      "source": "modules/notifications/migrations/20261019130000_notification_scope_cursors.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261019150000_scope_notification_cursor_uniqueness.sql",
+      "sha256": "6f2cb041c525e90a4be88b1a184cda50782e52fbd2fa05e790ff1ad0ceec7b49",
+      "source": "modules/notifications/migrations/20261019150000_scope_notification_cursor_uniqueness.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261019170000_extend_workspace_notifications.sql",
+      "sha256": "d9707908018dd7b1d3ee8a8817e7e27c5e41fa8e9bedd305b10b813d35b72754",
+      "source": "modules/notifications/migrations/20261019170000_extend_workspace_notifications.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/notifications/migrations/20261019190000_workspace_access_notifications.sql",
+      "sha256": "92eff57c744762914b0a838299fef78b7078b03b520181ae604c414dfb2855d1",
+      "source": "modules/notifications/migrations/20261019190000_workspace_access_notifications.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/inbox.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/inbox.rs",
+      "sha256": "41210f66093457275a7b76953fe38f80ac1486f609dc11d0677971defe7f3b22",
+      "source": "modules/notifications/src/inbox.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/lib.rs",
+      "sha256": "eec827f3c79207ab9bcf5c4000c9c2ce5408ce414d65d6cd1cc2faa4c7c98b97",
+      "source": "modules/notifications/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/module_public_api.rs",
+      "sha256": "577e5981bf3b83229c0998a4ca05a02cac552935de9a1a50124b5116412a5878",
+      "source": "modules/notifications/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/resend.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/resend.rs",
+      "sha256": "a9b0d3f70fe0d033fb99ddcfdb613b73c0cc7e52ab832e970af2a435c5efacfa",
+      "source": "modules/notifications/src/resend.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/resend_webhook.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/resend_webhook.rs",
+      "sha256": "ac33daae47ede35313770234536677a7024aadbd25b621f6b699742c6453967e",
+      "source": "modules/notifications/src/resend_webhook.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/templates/transactional_email.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/templates/transactional_email.rs",
+      "sha256": "a2740d52041b57efe95eb4bc1544c3ede324371b5f5a28003c1383834aa3f63f",
+      "source": "modules/notifications/src/templates/transactional_email.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/src/templates.ox",
+      "preservedPath": ".oxido/original/modules/notifications/src/templates.rs",
+      "sha256": "bd5893808fae16c3149cf6df8821e5e8e01c132572c2ad35d92ca6c4a13e9bb1",
+      "source": "modules/notifications/src/templates.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/notifications/tests/inbox_real.ox",
+      "preservedPath": ".oxido/original/modules/notifications/tests/inbox_real.rs",
+      "sha256": "3276b509f1f3fdadf1f18d146faa58eaac86402fc3eaa75cd646b1d66d260f55",
+      "source": "modules/notifications/tests/inbox_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/platform-control/Cargo.toml",
+      "sha256": "17cc5b744cad14029066d30e4ce9e9ad1225a72c8d9ffd22f46c5dc98e15b18d",
+      "source": "modules/platform-control/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/platform-control/migrations/20261021000001_support_grants.sql",
+      "sha256": "72c372cad231354fc0d3c40f319bfb332b200e3b76522ae1670c214c06440ab5",
+      "source": "modules/platform-control/migrations/20261021000001_support_grants.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/platform-control/src/grants.ox",
+      "preservedPath": ".oxido/original/modules/platform-control/src/grants.rs",
+      "sha256": "a701d6b5fc02186ad93d3138e31ba721931b2f8a62b8987b03e40fbb7aa589cb",
+      "source": "modules/platform-control/src/grants.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/platform-control/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/platform-control/src/lib.rs",
+      "sha256": "bf45d7363dbae0776b6799fb40e63492f0becdd581a9fcc163e3e4e106f4c2f9",
+      "source": "modules/platform-control/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/platform-control/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/platform-control/src/module_public_api.rs",
+      "sha256": "ab91a085c00fa151dd4d335cf3727372009b735dfc6b38edbf911942994b0965",
+      "source": "modules/platform-control/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/platform-control/tests/grants_real.ox",
+      "preservedPath": ".oxido/original/modules/platform-control/tests/grants_real.rs",
+      "sha256": "c4d996e45f2d85ad26cee1bad5810bd0af848c5621e7f6cb51945c12a9d34fd5",
+      "source": "modules/platform-control/tests/grants_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/projects/Cargo.toml",
+      "sha256": "bef0b53d717ccb30854878eb4677cc146aa5870809c27cb53687646f90cc9629",
+      "source": "modules/projects/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/projects/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/projects/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/projects/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/projects/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/projects/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/projects/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/projects/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/projects/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/projects/src/module_public_api.rs",
+      "sha256": "422eb20827c81fed837caf8e031223a457921166320272afcae255556827e261",
+      "source": "modules/projects/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/provider-catalog/Cargo.toml",
+      "sha256": "3eb04876aa6f5f0b129293df337b5428a2ef3ca95cb00f24e9efbd9269a8fb4c",
+      "source": "modules/provider-catalog/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/provider-catalog/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/provider-catalog/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/provider-catalog/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/provider-catalog/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/provider-catalog/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/provider-catalog/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/provider-catalog/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/provider-catalog/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/provider-catalog/src/module_public_api.rs",
+      "sha256": "a561c2104ea50bb6885e19a018611a142631440be295dea9ec7c2960a70d8d54",
+      "source": "modules/provider-catalog/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/publishing/Cargo.toml",
+      "sha256": "b1c7141baf48fa2df5fdc6850f1a754b6167abac0de68a57c85026aac2b428ea",
+      "source": "modules/publishing/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/publishing/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/publishing/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/publishing/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/publishing/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/publishing/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/publishing/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/publishing/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/publishing/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/publishing/src/module_public_api.rs",
+      "sha256": "34cc336a3892cb003acd67ff7003c3676aa65869df06901d1f330dee0c39cbe4",
+      "source": "modules/publishing/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/realtime/Cargo.toml",
+      "sha256": "18902d11056feb7253f4bc12b1a8116dd8eb11dd5f67d44dfc2d56efdb712d5a",
+      "source": "modules/realtime/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/realtime/migrations/20261019120000_create_event_journal.sql",
+      "sha256": "7e6c70ff3b16ce4f0e3c457ffb79d9eea362ecac69585765d81508b07af7d8fe",
+      "source": "modules/realtime/migrations/20261019120000_create_event_journal.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/realtime/migrations/20261019130000_scope_cursors.sql",
+      "sha256": "710fd9bebc3222360687c2f768b166be065f88ceeb4fcc9e9423a7c0fad32133",
+      "source": "modules/realtime/migrations/20261019130000_scope_cursors.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/realtime/migrations/20261019140000_add_event_schema_version.sql",
+      "sha256": "423c74e96415079ae6d1f8579346b41e1401b68330338b1c2c25a8244d3aa868",
+      "source": "modules/realtime/migrations/20261019140000_add_event_schema_version.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/realtime/migrations/20261019170000_add_tenant_user_audience.sql",
+      "sha256": "f6c65a55c66ac88c891471eddf336dc2cb332dc81ef5c11f941ae28bb12ec6fd",
+      "source": "modules/realtime/migrations/20261019170000_add_tenant_user_audience.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/realtime/src/journal.ox",
+      "preservedPath": ".oxido/original/modules/realtime/src/journal.rs",
+      "sha256": "1abf58b8918fecb10ea5419f4eb2970fbb910263b5fd5c1edcd0ac988b779ba9",
+      "source": "modules/realtime/src/journal.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/realtime/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/realtime/src/lib.rs",
+      "sha256": "2d3dc832d7c50d71c07163976c7f6ea63ef4f1e8c6e3179be8768702912da3c9",
+      "source": "modules/realtime/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/realtime/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/realtime/src/module_public_api.rs",
+      "sha256": "f7b9fb5e4b0567b7ad5acb2859f78863155bc4f40e4fbec27371ba68da14c839",
+      "source": "modules/realtime/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/realtime/tests/journal_real.ox",
+      "preservedPath": ".oxido/original/modules/realtime/tests/journal_real.rs",
+      "sha256": "aa2078999a1ec07f9f19355e3f33180d30e529702e6c3dd2e97dffb8a9eb3762",
+      "source": "modules/realtime/tests/journal_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/Cargo.toml",
+      "sha256": "ef52afd09a5f751b0a8850055612f47cb0fea629735a85e8fb0fcf6ac4b75e99",
+      "source": "modules/tenancy-access/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/tenancy-access/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/tenancy-access/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261018000002_create_workspaces.sql",
+      "sha256": "f7443e324bdc19550c8c3b3d442e5924fe8975df6d92fe4b596f281ef0c0a9a9",
+      "source": "modules/tenancy-access/migrations/20261018000002_create_workspaces.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261019000000_manage_workspace_lifecycle.sql",
+      "sha256": "52dde412916a94cd49362cee446b1a52149ed982f5633ff3fdb294350eb46d0c",
+      "source": "modules/tenancy-access/migrations/20261019000000_manage_workspace_lifecycle.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261019050000_enforce_workspace_audit_append_only.sql",
+      "sha256": "24e5344f6940785e962aa7db55fb0de89ed1c2d7ad2ef87fdf73dcd9aa6156fc",
+      "source": "modules/tenancy-access/migrations/20261019050000_enforce_workspace_audit_append_only.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261019060000_workspace_team_collaboration.sql",
+      "sha256": "67a6c2f3824f3fe02806bea19e93afd2f0cd57e5e0aa43acc9614a6bab000a52",
+      "source": "modules/tenancy-access/migrations/20261019060000_workspace_team_collaboration.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261019070000_qualify_workspace_team_role_trigger.sql",
+      "sha256": "1b101fbd15cef6495388111d6f5fec6e280b9a6a29e1a43ddc877906a3790e39",
+      "source": "modules/tenancy-access/migrations/20261019070000_qualify_workspace_team_role_trigger.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261019080000_allow_own_comment_tombstones.sql",
+      "sha256": "a37caf5fc133ed5a6f11a0b1325a4de45d8d9cf1e5dc50d7da3abe96fd58953e",
+      "source": "modules/tenancy-access/migrations/20261019080000_allow_own_comment_tombstones.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261019090000_split_assigned_task_status_permission.sql",
+      "sha256": "2114c41d60ca945615b6898e6fcef247234ddc0d01f0045fb392ade36195dfa3",
+      "source": "modules/tenancy-access/migrations/20261019090000_split_assigned_task_status_permission.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261020000000_workspace_shared_settings_permission.sql",
+      "sha256": "5779d1816af34018f6a6d7671d8ab1653a09f9f47893a45283de19bdaa156ce2",
+      "source": "modules/tenancy-access/migrations/20261020000000_workspace_shared_settings_permission.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261020010000_preserve_team_role_permissions_with_workspace_settings.sql",
+      "sha256": "0776fe621780d27fe2527279ab021fae93fc840c2228013bc8b2ff4ea0be4ceb",
+      "source": "modules/tenancy-access/migrations/20261020010000_preserve_team_role_permissions_with_workspace_settings.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261020100000_asset_and_job_permissions.sql",
+      "sha256": "9e9aab46d1376597338c2362c2f0bdd76c69a561de4daf685a5c56bd64a4f689",
+      "source": "modules/tenancy-access/migrations/20261020100000_asset_and_job_permissions.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261021000000_audit_invitation_delivery_state.sql",
+      "sha256": "91741ed0003939f75a9988ea8cd1cf00054f0d33ed1f7c35ff32f3f938a95036",
+      "source": "modules/tenancy-access/migrations/20261021000000_audit_invitation_delivery_state.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/tenancy-access/migrations/20261027000000_workspace_billing_permissions.sql",
+      "sha256": "45e233ab8c9f0624876cf1b4116609f36c6eed64ad6f63bb6f923f1ba94c9b1b",
+      "source": "modules/tenancy-access/migrations/20261027000000_workspace_billing_permissions.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/lib.rs",
+      "sha256": "766fa0a95916c279f82237124f2f0eb8b4903b9e097fa0e3ef7ecbf37cf32bc0",
+      "source": "modules/tenancy-access/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/module_public_api.rs",
+      "sha256": "055d5964912d1ccb7402b339bb33fa0fd600c77a8def78617b3da7eabc80981d",
+      "source": "modules/tenancy-access/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/invitations.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/invitations.rs",
+      "sha256": "4f4161299fc313ac00388b3cebe9282d543db2f730ecad509c688498594d95cd",
+      "source": "modules/tenancy-access/src/teams/invitations.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/members.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/members.rs",
+      "sha256": "81fe393578200f6ad4a9332870242c7348489141750fab7944518cf7558a9674",
+      "source": "modules/tenancy-access/src/teams/members.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/models.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/models.rs",
+      "sha256": "f749adc433d249085efbed28138e9eb6f7dc9dda946982203848c880027ff7ac",
+      "source": "modules/tenancy-access/src/teams/models.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/ownership.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/ownership.rs",
+      "sha256": "8ba17083332f51bf9adcb541614160e3d5ce5e754d078c13af6379048d8deef8",
+      "source": "modules/tenancy-access/src/teams/ownership.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/permissions.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/permissions.rs",
+      "sha256": "0b1b8baeda8b562c18341597212e5b3478998b0fe2d62fa79f5dd67cdef8687c",
+      "source": "modules/tenancy-access/src/teams/permissions.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/rate_limit.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/rate_limit.rs",
+      "sha256": "4f3b258ce0a823c6f9af2eef3b891eebd34769dadc8663b6c9c273eba0fbff23",
+      "source": "modules/tenancy-access/src/teams/rate_limit.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/roles.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/roles.rs",
+      "sha256": "b0267effc0d07a9f61fbd4670ce92e0881108ed45fc385dfc258ed42688b23f8",
+      "source": "modules/tenancy-access/src/teams/roles.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/tasks.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/tasks.rs",
+      "sha256": "210bb87a3fbc8744f302d2e9b4f2f192f4259ab20bbb105ceedc763c2015a345",
+      "source": "modules/tenancy-access/src/teams/tasks.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams/token.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams/token.rs",
+      "sha256": "10d1f7e86efaff5e350acca5748f97dc428fdacf5a4d53f6dc6d2cb85c1c4f7a",
+      "source": "modules/tenancy-access/src/teams/token.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/teams.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/teams.rs",
+      "sha256": "43a699d8d99214296fe0080912c25e0405ed76f3ed3ed7ff6ad58b6bda1d6062",
+      "source": "modules/tenancy-access/src/teams.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/workspaces/platform_directory.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/workspaces/platform_directory.rs",
+      "sha256": "20db846741f00c3fab418e7202537566bfabe1b2fcf96103a38a25926b777cdb",
+      "source": "modules/tenancy-access/src/workspaces/platform_directory.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/src/workspaces.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/src/workspaces.rs",
+      "sha256": "5957ac33de37605136793a10feaac364dbd2e82afa826198e8b59f7b110c42c2",
+      "source": "modules/tenancy-access/src/workspaces.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/tenancy-access/tests/workspaces_real.ox",
+      "preservedPath": ".oxido/original/modules/tenancy-access/tests/workspaces_real.rs",
+      "sha256": "d183a1cc2ecbaaa98ab0b3473e68ec118de678a3467e2fcf74ef049afec43089",
+      "source": "modules/tenancy-access/tests/workspaces_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/usage-ledger/Cargo.toml",
+      "sha256": "c396a09c7db4259697547bf3e2a04ef478e2c3e3aabbade159a7945ffc52cedb",
+      "source": "modules/usage-ledger/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/usage-ledger/migrations/20261018000000_create_outbox_events.sql",
+      "sha256": "8a03fcb65fa311b361cfd5aa44930fc3b7bf58a13fa496df52c9f3be69f83dc5",
+      "source": "modules/usage-ledger/migrations/20261018000000_create_outbox_events.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "modules/usage-ledger/migrations/20261018000001_add_outbox_trace_context.sql",
+      "sha256": "69f29844ebd7f2ec0baf868d4946393685cc38d5a2bd44aaa67c1ac43de15ac9",
+      "source": "modules/usage-ledger/migrations/20261018000001_add_outbox_trace_context.sql",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/usage-ledger/src/lib.ox",
+      "preservedPath": ".oxido/original/modules/usage-ledger/src/lib.rs",
+      "sha256": "90343eb3acecfb67bd99d2376db36baee8863270a3235453795083c2247b2c83",
+      "source": "modules/usage-ledger/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "modules/usage-ledger/src/module_public_api.ox",
+      "preservedPath": ".oxido/original/modules/usage-ledger/src/module_public_api.rs",
+      "sha256": "6202ac85603d60b8f0ebecaace46b86e20e9760fd548137dab201bb6679bb392",
+      "source": "modules/usage-ledger/src/module_public_api.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "platform/Cargo.toml",
+      "sha256": "f1e6e15dac414cdd9a7fb1cac042e2715600c4258e9c0f125e2b4709a5e6f04e",
+      "source": "platform/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/build.ox",
+      "preservedPath": ".oxido/original/platform/build.rs",
+      "sha256": "d30e30c5315ac743f5e44b2465fae32f683eaa10a8dbc4c0916c42b2d8dca412",
+      "source": "platform/build.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "platform/proto/xovyra/runtime/v1/runtime.proto",
+      "sha256": "20620c15edbfdba6d230f067ad29c61526fc9941d9ca54c2e00585df3ed919a7",
+      "source": "platform/proto/xovyra/runtime/v1/runtime.proto",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/configuration.ox",
+      "preservedPath": ".oxido/original/platform/src/configuration.rs",
+      "sha256": "338fde912a8f92b4a67a80486c8a646063ecd784eb0f2f094826d03c1978aafe",
+      "source": "platform/src/configuration.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/dependencies.ox",
+      "preservedPath": ".oxido/original/platform/src/dependencies.rs",
+      "sha256": "32ccc6d45adabd6d9b379e543e4b6fdb549b6ae412ff9c615a57910a828565e3",
+      "source": "platform/src/dependencies.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/grpc_telemetry.ox",
+      "preservedPath": ".oxido/original/platform/src/grpc_telemetry.rs",
+      "sha256": "029a883d602209a4fdba88d1340a0d8768655bb88e42ffaa3eb238fc68dc89bf",
+      "source": "platform/src/grpc_telemetry.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/lib.ox",
+      "preservedPath": ".oxido/original/platform/src/lib.rs",
+      "sha256": "dae1000845f5d1bca5084a03ba096cd2ce995c03d2b1f6d245ae192fa7995968",
+      "source": "platform/src/lib.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/observability.ox",
+      "preservedPath": ".oxido/original/platform/src/observability.rs",
+      "sha256": "8f207509be19a486553856448967201391b112598ec1d81f9a98284e2e122e2d",
+      "source": "platform/src/observability.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/outbox/mod.ox",
+      "preservedPath": ".oxido/original/platform/src/outbox/mod.rs",
+      "sha256": "3cc2ec30fd4f162b6ed6baf59f98953acc320ff489b26f6bcecadf938cb4477b",
+      "source": "platform/src/outbox/mod.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/outbox/publisher.ox",
+      "preservedPath": ".oxido/original/platform/src/outbox/publisher.rs",
+      "sha256": "8c99b6fe34b0ebd1ac5b2c69f93d48c09b771bed31cf2d36c6ec752be059d731",
+      "source": "platform/src/outbox/publisher.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/outbox/relay.ox",
+      "preservedPath": ".oxido/original/platform/src/outbox/relay.rs",
+      "sha256": "ef7d9eec954475792f674167c72db724c081c49317aef7e20c0d9b3cb0e13ea9",
+      "source": "platform/src/outbox/relay.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/outbox/writer.ox",
+      "preservedPath": ".oxido/original/platform/src/outbox/writer.rs",
+      "sha256": "8a9d6a56854504967d522886fa694f0f3b7c6aabca038ac2b31bd8f9113e0436",
+      "source": "platform/src/outbox/writer.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/propagation.ox",
+      "preservedPath": ".oxido/original/platform/src/propagation.rs",
+      "sha256": "cfdbae695a4377e12363b0383dfb658f7eb857137ec5c236d104c7f4dfb69f8b",
+      "source": "platform/src/propagation.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/src/shutdown.ox",
+      "preservedPath": ".oxido/original/platform/src/shutdown.rs",
+      "sha256": "02dbe8f9fba9a387f53cadacefc8784927db7a637aed50cebce2341dd9e12534",
+      "source": "platform/src/shutdown.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/tests/dependency_restart_real.ox",
+      "preservedPath": ".oxido/original/platform/tests/dependency_restart_real.rs",
+      "sha256": "11f6e04fa1b3fe7b300f955a6c1f632382521b080b4b1d2eafb4cbb06d67ee8d",
+      "source": "platform/tests/dependency_restart_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "platform/tests/outbox_real.ox",
+      "preservedPath": ".oxido/original/platform/tests/outbox_real.rs",
+      "sha256": "71a7ce7cca9a0ae312196572ea30610259b725d384ff190877c858fde9017f6a",
+      "source": "platform/tests/outbox_real.rs",
+      "strategy": "verbatim-rust"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "reglas-estrictas-de-arquitectura-monolito-modular-rust-universal.md",
+      "sha256": "8573c4087756cd4ba5e9b2d28e24b445128367bcfd9590ab7962c1471c752545",
+      "source": "reglas-estrictas-de-arquitectura-monolito-modular-rust-universal.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "roadmap.md",
+      "sha256": "98ce693e0a5d3f834555cc29d4fc8b41119ff608b62e34cc4f264703d8159c43",
+      "source": "roadmap.md",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "rust-toolchain.toml",
+      "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33",
+      "source": "rust-toolchain.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "scripts/bootstrap-existing-postgres.sh",
+      "sha256": "ed5d897585ed67203093578683a66e30be824a6b3dfd8c60df43b1866630047d",
+      "source": "scripts/bootstrap-existing-postgres.sh",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "scripts/verify-empty-database.sh",
+      "sha256": "f706aeeb564fc953548ef506b44d6f9bc6c282acbb45910a82cee167a5f6fa8c",
+      "source": "scripts/verify-empty-database.sh",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "scripts/verify-phase-2.sh",
+      "sha256": "c58f946fcac03932ae7b3bfb8ab4c021c19a027e824149cea34d6008ad9eb657",
+      "source": "scripts/verify-phase-2.sh",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "scripts/verify-phase-4.5.sh",
+      "sha256": "66f5bce0e8f03cee57a38dcc1b840f9ecc68d7bf709a972a05aa2e775191693c",
+      "source": "scripts/verify-phase-4.5.sh",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "scripts/verify-proto-contract.sh",
+      "sha256": "48b8127add575d0fc3291b3596d8338ae6ccbbed5edb452c3959c075d2c2f127",
+      "source": "scripts/verify-proto-contract.sh",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": null,
+      "preservedPath": "shared-kernel/Cargo.toml",
+      "sha256": "578988e2dcca060289500ff94575ebaace4cab75c226029011fbb028680f7ae3",
+      "source": "shared-kernel/Cargo.toml",
+      "strategy": "preserved-file"
+    },
+    {
+      "diagnostic": null,
+      "oxidoPath": "shared-kernel/src/lib.ox",
+      "preservedPath": ".oxido/original/shared-kernel/src/lib.rs",
+      "sha256": "cdace1bd21285e63aa443b5ca00d38fbef6e110670ff1937b8f4fae70cd81cf7",
+      "source": "shared-kernel/src/lib.rs",
+      "strategy": "verbatim-rust"
+    }
+  ],
+  "kind": "oxido-lossless-workspace-import",
+  "literalRustFiles": 191,
+  "passthroughRustFiles": 0,
+  "schemaVersion": 1,
+  "sourceBytes": 2163321,
+  "sourceDirectoryCount": 114,
+  "sourceFileCount": 325,
+  "translatedRustFiles": 0
+}

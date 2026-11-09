@@ -315,7 +315,12 @@ fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
     fs::create_dir_all(rust_source.join("modules/identity/empty-runtime-directory")).unwrap();
     fs::write(
         rust_source.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"platform\"]\n",
+        "[workspace]\nmembers = [\"platform\"]\n\n[workspace.package]\nedition = \"2024\"\n\n[workspace.dependencies]\nserde = \"1.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("platform/Cargo.toml"),
+        "[package]\nname = \"platform\"\nversion = \"0.1.0\"\nedition.workspace = true\n\n[dependencies]\nserde.workspace = true\n",
     )
     .unwrap();
     fs::write(rust_source.join("Cargo.lock"), "version = 4\n").unwrap();
@@ -359,7 +364,6 @@ fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
     );
 
     for relative in [
-        "Cargo.toml",
         "Cargo.lock",
         "platform/proto/demo/service.proto",
         "modules/identity/migrations/001_init.sql",
@@ -391,18 +395,48 @@ fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
             .join("modules/identity/empty-runtime-directory")
             .is_dir()
     );
+    assert!(!ox_source.join("Cargo.toml").exists());
+    assert!(!ox_source.join("platform/Cargo.toml").exists());
+    let project_config: toml::Value =
+        toml::from_str(&fs::read_to_string(ox_source.join("oxido.toml")).unwrap()).unwrap();
+    assert_eq!(
+        project_config["language"]["syntax"].as_str(),
+        Some("braces")
+    );
+    assert_eq!(project_config["language"]["edition"].as_str(), Some("2024"));
+    assert_eq!(
+        project_config["cargo"]["manifest"]["workspace"]["members"][0].as_str(),
+        Some("platform")
+    );
+    assert_eq!(
+        project_config["cargo"]["manifest"]["workspace"]["dependencies"]["serde"].as_str(),
+        Some("1.0")
+    );
+    let member_config: toml::Value =
+        toml::from_str(&fs::read_to_string(ox_source.join("platform/oxido.toml")).unwrap())
+            .unwrap();
+    assert_eq!(
+        member_config["cargo"]["manifest"]["dependencies"]["serde"]["workspace"].as_bool(),
+        Some(true)
+    );
 
     let manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(ox_source.join(".oxido/import-manifest.json")).unwrap())
             .unwrap();
     assert_eq!(manifest["kind"], "oxido-lossless-workspace-import");
-    assert_eq!(manifest["sourceFileCount"], 9);
+    assert_eq!(manifest["sourceFileCount"], 10);
     assert!(
         manifest["sourceDirectoryCount"]
             .as_u64()
             .is_some_and(|count| count >= 5)
     );
     let files = manifest["files"].as_array().unwrap();
+    let cargo_manifest = files
+        .iter()
+        .find(|entry| entry["source"] == "Cargo.toml")
+        .unwrap();
+    assert_eq!(cargo_manifest["preservedPath"], "oxido.toml");
+    assert_eq!(cargo_manifest["strategy"], "cargo-manifest-to-oxido-toml");
     let unsupported = files
         .iter()
         .find(|entry| entry["source"] == "unsupported.rs")
@@ -417,6 +451,85 @@ fn import_project_preserves_every_workspace_file_and_records_rust_fallbacks() {
     assert_eq!(main["oxidoPath"], "main.ox");
     assert_eq!(manifest["literalRustFiles"], 3);
     assert_eq!(manifest["translatedRustFiles"], 0);
+}
+
+#[test]
+fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir_all(rust_source.join("apps/app/src")).unwrap();
+    fs::create_dir_all(rust_source.join("modules/support/src")).unwrap();
+    fs::write(
+        rust_source.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"apps/app\", \"modules/support\"]\nresolver = \"3\"\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("apps/app/Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nsupport = { path = \"../../modules/support\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("modules/support/Cargo.toml"),
+        "[package]\nname = \"support\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("apps/app/src/main.rs"),
+        "fn main() { println!(\"{}\", support::value()); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("modules/support/src/lib.rs"),
+        "pub fn value() -> &'static str { \"workspace\" }\n",
+    )
+    .unwrap();
+    let lockfile = Command::new("cargo")
+        .current_dir(&rust_source)
+        .args(["generate-lockfile", "--offline"])
+        .output()
+        .unwrap();
+    assert!(
+        lockfile.status.success(),
+        "{}",
+        String::from_utf8_lossy(&lockfile.stderr)
+    );
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    assert!(!ox_source.join("Cargo.toml").exists());
+    assert!(!ox_source.join("apps/app/Cargo.toml").exists());
+    assert!(!ox_source.join("modules/support/Cargo.toml").exists());
+    assert!(ox_source.join("apps/app/oxido.toml").is_file());
+    assert!(ox_source.join("modules/support/oxido.toml").is_file());
+
+    let compiled = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "compilar",
+            "oxido/apps/app/src/main.ox",
+            "--confiar-dependencias",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&compiled.stdout),
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&compiled.stdout).contains("Workspace Óxido compilado con éxito")
+    );
 }
 
 #[test]
@@ -504,6 +617,86 @@ fn import_project_rewrites_path_and_keeps_existing_ox_sources_in_a_mixed_tree() 
     assert_eq!(
         String::from_utf8_lossy(&exported_run.stdout),
         "#[path]:42\n"
+    );
+}
+
+#[test]
+fn import_project_rewrites_path_relative_to_the_file_that_declares_it() {
+    let temp = TestDirectory::new();
+    let rust_source = temp.0.join("rust");
+    let ox_source = temp.0.join("oxido");
+    fs::create_dir_all(rust_source.join("src/nested")).unwrap();
+    fs::write(
+        rust_source.join("src/main.rs"),
+        "#[path = \"nested/datos.rs\"]\nmod datos;\nfn main() { println!(\"{}\", datos::mensaje()); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("src/nested/datos.rs"),
+        "#[path = \"../otro.rs\"]\npub mod otro;\npub fn mensaje() -> &'static str { otro::valor() }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("src/otro.rs"),
+        "pub fn valor() -> &'static str { \"subdirectorio\" }\n",
+    )
+    .unwrap();
+
+    let imported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["importar-proyecto", "rust", "--salida", "oxido"])
+        .output()
+        .unwrap();
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    assert!(
+        fs::read_to_string(ox_source.join("src/main.ox"))
+            .unwrap()
+            .contains("#[path = \"nested/datos.ox\"]")
+    );
+    assert!(
+        fs::read_to_string(ox_source.join("src/nested/datos.ox"))
+            .unwrap()
+            .contains("#[path = \"../otro.ox\"]"),
+        "el #[path] debe quedar relativo al archivo que lo declara"
+    );
+
+    fs::create_dir(temp.0.join("exportado")).unwrap();
+    let exported = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "exportar",
+            "oxido/src/main.ox",
+            "--salida",
+            "exportado/main.rs",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let compiled = Command::new("rustc")
+        .current_dir(&temp.0)
+        .args(["exportado/main.rs", "-o", "exportado/programa"])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let exported_run = Command::new(temp.0.join("exportado/programa"))
+        .output()
+        .unwrap();
+    assert!(exported_run.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&exported_run.stdout),
+        "subdirectorio\n"
     );
 }
 

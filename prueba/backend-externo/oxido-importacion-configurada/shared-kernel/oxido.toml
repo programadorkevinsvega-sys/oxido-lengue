@@ -1,0 +1,19 @@
+[cargo.manifest.lints]
+workspace = true
+
+[cargo.manifest.package]
+name = "xovyra-shared-kernel"
+version = "0.1.0"
+
+[cargo.manifest.package.edition]
+workspace = true
+
+[cargo.manifest.package.license]
+workspace = true
+
+[cargo.manifest.package.rust-version]
+workspace = true
+
+[language]
+edition = "2024"
+syntax = "braces"

@@ -1,0 +1,1057 @@
+syntax = "proto3";
+
+package xovyra.runtime.v1;
+
+service RuntimeReadiness {
+  rpc Check(ReadinessRequest) returns (ReadinessResponse);
+}
+
+service IdentityAuthentication {
+  rpc Register(RegisterRequest) returns (RegistrationResponse);
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
+  rpc ResendVerification(EmailActionRequest) returns (EmailActionResponse);
+  rpc RequestPasswordRecovery(EmailActionRequest) returns (EmailActionResponse);
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+  rpc ApplyEmailProviderEvent(EmailProviderEventRequest) returns (EmailProviderEventResponse);
+  rpc SetMarketingConsent(SetMarketingConsentRequest) returns (SetMarketingConsentResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc AuthenticateSession(AuthenticateSessionRequest) returns (AuthenticatedSession);
+  rpc RefreshSession(RefreshSessionRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc ResolveVerifiedAccount(ResolveVerifiedAccountRequest) returns (ResolveVerifiedAccountResponse);
+}
+
+message ResolveVerifiedAccountRequest { string email = 1; string correlation_id = 2; }
+message ResolveVerifiedAccountResponse { optional string user_id = 1; }
+
+service IdentityAccount {
+  rpc GetProfile(AccountSessionRequest) returns (AccountProfileResponse);
+  rpc UpdateProfile(UpdateAccountProfileRequest) returns (AccountProfileResponse);
+  rpc ListSessions(ListAccountSessionsRequest) returns (ListAccountSessionsResponse);
+  rpc RevokeSession(RevokeAccountSessionRequest) returns (RevokeAccountSessionResponse);
+  rpc RevokeOtherSessions(AccountSessionRequest) returns (RevokeOtherAccountSessionsResponse);
+  rpc ChangePassword(ChangeAccountPasswordRequest) returns (LoginResponse);
+  rpc ListSecurityEvents(ListAccountSecurityEventsRequest) returns (ListAccountSecurityEventsResponse);
+  rpc GetPlatformPermissions(AccountSessionRequest) returns (PlatformPermissionsResponse);
+}
+
+service PlatformControl {
+  rpc ListSupportGrants(ListPlatformSupportGrantsRequest) returns (ListPlatformSupportGrantsResponse);
+  rpc CreateSupportGrant(CreatePlatformSupportGrantRequest) returns (PlatformSupportGrantResponse);
+  rpc RevokeSupportGrant(RevokePlatformSupportGrantRequest) returns (PlatformSupportGrantResponse);
+  rpc AuthorizeSupportAssetRead(AuthorizePlatformSupportAssetReadRequest) returns (AuthorizePlatformSupportAssetReadResponse);
+  rpc ListSupportAudit(ListPlatformSupportAuditRequest) returns (ListPlatformSupportAuditResponse);
+}
+
+service TenancyAccess {
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (WorkspaceResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (WorkspaceResponse);
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (WorkspaceResponse);
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (WorkspaceDeletionResponse);
+  rpc RestoreWorkspace(RestoreWorkspaceRequest) returns (WorkspaceResponse);
+  rpc GetActiveWorkspace(ActiveWorkspaceRequest) returns (ActiveWorkspaceResponse);
+  rpc SetActiveWorkspace(SetActiveWorkspaceRequest) returns (WorkspaceResponse);
+  rpc ListPlatformWorkspaces(ListPlatformWorkspacesRequest) returns (ListPlatformWorkspacesResponse);
+  rpc ListPlatformWorkspaceMembers(ListPlatformWorkspaceMembersRequest) returns (ListPlatformWorkspaceMembersResponse);
+}
+
+service TenancyTeams {
+  rpc CheckWorkspacePermission(CheckWorkspacePermissionRequest) returns (CheckWorkspacePermissionResponse);
+  rpc ListWorkspaceMembers(ListWorkspaceMembersRequest) returns (ListWorkspaceMembersResponse);
+  rpc ChangeWorkspaceMember(ChangeWorkspaceMemberRequest) returns (WorkspaceMemberResponse);
+  rpc RevokeWorkspaceMember(RevokeWorkspaceMemberRequest) returns (WorkspaceMemberResponse);
+  rpc ListWorkspaceRoles(ListWorkspaceRolesRequest) returns (ListWorkspaceRolesResponse);
+  rpc CreateWorkspaceRole(CreateWorkspaceRoleRequest) returns (WorkspaceRoleResponse);
+  rpc UpdateWorkspaceRole(UpdateWorkspaceRoleRequest) returns (WorkspaceRoleResponse);
+  rpc DeleteWorkspaceRole(DeleteWorkspaceRoleRequest) returns (WorkspaceRoleResponse);
+  rpc CreateWorkspaceInvitation(CreateWorkspaceInvitationRequest) returns (WorkspaceInvitationResponse);
+  rpc ListWorkspaceInvitations(ListWorkspaceInvitationsRequest) returns (ListWorkspaceInvitationsResponse);
+  rpc RevokeWorkspaceInvitation(RevokeWorkspaceInvitationRequest) returns (WorkspaceInvitationResponse);
+  rpc AcceptWorkspaceInvitation(AcceptWorkspaceInvitationRequest) returns (WorkspaceMemberResponse);
+  rpc GetWorkspaceInvitationDelivery(GetWorkspaceInvitationDeliveryRequest) returns (WorkspaceInvitationDeliveryResponse);
+  rpc CompleteWorkspaceInvitationDelivery(CompleteWorkspaceInvitationDeliveryRequest) returns (CompleteWorkspaceInvitationDeliveryResponse);
+  rpc TransferWorkspaceOwnership(TransferWorkspaceOwnershipRequest) returns (TransferWorkspaceOwnershipResponse);
+  rpc ListWorkspaceTasks(ListWorkspaceTasksRequest) returns (ListWorkspaceTasksResponse);
+  rpc CreateWorkspaceTask(CreateWorkspaceTaskRequest) returns (WorkspaceTaskResponse);
+  rpc UpdateWorkspaceTask(UpdateWorkspaceTaskRequest) returns (WorkspaceTaskResponse);
+  rpc ListWorkspaceTaskComments(ListWorkspaceTaskCommentsRequest) returns (ListWorkspaceTaskCommentsResponse);
+  rpc CreateWorkspaceTaskComment(CreateWorkspaceTaskCommentRequest) returns (WorkspaceTaskCommentResponse);
+  rpc DeleteWorkspaceTaskComment(DeleteWorkspaceTaskCommentRequest) returns (WorkspaceTaskCommentResponse);
+}
+
+service AssetStorage {
+  rpc CreateUpload(CreateAssetUploadRequest) returns (AssetUploadResponse);
+  rpc CompleteUpload(CompleteAssetUploadRequest) returns (AssetResponse);
+  rpc CreateDownload(CreateAssetDownloadRequest) returns (AssetDownloadResponse);
+  rpc DeleteAsset(DeleteAssetRequest) returns (AssetResponse);
+  rpc SearchAssets(SearchAssetsRequest) returns (SearchAssetsResponse);
+  rpc GetAssetDeletionTarget(GetAssetDeletionTargetRequest) returns (AssetDeletionTargetResponse);
+  rpc CompleteAssetDeletion(CompleteAssetDeletionRequest) returns (AssetResponse);
+  rpc ListPlatformWorkspaceAssets(ListPlatformWorkspaceAssetsRequest) returns (ListPlatformWorkspaceAssetsResponse);
+  rpc CheckPlatformWorkspaceAsset(CheckPlatformWorkspaceAssetRequest) returns (CheckPlatformWorkspaceAssetResponse);
+  rpc CreatePlatformSupportAssetDownload(CreatePlatformSupportAssetDownloadRequest) returns (PlatformSupportAssetDownloadResponse);
+}
+
+message ListPlatformSupportGrantsRequest { AccountSessionRequest session = 1; string cursor = 2; int32 page_size = 3; }
+message CreatePlatformSupportGrantRequest {
+  AccountSessionRequest session = 1;
+  string workspace_id = 2;
+  string asset_id = 3;
+  string reason = 4;
+  int64 expires_at_unix = 5;
+  string idempotency_key = 6;
+}
+message RevokePlatformSupportGrantRequest {
+  AccountSessionRequest session = 1;
+  string grant_id = 2;
+  string reason = 3;
+}
+message PlatformSupportGrantResponse { PlatformSupportGrant grant = 1; }
+message ListPlatformSupportGrantsResponse { repeated PlatformSupportGrant grants = 1; string next_cursor = 2; }
+message PlatformSupportGrant {
+  string grant_id = 1;
+  string workspace_id = 2;
+  string asset_id = 3;
+  string issued_by_user_id = 4;
+  string reason = 5;
+  string status = 6;
+  int64 created_at_unix = 7;
+  int64 expires_at_unix = 8;
+  optional int64 revoked_at_unix = 9;
+  int64 row_version = 10;
+}
+message AuthorizePlatformSupportAssetReadRequest {
+  AccountSessionRequest session = 1;
+  string grant_id = 2;
+  string workspace_id = 3;
+  string asset_id = 4;
+}
+message AuthorizePlatformSupportAssetReadResponse { string operator_user_id = 1; }
+message ListPlatformSupportAuditRequest { AccountSessionRequest session = 1; string cursor = 2; int32 page_size = 3; }
+message PlatformSupportAuditEntry {
+  string event_id = 1;
+  string action = 2;
+  string result = 3;
+  string workspace_id = 4;
+  string asset_id = 5;
+  string grant_id = 6;
+  string operator_user_id = 7;
+  string reason = 8;
+  int64 occurred_at_unix = 9;
+}
+message ListPlatformSupportAuditResponse { repeated PlatformSupportAuditEntry events = 1; string next_cursor = 2; }
+
+message ListPlatformWorkspacesRequest {
+  AccountSessionRequest session = 1;
+  string search = 2;
+  string cursor = 3;
+  int32 page_size = 4;
+}
+message PlatformWorkspaceSummary {
+  string workspace_id = 1;
+  string name = 2;
+  string workspace_type = 3;
+  string status = 4;
+  int64 created_at_unix = 5;
+  int64 member_count = 6;
+  int64 row_version = 7;
+}
+message ListPlatformWorkspacesResponse { repeated PlatformWorkspaceSummary workspaces = 1; string next_cursor = 2; }
+message ListPlatformWorkspaceMembersRequest { AccountSessionRequest session = 1; string workspace_id = 2; string cursor = 3; int32 page_size = 4; }
+message PlatformWorkspaceMemberSummary {
+  string user_id = 1;
+  string role = 2;
+  string status = 3;
+  int64 joined_at_unix = 4;
+}
+message ListPlatformWorkspaceMembersResponse { repeated PlatformWorkspaceMemberSummary members = 1; string next_cursor = 2; }
+
+message ListPlatformWorkspaceAssetsRequest { AccountSessionRequest session = 1; string workspace_id = 2; string cursor = 3; int32 page_size = 4; }
+message PlatformWorkspaceAssetSummary {
+  string asset_id = 1;
+  string content_type = 2;
+  int64 size_bytes = 3;
+  string lifecycle_state = 4;
+  int64 created_at_unix = 5;
+}
+message ListPlatformWorkspaceAssetsResponse { repeated PlatformWorkspaceAssetSummary assets = 1; string next_cursor = 2; }
+message CheckPlatformWorkspaceAssetRequest { AccountSessionRequest session = 1; string workspace_id = 2; string asset_id = 3; }
+message CheckPlatformWorkspaceAssetResponse { bool available = 1; }
+message CreatePlatformSupportAssetDownloadRequest {
+  AccountSessionRequest session = 1;
+  string grant_id = 2;
+  string workspace_id = 3;
+  string asset_id = 4;
+}
+message PlatformSupportAssetDownloadResponse { string asset_id = 1; string download_url = 2; int64 expires_at_unix = 3; }
+
+service TenantJobs {
+  rpc ListJobs(ListWorkspaceJobsRequest) returns (ListWorkspaceJobsResponse);
+  rpc CancelJob(CancelWorkspaceJobRequest) returns (WorkspaceJobResponse);
+}
+
+service CommercialBilling {
+  rpc ListPublishedPlans(ListPublishedPlansRequest) returns (ListPublishedPlansResponse);
+  rpc ListPlatformCatalog(ListPlatformCatalogRequest) returns (ListPlatformCatalogResponse);
+  rpc SavePlanDraft(SavePlanDraftRequest) returns (PlanCatalogVersion);
+  rpc ApprovePlan(ApprovePlanRequest) returns (PlanCatalogVersion);
+  rpc PublishPlan(PublishPlanRequest) returns (PlanCatalogVersion);
+  rpc GetWorkspaceSubscription(GetWorkspaceSubscriptionRequest) returns (WorkspaceSubscriptionResponse);
+  rpc CreateCheckoutSession(CreateCheckoutSessionRequest) returns (CheckoutSessionResponse);
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (WorkspaceSubscriptionResponse);
+  rpc ReactivateSubscription(ReactivateSubscriptionRequest) returns (WorkspaceSubscriptionResponse);
+  rpc ChangeSubscriptionPlan(ChangeSubscriptionPlanRequest) returns (WorkspaceSubscriptionResponse);
+  rpc ApplyStripeWebhook(ApplyStripeWebhookRequest) returns (ApplyStripeWebhookResponse);
+}
+
+message ListPublishedPlansRequest { string locale = 1; string currency = 2; string correlation_id = 3; }
+message PublishedPlan {
+  string plan_id = 1; int32 version = 2; string plan_key = 3; string display_name = 4;
+  string description = 5; int32 trial_days = 6; string currency = 7; int64 amount_minor = 8;
+  string locale = 9; repeated PlanCapability capabilities = 10;
+}
+message PlanCapability { string key = 1; int64 limit = 2; }
+message ListPublishedPlansResponse { repeated PublishedPlan plans = 1; }
+message ListPlatformCatalogRequest { AccountSessionRequest session = 1; string cursor = 2; int32 page_size = 3; }
+message PlanCatalogVersion {
+  string plan_id = 1; int32 version = 2; string plan_key = 3; string display_name = 4;
+  string description = 5; string lifecycle = 6; int32 trial_days = 7;
+  string profitability_evidence = 8; string commercial_gate_reference = 9;
+  string tax_gate_reference = 10; repeated CatalogPrice prices = 11;
+  repeated PlanCapability capabilities = 12; int64 row_version = 13; string updated_at = 14;
+  repeated ProfitabilityScenario profitability_scenarios = 15;
+}
+message ListPlatformCatalogResponse { repeated PlanCatalogVersion versions = 1; string next_cursor = 2; }
+message CatalogPrice { string price_id = 1; string locale = 2; string currency = 3; int64 amount_minor = 4; string stripe_price_id = 5; }
+message ProfitabilityScenario {
+  string locale = 1; string currency = 2;
+  int64 provider_expected_minor_per_credit = 3; int64 provider_stress_minor_per_credit = 4;
+  int64 operating_minor_per_credit = 5; int32 payment_fee_basis_points = 6;
+  int64 payment_fixed_minor = 7; int32 target_margin_basis_points = 8;
+  int32 expected_margin_basis_points = 9; int32 stress_margin_basis_points = 10;
+}
+message CatalogPriceInput { string locale = 1; string currency = 2; int64 amount_minor = 3; string stripe_price_id = 4; }
+message CatalogCapabilityInput { string key = 1; int64 limit = 2; }
+message SavePlanDraftRequest {
+  AccountSessionRequest session = 1; string plan_id = 2; string plan_key = 3;
+  string display_name = 4; string description = 5; int32 trial_days = 6;
+  repeated CatalogPriceInput prices = 7; repeated CatalogCapabilityInput capabilities = 8;
+  string idempotency_key = 9;
+}
+message ApprovePlanRequest {
+  AccountSessionRequest session = 1; string plan_id = 2; int32 version = 3;
+  string profitability_evidence = 4; string commercial_gate_reference = 5;
+  string tax_gate_reference = 6; int64 expected_row_version = 7;
+  repeated ProfitabilityScenarioInput scenarios = 8;
+}
+message ProfitabilityScenarioInput {
+  string locale = 1; string currency = 2;
+  int64 provider_expected_minor_per_credit = 3;
+  int64 provider_stress_minor_per_credit = 4;
+  int64 operating_minor_per_credit = 5;
+  int32 payment_fee_basis_points = 6;
+  int64 payment_fixed_minor = 7;
+  int32 target_margin_basis_points = 8;
+}
+message PublishPlanRequest { AccountSessionRequest session = 1; string plan_id = 2; int32 version = 3; int64 expected_row_version = 4; }
+message GetWorkspaceSubscriptionRequest { AccountSessionRequest session = 1; string workspace_id = 2; }
+message CreateCheckoutSessionRequest {
+  AccountSessionRequest session = 1; string workspace_id = 2; string plan_id = 3;
+  int32 plan_version = 4; string locale = 5; string currency = 6; string idempotency_key = 7;
+}
+message CheckoutSessionResponse { string checkout_url = 1; }
+message CancelSubscriptionRequest { AccountSessionRequest session = 1; string workspace_id = 2; string idempotency_key = 3; }
+message ReactivateSubscriptionRequest { AccountSessionRequest session = 1; string workspace_id = 2; string idempotency_key = 3; }
+message ChangeSubscriptionPlanRequest {
+  AccountSessionRequest session = 1; string workspace_id = 2; string plan_id = 3;
+  int32 plan_version = 4; string locale = 5; string currency = 6; string idempotency_key = 7;
+}
+message WorkspaceSubscriptionResponse {
+  string subscription_id = 1; string workspace_id = 2; string plan_key = 3; int32 plan_version = 4;
+  string status = 5; int64 current_period_start_unix = 6; int64 current_period_end_unix = 7;
+  bool cancel_at_period_end = 8; int64 row_version = 9;
+  string scheduled_plan_key = 10; int32 scheduled_plan_version = 11;
+}
+message ApplyStripeWebhookRequest { string signature = 1; bytes payload = 2; string correlation_id = 3; }
+message ApplyStripeWebhookResponse { bool accepted = 1; bool duplicate = 2; }
+
+message CheckWorkspacePermissionRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string permission = 3;
+  string correlation_id = 4;
+}
+
+message CheckWorkspacePermissionResponse { bool allowed = 1; }
+
+message CreateAssetUploadRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string display_name = 3;
+  string content_type = 4;
+  int64 size_bytes = 5;
+  string idempotency_key = 6;
+  string correlation_id = 7;
+}
+
+message CompleteAssetUploadRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string asset_id = 3;
+  string correlation_id = 4;
+}
+
+message CreateAssetDownloadRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string asset_id = 3;
+  string correlation_id = 4;
+}
+
+message DeleteAssetRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string asset_id = 3;
+  string correlation_id = 4;
+}
+
+message SearchAssetsRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string query = 3;
+  int32 page_size = 4;
+  string correlation_id = 5;
+}
+
+message AssetUploadResponse {
+  AssetMessage asset = 1;
+  string upload_url = 2;
+  int64 expires_at_unix = 3;
+  string upload_content_type = 4;
+}
+
+message AssetDownloadResponse {
+  AssetMessage asset = 1;
+  string download_url = 2;
+  int64 expires_at_unix = 3;
+}
+
+message AssetResponse { AssetMessage asset = 1; }
+message SearchAssetsResponse { repeated AssetMessage assets = 1; }
+message GetAssetDeletionTargetRequest { string workspace_id = 1; string asset_id = 2; }
+message AssetDeletionTargetResponse { string owner_user_id = 1; string object_key = 2; string lifecycle_state = 3; string upload_object_key = 4; }
+message CompleteAssetDeletionRequest { string workspace_id = 1; string asset_id = 2; string correlation_id = 3; }
+
+message AssetMessage {
+  string asset_id = 1;
+  string workspace_id = 2;
+  string owner_user_id = 3;
+  string display_name = 4;
+  string content_type = 5;
+  int64 size_bytes = 6;
+  string lifecycle_state = 7;
+  int64 row_version = 8;
+  int64 created_at_unix = 9;
+}
+
+message ListWorkspaceJobsRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  int32 page_size = 3;
+  string correlation_id = 4;
+}
+
+message CancelWorkspaceJobRequest {
+  string workspace_id = 1;
+  string actor_user_id = 2;
+  string job_id = 3;
+  string correlation_id = 4;
+}
+
+message ListWorkspaceJobsResponse { repeated WorkspaceJobMessage jobs = 1; }
+message WorkspaceJobResponse { WorkspaceJobMessage job = 1; }
+
+message WorkspaceJobMessage {
+  string job_id = 1;
+  string workspace_id = 2;
+  string owner_user_id = 3;
+  string job_type = 4;
+  string resource_id = 5;
+  string status = 6;
+  int32 attempt_count = 7;
+  int64 row_version = 8;
+  int64 created_at_unix = 9;
+  int64 updated_at_unix = 10;
+}
+
+service NotificationsDelivery {
+  rpc SendEmail(SendEmailRequest) returns (SendEmailResponse);
+  rpc ProcessResendWebhook(ResendWebhookRequest) returns (ResendWebhookResponse);
+}
+
+service NotificationInbox {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkNotificationRead(MarkNotificationReadRequest) returns (NotificationResponse);
+}
+
+service RealtimeGateway {
+  rpc RecoverEvents(RecoverRealtimeEventsRequest) returns (RecoverRealtimeEventsResponse);
+  rpc SubscribeEvents(SubscribeRealtimeEventsRequest) returns (stream RealtimeEventMessage);
+}
+
+message ListNotificationsRequest {
+  string recipient_user_id = 1;
+  int64 after_cursor = 2;
+  int32 page_size = 3;
+  string correlation_id = 4;
+}
+
+message ListNotificationsResponse {
+  repeated NotificationMessage notifications = 1;
+  int64 next_cursor = 2;
+  int64 unread_count = 3;
+}
+
+message MarkNotificationReadRequest {
+  string recipient_user_id = 1;
+  string notification_id = 2;
+  string correlation_id = 3;
+}
+
+message NotificationResponse {
+  NotificationMessage notification = 1;
+}
+
+message NotificationMessage {
+  string notification_id = 1;
+  string workspace_id = 2;
+  string notification_type = 3;
+  string resource_type = 4;
+  string resource_id = 5;
+  int64 stream_cursor = 6;
+  int64 created_at_unix = 7;
+  optional int64 read_at_unix = 8;
+}
+
+message RecoverRealtimeEventsRequest {
+  string audience = 1;
+  string scope_id = 2;
+  int64 after_cursor = 3;
+  int32 page_size = 4;
+  string correlation_id = 5;
+  string actor_user_id = 6;
+}
+
+message RecoverRealtimeEventsResponse {
+  repeated RealtimeEventMessage events = 1;
+  int64 next_cursor = 2;
+}
+
+message SubscribeRealtimeEventsRequest {
+  string audience = 1;
+  string scope_id = 2;
+  int64 after_cursor = 3;
+  string correlation_id = 4;
+  string actor_user_id = 5;
+}
+
+message RealtimeEventMessage {
+  string event_id = 1;
+  int64 stream_cursor = 2;
+  string event_type = 3;
+  string audience = 4;
+  string scope_id = 5;
+  string aggregate_id = 6;
+  int64 aggregate_version = 7;
+  int64 occurred_at_unix = 8;
+  string correlation_id = 9;
+  int32 schema_version = 10;
+}
+
+message ReadinessRequest {
+  string correlation_id = 1;
+}
+
+message ReadinessResponse {
+  bool ready = 1;
+  string correlation_id = 2;
+  string trace_id = 3;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string display_name = 3;
+  bool marketing_consent = 4;
+  string correlation_id = 5;
+  string source_address = 6;
+}
+
+message RegistrationResponse {
+  bool delivery_accepted = 1;
+  bool new_account = 2;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+  string correlation_id = 2;
+  string email = 3;
+  string code = 4;
+  string source_address = 5;
+}
+
+message VerifyEmailResponse {
+  bool activated = 1;
+}
+
+message EmailActionRequest {
+  string email = 1;
+  string source_address = 2;
+  string correlation_id = 3;
+}
+
+message EmailActionResponse {
+  bool accepted = 1;
+}
+
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+  string correlation_id = 3;
+}
+
+message ResetPasswordResponse {
+  bool changed = 1;
+}
+
+message EmailProviderEventRequest {
+  string provider_event_id = 1;
+  string event_type = 2;
+  string provider_message_id = 3;
+  string recipient = 4;
+  string correlation_id = 5;
+}
+
+message EmailProviderEventResponse {
+  bool processed = 1;
+}
+
+message SetMarketingConsentRequest {
+  string user_id = 1;
+  bool consented = 2;
+  string correlation_id = 3;
+}
+
+message SetMarketingConsentResponse {
+  bool updated = 1;
+}
+
+message SendEmailRequest {
+  string recipient = 1;
+  string subject = 2;
+  string html = 3;
+  string idempotency_key = 4;
+  string correlation_id = 5;
+  string text = 6;
+}
+
+message SendEmailResponse {
+  string provider_message_id = 1;
+}
+
+message ResendWebhookRequest {
+  bytes raw_body = 1;
+  string svix_id = 2;
+  string svix_timestamp = 3;
+  string svix_signature = 4;
+  string correlation_id = 5;
+}
+
+message ResendWebhookResponse {
+  bool accepted = 1;
+}
+
+enum AuthenticationAudience {
+  AUTHENTICATION_AUDIENCE_UNSPECIFIED = 0;
+  AUTHENTICATION_AUDIENCE_TENANT = 1;
+  AUTHENTICATION_AUDIENCE_PLATFORM = 2;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  AuthenticationAudience audience = 3;
+  string correlation_id = 4;
+  string source_address = 5;
+}
+
+message LoginResponse {
+  string session_id = 1;
+  string session_secret = 2;
+  string csrf_secret = 3;
+  string user_id = 4;
+  int64 idle_expires_at_unix = 5;
+  int64 absolute_expires_at_unix = 6;
+}
+
+message AuthenticateSessionRequest {
+  string session_secret = 1;
+  AuthenticationAudience audience = 2;
+  string correlation_id = 3;
+  string csrf_secret = 4;
+}
+
+message AuthenticatedSession {
+  string session_id = 1;
+  string user_id = 2;
+  int64 idle_expires_at_unix = 3;
+  int64 absolute_expires_at_unix = 4;
+  string email = 5;
+  bool email_verified = 6;
+}
+
+message RefreshSessionRequest {
+  string session_secret = 1;
+  string csrf_secret = 2;
+  AuthenticationAudience audience = 3;
+  string correlation_id = 4;
+}
+
+message LogoutRequest {
+  string session_secret = 1;
+  AuthenticationAudience audience = 2;
+  string correlation_id = 3;
+  string csrf_secret = 4;
+}
+
+message LogoutResponse {
+  bool revoked = 1;
+}
+
+message AccountSessionRequest {
+  string session_secret = 1;
+  string csrf_secret = 2;
+  AuthenticationAudience audience = 3;
+  string correlation_id = 4;
+}
+
+message AccountProfileResponse {
+  string user_id = 1;
+  string email = 2;
+  bool email_verified = 3;
+  string display_name = 4;
+  string locale = 5;
+  string timezone = 6;
+  bool marketing_consent = 7;
+  int64 updated_at_unix = 8;
+}
+
+message UpdateAccountProfileRequest {
+  AccountSessionRequest session = 1;
+  string display_name = 2;
+  string locale = 3;
+  string timezone = 4;
+}
+
+message ListAccountSessionsRequest {
+  AccountSessionRequest session = 1;
+  string cursor = 2;
+  int64 page_size = 3;
+}
+
+message AccountSessionSummary {
+  string session_id = 1;
+  int64 created_at_unix = 2;
+  int64 last_seen_at_unix = 3;
+  int64 idle_expires_at_unix = 4;
+  int64 absolute_expires_at_unix = 5;
+  bool current = 6;
+}
+
+message ListAccountSessionsResponse {
+  repeated AccountSessionSummary sessions = 1;
+  string next_cursor = 2;
+}
+
+message RevokeAccountSessionRequest {
+  AccountSessionRequest session = 1;
+  string target_session_id = 2;
+}
+
+message RevokeAccountSessionResponse {
+  bool revoked = 1;
+  bool current_session_revoked = 2;
+}
+
+message RevokeOtherAccountSessionsResponse {
+  uint64 revoked_count = 1;
+}
+
+message ChangeAccountPasswordRequest {
+  AccountSessionRequest session = 1;
+  string current_password = 2;
+  string new_password = 3;
+}
+
+message ListAccountSecurityEventsRequest {
+  AccountSessionRequest session = 1;
+  string cursor = 2;
+  int64 page_size = 3;
+}
+
+message AccountSecurityEvent {
+  string event_id = 1;
+  string event_type = 2;
+  string result = 3;
+  int64 occurred_at_unix = 4;
+}
+
+message ListAccountSecurityEventsResponse {
+  repeated AccountSecurityEvent events = 1;
+  string next_cursor = 2;
+}
+
+message PlatformPermissionsResponse {
+  string user_id = 1;
+  repeated string permissions = 2;
+}
+
+message ListWorkspacesRequest {
+  string user_id = 1;
+  string correlation_id = 2;
+  string cursor = 3;
+  bool include_unavailable = 4;
+}
+
+message ListWorkspacesResponse {
+  repeated WorkspaceSummary workspaces = 1;
+  string next_cursor = 2;
+}
+
+message CreateWorkspaceRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string name = 3;
+  string workspace_type = 4;
+  string idempotency_key = 5;
+  string correlation_id = 6;
+  string email = 7;
+}
+
+message WorkspaceSummary {
+  string workspace_id = 1;
+  string name = 2;
+  string workspace_type = 3;
+  string status = 4;
+  string role = 5;
+  int64 created_at_unix = 6;
+  string locale = 7;
+  string timezone = 8;
+  int64 updated_at_unix = 9;
+  int64 row_version = 10;
+  optional int64 deletion_effective_at_unix = 11;
+}
+
+message GetWorkspaceRequest {
+  string user_id = 1;
+  string workspace_id = 2;
+  string correlation_id = 3;
+}
+
+message UpdateWorkspaceRequest {
+  string user_id = 1;
+  string workspace_id = 2;
+  optional string name = 3;
+  optional string locale = 4;
+  optional string timezone = 5;
+  int64 expected_row_version = 6;
+  string correlation_id = 7;
+}
+
+message DeleteWorkspaceRequest {
+  string user_id = 1;
+  string workspace_id = 2;
+  string idempotency_key = 3;
+  string confirmation_name = 4;
+  string correlation_id = 5;
+  string deletion_mode = 6;
+}
+
+message WorkspaceDeletionResponse {
+  string request_id = 1;
+  string workspace_id = 2;
+  string workspace_name = 3;
+  string status = 4;
+  int64 requested_at_unix = 5;
+  int64 effective_at_unix = 6;
+  string request_status = 7;
+  int64 row_version = 8;
+}
+
+message ListWorkspaceMembersRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string cursor = 3;
+  int32 page_size = 4;
+  string correlation_id = 5;
+}
+
+message ChangeWorkspaceMemberRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string member_user_id = 3;
+  string role_key = 4;
+  string status = 5;
+  int64 expected_row_version = 6;
+  string correlation_id = 7;
+}
+
+message RevokeWorkspaceMemberRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string member_user_id = 3;
+  string correlation_id = 4;
+}
+
+message WorkspaceMember {
+  string workspace_id = 1;
+  string user_id = 2;
+  string email = 3;
+  string role_key = 4;
+  string status = 5;
+  int64 joined_at_unix = 6;
+  int64 row_version = 7;
+}
+
+message WorkspaceMemberResponse { WorkspaceMember member = 1; }
+message ListWorkspaceMembersResponse {
+  repeated WorkspaceMember members = 1;
+  string next_cursor = 2;
+}
+
+message ListWorkspaceRolesRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string correlation_id = 3;
+}
+message CreateWorkspaceRoleRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string role_key = 3;
+  string display_name = 4;
+  repeated string permissions = 5;
+  string correlation_id = 6;
+}
+message UpdateWorkspaceRoleRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string role_key = 3;
+  string display_name = 4;
+  repeated string permissions = 5;
+  int64 expected_row_version = 6;
+  string correlation_id = 7;
+}
+message DeleteWorkspaceRoleRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string role_key = 3;
+  string correlation_id = 4;
+}
+message WorkspaceRole {
+  string workspace_id = 1;
+  string role_key = 2;
+  string display_name = 3;
+  repeated string permissions = 4;
+  bool system_role = 5;
+  int64 row_version = 6;
+}
+message WorkspaceRoleResponse { WorkspaceRole role = 1; }
+message ListWorkspaceRolesResponse { repeated WorkspaceRole roles = 1; }
+
+message CreateWorkspaceInvitationRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string email = 3;
+  string role_key = 4;
+  string idempotency_key = 5;
+  string correlation_id = 6;
+}
+message ListWorkspaceInvitationsRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string cursor = 3;
+  int32 page_size = 4;
+  string correlation_id = 5;
+}
+message RevokeWorkspaceInvitationRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string invitation_id = 3;
+  string correlation_id = 4;
+}
+message AcceptWorkspaceInvitationRequest {
+  string accepting_user_id = 1;
+  string verified_email = 2;
+  string token = 3;
+  string idempotency_key = 4;
+  string correlation_id = 5;
+}
+message WorkspaceInvitation {
+  string invitation_id = 1;
+  string workspace_id = 2;
+  string email = 3;
+  string role_key = 4;
+  string status = 5;
+  string delivery_status = 6;
+  int64 created_at_unix = 7;
+  int64 expires_at_unix = 8;
+}
+message WorkspaceInvitationResponse { WorkspaceInvitation invitation = 1; }
+message ListWorkspaceInvitationsResponse {
+  repeated WorkspaceInvitation invitations = 1;
+  string next_cursor = 2;
+}
+message GetWorkspaceInvitationDeliveryRequest {
+  string invitation_id = 1;
+  string correlation_id = 2;
+}
+message WorkspaceInvitationDeliveryResponse {
+  string invitation_id = 1;
+  string email = 2;
+  string workspace_name = 3;
+  string token = 4;
+  int64 expires_at_unix = 5;
+}
+message CompleteWorkspaceInvitationDeliveryRequest {
+  string invitation_id = 1;
+  bool sent = 2;
+  string correlation_id = 3;
+}
+message CompleteWorkspaceInvitationDeliveryResponse { bool updated = 1; }
+message TransferWorkspaceOwnershipRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string new_owner_user_id = 3;
+  string confirmation = 4;
+  int64 expected_row_version = 5;
+  string correlation_id = 6;
+}
+message TransferWorkspaceOwnershipResponse {
+  string workspace_id = 1;
+  string previous_owner_user_id = 2;
+  string new_owner_user_id = 3;
+  int64 row_version = 4;
+}
+
+message ListWorkspaceTasksRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string cursor = 3;
+  int32 page_size = 4;
+  string correlation_id = 5;
+}
+message CreateWorkspaceTaskRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string title = 3;
+  string description = 4;
+  string assignee_user_id = 5;
+  string idempotency_key = 6;
+  string correlation_id = 7;
+}
+message UpdateWorkspaceTaskRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string task_id = 3;
+  string title = 4;
+  string description = 5;
+  string assignee_user_id = 6;
+  string status = 7;
+  int64 expected_row_version = 8;
+  string correlation_id = 9;
+}
+message WorkspaceTask {
+  string task_id = 1;
+  string workspace_id = 2;
+  string title = 3;
+  string description = 4;
+  string status = 5;
+  string assignee_user_id = 6;
+  string author_user_id = 7;
+  int64 created_at_unix = 8;
+  int64 updated_at_unix = 9;
+  int64 row_version = 10;
+}
+message WorkspaceTaskResponse { WorkspaceTask task = 1; }
+message ListWorkspaceTasksResponse {
+  repeated WorkspaceTask tasks = 1;
+  string next_cursor = 2;
+}
+message ListWorkspaceTaskCommentsRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string task_id = 3;
+  string cursor = 4;
+  int32 page_size = 5;
+  string correlation_id = 6;
+}
+message CreateWorkspaceTaskCommentRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string task_id = 3;
+  string body = 4;
+  repeated string mentioned_user_ids = 5;
+  string idempotency_key = 6;
+  string correlation_id = 7;
+}
+message DeleteWorkspaceTaskCommentRequest {
+  string actor_user_id = 1;
+  string workspace_id = 2;
+  string task_id = 3;
+  string comment_id = 4;
+  string correlation_id = 5;
+}
+message WorkspaceTaskComment {
+  string comment_id = 1;
+  string task_id = 2;
+  string workspace_id = 3;
+  string author_user_id = 4;
+  string body = 5;
+  repeated string mentioned_user_ids = 6;
+  int64 created_at_unix = 7;
+  bool deleted = 8;
+}
+message WorkspaceTaskCommentResponse { WorkspaceTaskComment comment = 1; }
+message ListWorkspaceTaskCommentsResponse {
+  repeated WorkspaceTaskComment comments = 1;
+  string next_cursor = 2;
+}
+
+message RestoreWorkspaceRequest {
+  string user_id = 1;
+  string workspace_id = 2;
+  string correlation_id = 3;
+}
+
+message WorkspaceResponse {
+  WorkspaceSummary workspace = 1;
+}
+
+message ActiveWorkspaceRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string correlation_id = 3;
+}
+
+message ActiveWorkspaceResponse {
+  bool selected = 1;
+  WorkspaceSummary workspace = 2;
+}
+
+message SetActiveWorkspaceRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string workspace_id = 3;
+  string correlation_id = 4;
+}

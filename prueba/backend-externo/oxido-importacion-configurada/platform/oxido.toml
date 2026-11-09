@@ -1,0 +1,92 @@
+[cargo.manifest.build-dependencies.prost-build]
+workspace = true
+
+[cargo.manifest.build-dependencies.protoc-bin-vendored]
+workspace = true
+
+[cargo.manifest.build-dependencies.tonic-prost-build]
+workspace = true
+
+[cargo.manifest.dependencies.async-nats]
+workspace = true
+
+[cargo.manifest.dependencies.dotenvy]
+workspace = true
+
+[cargo.manifest.dependencies.http]
+workspace = true
+
+[cargo.manifest.dependencies.opentelemetry]
+workspace = true
+
+[cargo.manifest.dependencies.opentelemetry_sdk]
+workspace = true
+
+[cargo.manifest.dependencies.prost]
+workspace = true
+
+[cargo.manifest.dependencies.redis]
+workspace = true
+
+[cargo.manifest.dependencies.serde_json]
+workspace = true
+
+[cargo.manifest.dependencies.sqlx]
+workspace = true
+
+[cargo.manifest.dependencies.thiserror]
+workspace = true
+
+[cargo.manifest.dependencies.tokio]
+workspace = true
+
+[cargo.manifest.dependencies.tonic]
+workspace = true
+
+[cargo.manifest.dependencies.tonic-prost]
+workspace = true
+
+[cargo.manifest.dependencies.tower]
+workspace = true
+
+[cargo.manifest.dependencies.tracing]
+workspace = true
+
+[cargo.manifest.dependencies.tracing-opentelemetry]
+workspace = true
+
+[cargo.manifest.dependencies.tracing-subscriber]
+workspace = true
+
+[cargo.manifest.dependencies.uuid]
+workspace = true
+
+[cargo.manifest.dependencies.xovyra-shared-kernel]
+workspace = true
+
+[cargo.manifest.dev-dependencies]
+futures-util = "0.3.31"
+
+[cargo.manifest.dev-dependencies.uuid]
+workspace = true
+
+[cargo.manifest.lints]
+workspace = true
+
+[cargo.manifest.package]
+build = "build.rs"
+name = "xovyra-platform"
+version = "0.1.0"
+
+[cargo.manifest.package.edition]
+workspace = true
+
+[cargo.manifest.package.license]
+workspace = true
+
+[cargo.manifest.package.rust-version]
+workspace = true
+
+[language]
+edition = "2024"
+syntax = "braces"

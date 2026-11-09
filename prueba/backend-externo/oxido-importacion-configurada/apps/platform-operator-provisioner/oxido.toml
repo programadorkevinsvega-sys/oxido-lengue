@@ -1,0 +1,34 @@
+[cargo.manifest.dependencies.dotenvy]
+workspace = true
+
+[cargo.manifest.dependencies.sqlx]
+workspace = true
+
+[cargo.manifest.dependencies.tokio]
+workspace = true
+
+[cargo.manifest.dependencies.uuid]
+workspace = true
+
+[cargo.manifest.dependencies.xovyra-identity]
+path = "../../modules/identity"
+
+[cargo.manifest.lints]
+workspace = true
+
+[cargo.manifest.package]
+name = "xovyra-platform-operator-provisioner"
+version = "0.1.0"
+
+[cargo.manifest.package.edition]
+workspace = true
+
+[cargo.manifest.package.license]
+workspace = true
+
+[cargo.manifest.package.rust-version]
+workspace = true
+
+[language]
+edition = "2024"
+syntax = "braces"

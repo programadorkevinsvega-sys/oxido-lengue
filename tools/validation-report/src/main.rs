@@ -581,9 +581,9 @@ mod tests {
     #[test]
     fn documented_validation_matrix_references_existing_test_functions() {
         let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let documentation = include_str!("../../../docs/testing.md");
+        let documentation = include_str!("../../../tests/trazabilidad.md");
         let matrix = documentation
-            .split_once("## Matriz de trazabilidad de capacidades anunciadas\n")
+            .split_once("# Matriz de trazabilidad de capacidades anunciadas\n")
             .expect("validation matrix heading exists")
             .1
             .split("\n## ")

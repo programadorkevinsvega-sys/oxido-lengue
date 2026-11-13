@@ -62,6 +62,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: tools/audit-telemetry.sh
       - run: tools/report-hygiene.sh docs/reports docs/pilotos
+      - run: bash -n packaging/debian/check-rust-toolchain.sh packaging/debian/tests/check-rust-toolchain.sh
+      - run: bash packaging/debian/tests/check-rust-toolchain.sh
   documentation:
     runs-on: ubuntu-latest
     steps:

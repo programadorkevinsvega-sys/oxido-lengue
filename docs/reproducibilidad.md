@@ -86,7 +86,8 @@ Los VSIX quedan en `editors/vscode-oxido/dist/`, que no se versiona. El workflow
   - `reproducible` en Linux;
   - `sbom` en Linux y publica el artefacto;
   - `hygiene`, que ejecuta `tools/audit-telemetry.sh` y `tools/report-hygiene.sh docs/reports`; los jobs de validación, SBOM y benchmark aplican la misma comprobación a sus artefactos antes de subirlos.
-- `.github/workflows/release.yml` añade `reproducible` y `sbom` antes de empaquetar los VSIX; el SBOM pasa por `tools/report-hygiene.sh`. El workflow sigue sin publicar ni firmar; solo adjunta artefactos.
+- `.github/workflows/release.yml` añade `reproducible` y `sbom` antes de empaquetar los VSIX; el SBOM pasa por `tools/report-hygiene.sh`. Adjunta artefactos de Actions, pero no publica VSIX ni los firma.
+- `.github/workflows/debian-release.yml` construye y prueba paquetes nativos amd64/arm64 en PRs y al crear una etiqueta de versión. En etiquetas `v` coincidentes con `oxido-cli`, crea o actualiza una GitHub Release con ambos `.deb` y `SHA256SUMS`; no firma paquetes ni los publica en un repositorio APT. Una ejecución manual solo deja artefactos de Actions. La política está registrada en el [ADR 0015 del repositorio](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/adr/0015-distribucion-paquetes-debian.md).
 - La matriz de release conserva Linux x64, Windows x64 y macOS arm64.
 
 ## Pendiente para publicar
@@ -96,7 +97,7 @@ Los VSIX quedan en `editors/vscode-oxido/dist/`, que no se versiona. El workflow
 | Firmar binarios Windows | Certificado de firma de código y secreto de CI |
 | Notarizar macOS | Cuenta Apple Developer, identidad y credenciales de notarización |
 | Publicar VSIX | Autorización de release y token del Marketplace |
-| Publicar binarios | Destino, credenciales y política de retención |
+| Publicar CLI fuera de Debian | Matriz de binarios Windows/macOS y destino de publicación |
 | Verificar reproducibilidad multiplataforma | Ejecutar el job en los tres sistemas y archivar hashes |
 
 Ninguna de estas acciones se ha ejecutado.

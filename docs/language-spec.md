@@ -61,8 +61,7 @@ edition = "2024"
 
 ## 6. No objetivos de 0.1
 
-- Traducir nombres de tipos, métodos, funciones de bibliotecas o crates.
-- Un prelude de aliases de tipos/métodos.
+- Traducir nombres de bibliotecas o crates fuera del prelude documentado en [Alias](aliases.md).
 - Expansión propia de macros y traducción de DSLs de macros externas.
 - Un type checker o borrow checker propio.
 - Inferencia de tipos propia, incluida la inferencia de firmas de funciones. Cualquier propuesta en esa dirección requiere una decisión explícita que actualice esta especificación.

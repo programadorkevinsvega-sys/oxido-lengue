@@ -1,0 +1,14 @@
+Óxido para Debian
+=================
+
+Instale Rust en el prefijo aislado de Óxido después de instalar el paquete:
+
+    sudo oxido-instalar-toolchain
+
+La CLI usa esa toolchain cuando existe en /opt/oxido. La instalación de Rust
+es explícita; instalar el paquete no ejecuta descargas ni compiladores desde
+scripts mantenedores de dpkg. El Rust del sistema y del usuario no se modifica.
+
+`apt remove oxido` elimina la CLI, pero conserva /opt/oxido/rustup y
+/opt/oxido/cargo para no borrar datos compartidos. El administrador puede
+retirar ese prefijo por separado si ya no lo usa.

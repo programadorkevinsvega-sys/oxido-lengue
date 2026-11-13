@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+bindir=$(CDPATH= cd -P "$(dirname "$0")" && pwd)
+exec "$bindir/../lib/oxido/install-isolated-toolchain.sh" "$@"

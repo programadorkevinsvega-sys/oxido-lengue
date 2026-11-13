@@ -62,7 +62,8 @@ crates/
 
 tools/
 ├── benchmark/              # harnesses de rendimiento
-└── playground/             # laboratorio local aislado en Linux
+├── playground/             # laboratorio local aislado en Linux
+└── validation-report/      # recolector independiente de evidencias
 
 editors/
 └── vscode-oxido/           # cliente/editor separado
@@ -79,7 +80,7 @@ tests/
 examples/                    # solo ejemplos que compilen
 ```
 
-Los paquetes actuales del workspace se verifican con `cargo metadata --format-version 1 --no-deps`. `oxido-cargo` ejecuta procesos Cargo reales con argumentos separados y analiza sus eventos JSON. `oxido-lsp` implementa stdio, análisis compartido, sincronización incremental, consultas a `rust-analyzer` bajo confianza y una acción Cargo explícita. El benchmark y el playground son paquetes de herramientas; el playground no está desplegado como servicio público. No se añade un crate hasta que su API y función sean reales.
+Los paquetes del workspace principal se verifican con `cargo metadata --format-version 1 --no-deps`; `tools/validation-report` mantiene un manifiesto independiente y se verifica por separado. `oxido-cargo` ejecuta procesos Cargo reales con argumentos separados y analiza sus eventos JSON. `oxido-lsp` implementa stdio, análisis compartido, sincronización incremental, consultas a `rust-analyzer` bajo confianza y una acción Cargo explícita. Benchmark y playground son paquetes de herramientas; el playground no está desplegado como servicio público. No se añade un crate hasta que su API y función sean reales.
 
 El portal `website/` es Astro Starlight estático, separado de la extensión de VS Code y del compilador. Los Markdown técnicos editables viven en `docs/`; el build prepara copias con metadatos y enlaces web. No mantengas versiones manuales duplicadas ni añadas backend, base de datos o telemetría para publicar documentación.
 

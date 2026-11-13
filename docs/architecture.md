@@ -16,6 +16,7 @@ El parser propio se limita a la estructura Óxido y preserva los fragmentos Rust
 | `oxido-lsp` | Transporte stdio, análisis compartido, diagnósticos, semantic tokens, bridge persistente a `rust-analyzer` y comprobación Cargo explícita | Servidor funcional; alcance y límites probados en la [guía de VS Code y LSP](vscode.md) |
 | `oxido-benchmark` | Harnesses de comparación de rendimiento documentados | Herramienta del workspace |
 | `oxido-playground` | Servicio local de laboratorio con ejecución aislada en Linux | Herramienta disponible; no desplegada como servicio público |
+| `tools/validation-report` | Recolectar validaciones y emitir informes Markdown | Binario/harness independiente; no es miembro del workspace principal |
 | `editors/vscode-oxido` | Extensión VS Code para `.ox`, configuración, comandos y Workspace Trust | Cliente funcional en desarrollo; evidencia y límites en [VS Code y LSP](vscode.md) |
 | `website` | Portal estático Markdown con documentación por audiencia y referencia | Frontend documental; Astro Starlight |
 

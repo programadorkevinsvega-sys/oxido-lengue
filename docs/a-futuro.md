@@ -1,56 +1,27 @@
 # Visión futura de Óxido
 
-Este documento reúne objetivos de producto para incorporar gradualmente. Son propuestas, no afirmaciones de capacidades ya implementadas. La compatibilidad se declara solo con evidencia en la matriz y pruebas del proyecto.
+Esta página separa el estado verificable de las propuestas. «Implementado» significa que existe una capacidad documentada; el alcance exacto sigue sujeto a las pruebas y límites enlazados. «Parcial» indica que una parte está disponible y otra sigue propuesta.
 
-## 1. Prioridades de producto
+## Prioridades
 
-### 1.1. Traducción visual Óxido ↔ Rust
+| Tema | Estado | Situación y trabajo que queda |
+|---|---|---|
+| Vista del Rust generado junto al `.ox` | Propuesto | La exportación permite inspeccionar Rust desde la CLI. Falta una vista sincronizada dentro del editor que relacione ambas representaciones. |
+| Diagnósticos en español e inglés | Parcial | Los diagnósticos propios y un conjunto inicial de resúmenes de `rustc` están en español; no hay selector de idioma y los códigos desconocidos conservan el mensaje original. Véase [diagnósticos](diagnostics.md). |
+| Aprendizaje progresivo | Parcial | Hay [tutorial](tutorial.md), [ejercicios](ejercicios.md) y ejemplos ejecutables. No se ha evaluado el material con estudiantes/docentes ni se afirma un beneficio educativo. |
+| Matriz de compatibilidad | Implementado | La [matriz](compatibility.md) publica el alcance probado y sus límites. Debe actualizarse con cada nueva evidencia; no promete compatibilidad general con Rust. |
+| Interoperabilidad con Rust | Parcial | La CLI genera, importa y compila árboles en el alcance descrito por la [matriz](compatibility.md). La compatibilidad general con cualquier crate/proyecto no está demostrada. |
+| Formato de `.ox` | Implementado | `oxido formato` es idempotente, conserva comentarios en los casos cubiertos y valida el Rust exportado frente a `rustfmt`; la cobertura detallada está en [pruebas](testing.md). |
+| Migración entre modos de sintaxis | Propuesto | No se ofrece una migración automática entre indentación y llaves. Si se añade, debe comprobar equivalencia antes de escribir. |
+| Adopción empresarial | Parcial | Hay política de dependencias, auditorías, fuzzing e informes reproducibles. Óxido sigue en etapa temprana, no apto para producción ni certificado. Véase [preparación empresarial](enterprise-readiness.md). |
+| Playground público | Parcial | Existe un sandbox local Linux con límites; no está desplegado como servicio público. El despliegue requiere diseño operativo y aprobación. |
+| Documentación bilingüe | Parcial | Se mantiene el quickstart en inglés; el resto del contenido canónico está en español y no tiene traducción inglesa completa. |
+| Análisis de proyecto | Parcial | `auditar-proyecto` inventaría superficie de riesgo detectable. No es un análisis completo de compatibilidad ni una certificación de seguridad. |
+| Índice y refactorización del editor | Parcial | Hay caché/indexación limitada y renombrado conservador con `rust-analyzer` o fallback local. No cubre universalmente macros, código opaco ni símbolos sin mapeo exacto. |
 
-Mientras se edita un `.ox`, VS Code podría mostrar el Rust generado y relacionar las construcciones equivalentes. El código generado debe poder inspeccionarse para aprender y auditar la traducción.
+## Óxido como puente de aprendizaje
 
-### 1.2. Diagnósticos útiles en español e inglés
-
-Relacionar diagnósticos de Óxido, Cargo y `rustc` con el archivo `.ox` mediante el mapa de posiciones. Explicar errores sin ocultar el diagnóstico original ni inventar causas. Ofrecer sugerencias solo cuando puedan verificarse con seguridad.
-
-### 1.3. Aprendizaje progresivo
-
-Ofrecer ejercicios y explicaciones que introduzcan variables, funciones, condiciones, tipos, referencias, ownership, borrowing y concurrencia. La experiencia conserva las reglas de Rust y ayuda a entenderlas; no las elimina.
-
-### 1.4. Compatibilidad verificable
-
-Mantener una matriz por versión de Óxido con características soportadas, parciales y pendientes, fixtures, proyectos de referencia y versiones de Rust comprobadas. Una característica se marca como soportada solo tras superar sus criterios de aceptación.
-
-### 1.5. Interoperabilidad con Rust
-
-Usar crates, Cargo y pruebas existentes sin imponer un runtime separado. La salida `.rs` será inspeccionable y exportable. El flujo `.ox → .rs → .ox` debe delimitar el subconjunto reversible y documentar las pérdidas posibles.
-
-### 1.6. Formato y migración de estilos
-
-Un formateador conserva el modo elegido. Una herramienta explícita podrá migrar entre indentación y llaves si verifica que no cambia la semántica. No se mezclan estilos dentro de un archivo.
-
-### 1.7. Adopción empresarial
-
-Priorizar configuración reproducible, políticas de dependencias, licencias, vulnerabilidades, auditoría de `unsafe` y reportes útiles. La preparación empresarial requiere evidencia, soporte y limitaciones documentadas; no se deduce de un ejemplo compilado.
-
-### 1.8. Playground
-
-Un entorno web permitirá escribir, comparar y ejecutar ejemplos. Como ejecuta código ajeno, requiere aislamiento, red deshabilitada y límites estrictos de recursos definidos por el modelo de amenazas.
-
-### 1.9. Documentación bilingüe
-
-Mantener documentación en español e inglés y compilar ejemplos en CI. Un ejemplo inválido debe fallar esa verificación o quedar marcado como ilustrativo.
-
-### 1.10. Análisis del proyecto
-
-Generar un informe de características de Rust usadas, compatibilidad conocida, dependencias y superficie de riesgo. Explicar los límites del análisis y no presentarlo como prueba de seguridad total.
-
-### 1.11. Refactorización e índice incremental
-
-El editor incorpora un renombrado acotado y un índice incremental persistente. El renombrado delega en `rust-analyzer` en workspace confiable, solo aplica ediciones con correspondencia exacta al `.ox` y recurre a un fallback local que rechaza ambigüedad y nombres reservados. El índice vive fuera del workspace, se versiona y se invalida por fecha, tamaño y contenido. Siguen como objetivos futuros la refactorización sobre expresiones sin correspondencia, los cambios que cruzan fragmentos opacos o macros, la resolución de tipos completa y la validación de la caché en Windows/macOS. No se presenta el alcance actual como refactorización universal.
-
-## 2. Óxido como puente de aprendizaje
-
-Ejemplo de la experiencia buscada, sujeto a la gramática que se implemente:
+El tutorial y los ejemplos existentes muestran construcciones actualmente verificadas. Este ejemplo representa una posible forma de explicar la relación entre las sintaxis, no una capacidad adicional:
 
 ```ox
 sintaxis indentacion
@@ -59,24 +30,14 @@ funcion sumar(a: i32, b: i32) -> i32:
     retornar a + b
 ```
 
-El editor podría mostrar:
-
 ```rust
 fn sumar(a: i32, b: i32) -> i32 {
     return a + b;
 }
 ```
 
-Y explicar que `funcion` corresponde a `fn`, `:` abre un bloque indentado, `retornar` corresponde a `return` e `i32` mantiene el tipo de Rust. Este ejemplo expresa un objetivo de producto; no afirma que el compilador actual ya lo admita.
+La correspondencia entre `funcion`/`fn`, `retornar`/`return` y el bloque se puede consultar con la exportación de Óxido. Una vista sincronizada del editor sigue propuesta.
 
-## 3. Contrato de compatibilidad
+## Contrato de compatibilidad
 
-Cada versión publicada especificará:
-
-- La versión y edición de Rust probadas.
-- Las construcciones de Óxido soportadas, parciales y rechazadas.
-- Los crates, macros y patrones de interoperabilidad verificados.
-- Las pruebas de regresión y proyectos de referencia ejecutados.
-- Las limitaciones conocidas y el formato de migración.
-
-El contrato se actualiza con evidencia reproducible por versión. No se certifica compatibilidad por inferencia ni por un ejemplo aislado.
+La [matriz de compatibilidad](compatibility.md) y la [política de pruebas](testing.md) registran la versión de Rust, construcciones, dependencias, pruebas y limitaciones verificadas. Ninguna propuesta futura amplía ese alcance por sí sola.

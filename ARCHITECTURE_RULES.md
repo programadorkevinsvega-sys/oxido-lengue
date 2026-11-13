@@ -3,7 +3,7 @@
 
 ## 1. Alcance y autoridad
 
-Este contrato define la arquitectura de Óxido, un lenguaje y toolchain que analiza `.ox`, genera Rust estándar y delega la compilación a Cargo y `rustc`. No describe un backend de negocio. `plan` define la especificación del lenguaje; este documento define cómo organizar su implementación. Si una decisión no se adapta al compilador, CLI o LSP, no se añade infraestructura para imitar una API.
+Este contrato define la arquitectura de Óxido, un lenguaje y toolchain que analiza `.ox`, genera Rust estándar y delega la compilación a Cargo y `rustc`. No describe un backend de negocio. La especificación vigente del lenguaje está en `docs/language-spec.md`; este documento define cómo organizar su implementación. Si una decisión no se adapta al compilador, CLI o LSP, no se añade infraestructura para imitar una API.
 
 Las reglas se aplican desde el diseño. No se crean paquetes, capas, traits o servicios vacíos para aparentar modularidad. Antes de crear un crate, debe tener responsabilidad estable, API identificable, dependencias justificadas y una razón de aislamiento comprobable.
 
@@ -40,7 +40,7 @@ Las dependencias de código apuntan hacia el dominio y los contratos de aplicaci
 
 ## 4. Estructura de carpetas acordada
 
-La estructura física inicial queda preparada así:
+La estructura física actual del workspace y sus herramientas es:
 
 ```text
 crates/
@@ -60,6 +60,11 @@ crates/
 ├── oxido-cli/              # entrada CLI y composition root
 └── oxido-lsp/              # entrada LSP que reutiliza compiler
 
+tools/
+├── benchmark/              # harnesses de rendimiento
+├── playground/             # laboratorio local aislado en Linux
+└── validation-report/      # recolector independiente de evidencias
+
 editors/
 └── vscode-oxido/           # cliente/editor separado
 
@@ -75,7 +80,7 @@ tests/
 examples/                    # solo ejemplos que compilen
 ```
 
-Los crates `oxido-language`, `oxido-rust-backend`, `oxido-compiler` y `oxido-cli` se materializaron en Fase 2; `oxido-language` incorporó el lexer en Fase 3. `oxido-cargo` y `oxido-lsp` continúan como límites previstos, no crates funcionales. No se añade un crate hasta que su API y función sean reales.
+Los paquetes del workspace principal se verifican con `cargo metadata --format-version 1 --no-deps`; `tools/validation-report` mantiene un manifiesto independiente y se verifica por separado. `oxido-cargo` ejecuta procesos Cargo reales con argumentos separados y analiza sus eventos JSON. `oxido-lsp` implementa stdio, análisis compartido, sincronización incremental, consultas a `rust-analyzer` bajo confianza y una acción Cargo explícita. Benchmark y playground son paquetes de herramientas; el playground no está desplegado como servicio público. No se añade un crate hasta que su API y función sean reales.
 
 El portal `website/` es Astro Starlight estático, separado de la extensión de VS Code y del compilador. Los Markdown técnicos editables viven en `docs/`; el build prepara copias con metadatos y enlaces web. No mantengas versiones manuales duplicadas ni añadas backend, base de datos o telemetría para publicar documentación.
 

@@ -66,6 +66,8 @@ jobs:
       - run: bash packaging/debian/tests/check-rust-toolchain.sh
       - run: bash -n packaging/debian/install-isolated-toolchain.sh packaging/debian/tests/install-isolated-toolchain.sh
       - run: bash packaging/debian/tests/install-isolated-toolchain.sh
+      - run: bash -n packaging/debian/build-deb.sh packaging/debian/payload/usr/bin/oxido packaging/debian/payload/usr/bin/oxido-instalar-toolchain packaging/debian/tests/package-lifecycle.sh
+      - run: bash packaging/debian/tests/package-lifecycle.sh
   documentation:
     runs-on: ubuntu-latest
     steps:

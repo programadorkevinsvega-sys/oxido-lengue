@@ -1,0 +1,10 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Óxido
+Source: https://github.com/programadorkevinsvega-sys/oxido-lengue
+
+Files: *
+Copyright: 2026 programadorkevinsvega-sys
+License: MIT OR Apache-2.0
+ This package is dual licensed under the MIT License or Apache License,
+ Version 2.0, at the recipient's option. Full license texts are installed as
+ /usr/share/doc/oxido/LICENSE-MIT and /usr/share/doc/oxido/LICENSE-APACHE.

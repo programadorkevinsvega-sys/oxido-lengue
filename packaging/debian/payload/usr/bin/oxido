@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+toolchain_prefix=${OXIDO_TOOLCHAIN_PREFIX:-/opt/oxido}
+bindir=$(CDPATH= cd -P "$(dirname "$0")" && pwd)
+libexec=$bindir/../lib/oxido
+case "${1:-}" in
+    build|check|run|test|probar|compilar|ejecutar|descargar-dependencias)
+        requires_cargo=1
+        ;;
+    *) requires_cargo=0 ;;
+esac
+
+if [ -x "$toolchain_prefix/cargo/bin/rustc" ] && [ -x "$toolchain_prefix/cargo/bin/cargo" ]; then
+    RUSTUP_HOME="$toolchain_prefix/rustup"
+    CARGO_HOME="$toolchain_prefix/cargo"
+    PATH="$CARGO_HOME/bin:$PATH"
+    export RUSTUP_HOME CARGO_HOME PATH
+elif [ "$requires_cargo" -eq 1 ]; then
+    if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
+        printf 'Óxido requiere Rust 1.99.1 o posterior; instálelo en el prefijo aislado con: sudo oxido-instalar-toolchain\n' >&2
+        exit 1
+    fi
+    status=0
+    report=$("$libexec/check-rust-toolchain.sh" 2>&1) || status=$?
+    if [ "$status" -ne 0 ]; then
+        printf '%s\n' "$report" >&2
+        printf 'Instale la toolchain aislada con: sudo oxido-instalar-toolchain\n' >&2
+        exit 1
+    fi
+fi
+
+exec "$libexec/oxido" "$@"

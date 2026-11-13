@@ -42,9 +42,9 @@ Qué observar:
 - `formato!` construye una cadena y `imprimir!` escribe en la salida estándar; los argumentos de las macros conservan Rust.
 - `dejar` declara una variable inmutable. Para mutarla se usa `dejar mutable`.
 
-**Ejercicio 1.1:** cambia el nombre para que el programa salude a otra persona. Criterio: la salida cambia y el comando termina con código 0.
+**Tutorial 1.1:** cambia el nombre para que el programa salude a otra persona. Criterio: la salida cambia y el comando termina con código 0.
 
-**Ejercicio 1.2:** añade una segunda función que reciba dos números y devuelva su suma. Criterio: se llama desde `principal` y se imprime el resultado.
+**Tutorial 1.2:** añade una segunda función que reciba dos números y devuelva su suma. Criterio: se llama desde `principal` y se imprime el resultado.
 
 ## Lección 2: condiciones, bucles y patrones
 
@@ -84,9 +84,9 @@ Qué observar:
 - `coincidir` es `match`; cada brazo usa `=>` y una expresión. `_` cubre el resto.
 - La función devuelve la última expresión de cada rama, sin `return` ni `devolver`.
 
-**Ejercicio 2.1:** añade un tercer valor y una etiqueta nueva. Criterio: el brazo nuevo se ejecuta al menos una vez y los demás conservan su salida.
+**Tutorial 2.1:** añade un tercer valor y una etiqueta nueva. Criterio: el brazo nuevo se ejecuta al menos una vez y los demás conservan su salida.
 
-**Ejercicio 2.2:** sustituye el array por un `Vector<i32>` y recorre su contenido con iteradores, como en `examples/estructuras.ox`. Criterio: la salida es equivalente y el programa compila.
+**Tutorial 2.2:** sustituye el array por un `Vector<i32>` y recorre su contenido con iteradores, como en `examples/estructuras.ox`. Criterio: la salida es equivalente y el programa compila.
 
 ## Lección 3: estructuras y métodos
 
@@ -125,9 +125,9 @@ Qué observar:
 - Los campos se leen con `punto.x`; los métodos se llaman con `punto.suma()`.
 - La inicialización compacta `Mismo { x, y }` conserva la semántica de Rust.
 
-**Ejercicio 3.1:** añade un campo `z` y actualiza el constructor y la suma. Criterio: compila y la salida incluye las tres coordenadas.
+**Tutorial 3.1:** añade un campo `z` y actualiza el constructor y la suma. Criterio: compila y la salida incluye las tres coordenadas.
 
-**Ejercicio 3.2:** implementa un método que devuelva una referencia a un campo. Criterio: el tipo devuelto y el préstamo son válidos para `rustc`; si no, se explica el diagnóstico.
+**Tutorial 3.2:** implementa un método que devuelva una referencia a un campo. Criterio: el tipo devuelto y el préstamo son válidos para `rustc`; si no, se explica el diagnóstico.
 
 ## Siguientes pasos
 

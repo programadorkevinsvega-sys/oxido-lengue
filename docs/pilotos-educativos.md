@@ -17,7 +17,7 @@ No se afirma que Óxido mejore el aprendizaje, reduzca el abandono ni sea más f
 
 **Hipótesis de trabajo (a contrastar, no afirmadas):**
 
-1. La mayoría del grupo piloto completa los ejercicios 1–3 en una sesión de 90 minutos con ayuda puntual.
+1. La mayoría del grupo piloto completa Libro #1–#3 en una sesión de 90 minutos con ayuda puntual.
 2. Los errores más frecuentes son de instalación y de tipos, no de sintaxis de Óxido.
 3. El material no empeora la comprensión de ownership frente al grupo de comparación.
 
@@ -41,7 +41,7 @@ No se afirma que Óxido mejore el aprendizaje, reduzca el abandono ni sea más f
 
 - Un equipo por estudiante o por pareja con Rust 1.99.1 o posterior, `rustfmt` y la CLI instalada.
 - El [tutorial](tutorial.md) y los [ejercicios](ejercicios.md) en la versión fijada del repositorio.
-- Un repositorio o carpeta limpia por participante; sin dependencias externas para los ejercicios 1–3.
+- Un repositorio o carpeta limpia por participante; sin dependencias externas para Libro #1–#3.
 - Hoja de diagnóstico para registrar errores de instalación sin capturar rutas personales.
 - Cronómetro o registro del tiempo por tarea, sin identificar a la persona.
 
@@ -112,8 +112,8 @@ No se calculan efectos causales con muestras pequeñas. Se reportan medianas, ra
 1. **Preparación (2 semanas antes).** Aprobación del centro, consentimiento, revisión de privacidad, fijación del commit y del toolchain, prueba de instalación en los equipos del aula.
 2. **Sesión 0: instalación (45 minutos).** Verificar Rust, `rustfmt` y la CLI. Registrar incidencias por plataforma sin datos personales.
 3. **Sesión 1: tutorial (90 minutos).** Lecciones 1 y 2, pre-prueba al inicio.
-4. **Sesión 2: tutorial y ejercicios (90 minutos).** Lección 3 y ejercicios 1–2.
-5. **Sesión 3: ejercicios y cierre (90 minutos).** Ejercicio 3, post-prueba y encuesta.
+4. **Sesión 2: tutorial y libro de ejercicios (90 minutos).** Tutorial 3 y Libro #1–#2.
+5. **Sesión 3: libro de ejercicios y cierre (90 minutos).** Libro #3, post-prueba y encuesta.
 6. **Análisis (2 semanas después).** Limpieza, agregación, análisis descriptivo y redacción del informe.
 7. **Devolución.** Informe al centro y a los participantes, con limitaciones y sin comparaciones individuales.
 

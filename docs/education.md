@@ -5,7 +5,7 @@ Esta página reúne la ruta de aprendizaje, los ejemplos verificados y los ejerc
 ## Estado
 
 - **Verificado:** los ejemplos de la tabla siguiente se ejecutan con la CLI actual y forman parte de las pruebas de extremo a extremo.
-- **Propuesto:** los ejercicios 4–9 del [libro de ejercicios](ejercicios.md), la guía para docentes, el [protocolo de pilotos](pilotos-educativos.md) y la guía en inglés son propuestas. No se han usado en un aula.
+- **Propuesto/no ejecutado:** Libro #4–#9 del [libro de ejercicios](ejercicios.md) y cualquier piloto en aula. La guía docente y el [protocolo de pilotos](pilotos-educativos.md) ya están escritos, pero el material no se ha probado con estudiantes ni docentes.
 - **Fuera de alcance:** una plataforma de cursos, cuentas de usuario, corrección automática en red y telemetría educativa.
 
 ## Ruta de aprendizaje
@@ -39,49 +39,21 @@ cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida targ
 
 `exportar` crea `target/hola.oxido-map.json` con el mapa de origen. El Rust final se formatea con `rustfmt` 1.99.1.
 
-## Ejercicios propuestos
+## Libro de ejercicios
 
-El [libro de ejercicios](ejercicios.md) organiza nueve tareas por nivel. Los ejercicios 1–3 incluyen archivo de inicio, solución de referencia y una prueba automática de salida; el resto indica criterios observables. No hay corrección automática en red. En esta página se conserva una selección introductoria; el docente puede comprobar la salida y el diagnóstico.
+La lista canónica es el [libro de ejercicios](ejercicios.md); esta página no mantiene una segunda numeración ni criterios duplicados. Los tres primeros ejercicios tienen inicio, solución de referencia y prueba automática. Los demás son propuestas con criterios observables. No hay corrección automática en red ni validación en aula.
 
-### 1. Cambiar el saludo
-
-Modifica una copia de `hola_mundo.ox` para que imprima tu nombre.
-
-- **Criterio:** `oxido ejecutar` termina con código 0 y muestra el texto nuevo.
-- **Concepto:** función de entrada, cadena literal, macro de impresión.
-- **Límite:** no se evalúa estilo ni cobertura.
-
-### 2. Añadir un campo a una estructura
-
-Parte de `estructuras.ox` y añade un campo a la estructura existente.
-
-- **Criterio:** el programa compila, se ejecuta y la salida conserva el formato esperado o el que documente el estudiante.
-- **Concepto:** tipos, inicialización, acceso a campos.
-- **Límite:** la matriz de compatibilidad delimita los tipos admitidos.
-
-### 3. Provocar y leer un diagnóstico
-
-Introduce un error de tipo en una copia de un ejemplo.
-
-- **Criterio:** `oxido compilar` falla, muestra un código `OX*` o un diagnóstico de Rust y no hay pánico.
-- **Concepto:** lectura de errores, diferencia entre frontend y `rustc`.
-- **Límite:** algunos errores se detectan en Rust, no en el parser de Óxido.
-
-### 4. Exportar y comparar
-
-Exporta un ejemplo y localiza una construcción de Óxido en el Rust generado.
-
-- **Criterio:** el estudiante señala la línea del `.rs` y explica qué parte proviene del frontend y qué parte conserva Rust.
-- **Concepto:** pipeline, mapa de origen, `rustfmt`.
-- **Límite:** el texto `.ox` no es idéntico al `.rs`; la comparación es estructural.
-
-### 5. Ejecutar las pruebas de un archivo
-
-Convierte un ejemplo en un archivo con una función `#[test]` y ejecútalo con `oxido probar`.
-
-- **Criterio:** `oxido probar` informa al menos una prueba ejecutada y el resultado esperado.
-- **Concepto:** integración con Cargo, pruebas.
-- **Límite:** un archivo sin `#[test]` puede informar cero pruebas sin ser un error.
+| Identificador del libro | Tema | Estado técnico |
+|---|---|---|
+| Libro #1 | Promedio de un array | Solución ejecutada en CI |
+| Libro #2 | Inventario con estructuras | Solución ejecutada en CI |
+| Libro #3 | Contar palabras largas | Solución ejecutada en CI |
+| Libro #4 | FizzBuzz acotado | Propuesto |
+| Libro #5 | Buscar el máximo | Propuesto |
+| Libro #6 | Contar vocales | Propuesto |
+| Libro #7 | `Result` y propagación | Propuesto |
+| Libro #8 | Módulos y visibilidad | Propuesto |
+| Libro #9 | Leer el Rust generado | Propuesto |
 
 ## Guía para docentes
 
@@ -96,7 +68,7 @@ Convierte un ejemplo en un archivo con una función `#[test]` y ejecútalo con `
 
 El protocolo completo —diseño, instrumentos, consentimiento, privacidad, análisis y plantilla de informe— está en [Pilotos educativos](pilotos-educativos.md). **No se ha ejecutado ningún piloto.** Resumen:
 
-1. **Objetivo:** evaluar si el material permite completar los ejercicios 1–3 sin ayuda del docente y si los conceptos de Rust se comprenden mejor que con el material de control.
+1. **Objetivo:** evaluar si el material permite completar Libro #1–#3 sin ayuda del docente y si los conceptos de Rust se comprenden mejor que con el material de control.
 2. **Diseño:** grupo piloto y grupo de comparación, mismos ejercicios y mismo tiempo, con pre y post prueba. La asignación debe ser voluntaria y reversible.
 3. **Evidencia:** tasa de finalización, diagnósticos encontrados, tiempo hasta la primera ejecución correcta, encuesta de claridad y errores de concepto.
 4. **Privacidad:** datos agregados, sin nombres, rutas ni identificadores personales. Consentimiento informado y posibilidad de retirarse.

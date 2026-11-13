@@ -5,7 +5,7 @@ Esta página reúne la ruta de aprendizaje, los ejemplos verificados y los ejerc
 ## Estado
 
 - **Verificado:** los ejemplos de la tabla siguiente se ejecutan con la CLI actual y forman parte de las pruebas de extremo a extremo.
-- **Propuesto:** los ítems **Libro #4–#9** del [libro de ejercicios](ejercicios.md), la guía para docentes, el [protocolo de pilotos](pilotos-educativos.md) y una guía inglesa más amplia. No se han usado en un aula.
+- **Propuesto/no ejecutado:** Libro #4–#9 del [libro de ejercicios](ejercicios.md) y cualquier piloto en aula. La guía docente y el [protocolo de pilotos](pilotos-educativos.md) ya están escritos, pero el material no se ha probado con estudiantes ni docentes.
 - **Fuera de alcance:** una plataforma de cursos, cuentas de usuario, corrección automática en red y telemetría educativa.
 
 ## Ruta de aprendizaje

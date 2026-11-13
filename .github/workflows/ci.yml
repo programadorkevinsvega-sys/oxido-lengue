@@ -64,6 +64,8 @@ jobs:
       - run: tools/report-hygiene.sh docs/reports docs/pilotos
       - run: bash -n packaging/debian/check-rust-toolchain.sh packaging/debian/tests/check-rust-toolchain.sh
       - run: bash packaging/debian/tests/check-rust-toolchain.sh
+      - run: bash -n packaging/debian/install-isolated-toolchain.sh packaging/debian/tests/install-isolated-toolchain.sh
+      - run: bash packaging/debian/tests/install-isolated-toolchain.sh
   documentation:
     runs-on: ubuntu-latest
     steps:

@@ -61,15 +61,16 @@ oxido ejecutar examples/interoperabilidad.ox
 | `importar <archivo.rs> --salida <archivo.ox> [--espanol]` | Importa un archivo Rust | Por defecto conserva el código tal cual; `--espanol` traduce el subconjunto de funciones libres |
 | `importar-proyecto <dir> --salida <dir> [--espanol]` | Recorre un árbol Rust | Importa cada `.rs` tal cual; `--espanol` traduce el subconjunto reversible. Los originales quedan en `.oxido/original/` |
 | `analizar-rust <archivo.rs>` | Valida sintaxis Rust | No compila |
-| `compilar <archivo.ox>` | Comprueba el Rust generado con Cargo | Requiere `rustfmt` y `Cargo.lock` si hay dependencias |
-| `ejecutar <archivo.ox>` | Compila y ejecuta | Es la única orden que corre tu programa |
-| `probar <archivo.ox>` | Ejecuta `cargo test` | Un archivo sin `#[test]` puede dar cero pruebas |
+| `check <archivo.ox>` (`verificar`) | Valida con `cargo check`, sin dejar un ejecutable | Requiere `rustfmt` y `Cargo.lock` si hay dependencias |
+| `build <archivo.ox>` (`compilar`) | Genera un binario persistente | `--release` genera el perfil optimizado; salida en `target/oxido/{debug,release}` |
+| `run <archivo.ox>` (`ejecutar`) | Compila y ejecuta el programa | `--release` selecciona el perfil optimizado |
+| `test <archivo.ox>` (`probar`) | Ejecuta `cargo test` | Un archivo sin `#[test]` puede dar cero pruebas |
 | `auditar-unsafe <archivo.ox> [--rechazar]` | Busca `inseguro` | Análisis léxico, no semántico |
 | `auditar-proyecto <dir>` | Inventario estático de riesgo | No sigue symlinks ni ejecuta Cargo |
 | `descargar-dependencias <archivo.ox>` | Muestra el plan de dependencias | Solo descarga con `--confirmar` |
 | `aliases` | Lista alias del prelude | No amplía la matriz de compatibilidad |
 
-La [matriz de compatibilidad](compatibility.md) delimita la sintaxis que puede usarse. La CLI no sandboxa código de dependencias: `compilar` y `ejecutar` con dependencias exigen `--confiar-dependencias` y pueden ejecutar `build.rs` y macros procedurales.
+La [matriz de compatibilidad](compatibility.md) delimita la sintaxis que puede usarse. `check`/`verificar` valida sin producir un ejecutable; `build`/`compilar` genera artefactos bajo `target/oxido/{debug,release}`; `run`/`ejecutar` además inicia el programa. Añade `--release` a `build` para el perfil optimizado de Cargo. La CLI no sandboxa código de dependencias: las acciones que compilan con dependencias exigen `--confiar-dependencias` y pueden ejecutar `build.rs` y macros procedurales.
 
 ## Dependencias
 

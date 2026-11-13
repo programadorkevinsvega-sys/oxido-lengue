@@ -28,7 +28,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 
 ## Riesgos residuales
 
-1. **Ejecución de código de dependencias.** `compilar` y `ejecutar` con dependencias pueden ejecutar `build.rs` y macros procedurales. `--confiar-dependencias` registra una decisión del operador; no aísla el proceso.
+1. **Ejecución de código de dependencias.** `check`, `build` y `run` con dependencias pueden ejecutar `build.rs` y macros procedurales. `--confiar-dependencias` registra una decisión del operador; no aísla el proceso.
 2. **Sin sandbox general.** La CLI y el LSP no están aislados del sistema operativo. El sandbox del playground es un producto separado.
 3. **Cobertura parcial del lenguaje.** La matriz no cubre todo Rust. Un programa que compila no demuestra compatibilidad general.
 4. **Distribución incompleta.** No hay binarios firmados, instaladores, marketplace ni canal de actualizaciones.

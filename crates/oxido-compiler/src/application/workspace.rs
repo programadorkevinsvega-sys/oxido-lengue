@@ -53,6 +53,7 @@ pub fn is_imported_cargo_workspace(project_root: &Path) -> Result<bool, String> 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ImportedWorkspaceAction {
     Check,
+    Build,
     Run,
     Test,
 }
@@ -187,6 +188,9 @@ pub fn run_imported_workspace(
             OsString::from("--workspace"),
             OsString::from("--all-targets"),
         ],
+        ImportedWorkspaceAction::Build => {
+            vec![OsString::from("build"), OsString::from("--workspace")]
+        }
         ImportedWorkspaceAction::Test => vec![
             OsString::from("test"),
             OsString::from("--workspace"),
@@ -216,6 +220,11 @@ pub fn run_imported_workspace(
         OsString::from("--offline"),
         OsString::from("--message-format=json"),
     ]);
+    if action == ImportedWorkspaceAction::Build {
+        let target_dir = super::cargo::oxido_target_directory(&project_root)
+            .map_err(|error| format!("no se pudo preparar la salida de binarios: {error}"))?;
+        arguments.extend([OsString::from("--target-dir"), target_dir.into_os_string()]);
+    }
     if release && action != ImportedWorkspaceAction::Test {
         arguments.push(OsString::from("--release"));
     }

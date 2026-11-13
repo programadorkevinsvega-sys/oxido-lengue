@@ -535,7 +535,7 @@ fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
     let compiled = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&temp.0)
         .args([
-            "compilar",
+            "check",
             "oxido/apps/app/src/main.ox",
             "--confiar-dependencias",
         ])
@@ -548,7 +548,8 @@ fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
         String::from_utf8_lossy(&compiled.stderr)
     );
     assert!(
-        String::from_utf8_lossy(&compiled.stdout).contains("Workspace Óxido compilado con éxito")
+        String::from_utf8_lossy(&compiled.stdout)
+            .contains("Workspace Óxido verificado correctamente")
     );
 
     let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))

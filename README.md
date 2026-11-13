@@ -25,11 +25,12 @@ La guía completa —requisitos, comandos, dependencias y solución de problemas
 
 ```sh
 cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
-cargo run --locked -p oxido-cli -- compilar examples/hola_mundo.ox
+cargo run --locked -p oxido-cli -- check examples/hola_mundo.ox
+cargo run --locked -p oxido-cli -- build examples/hola_mundo.ox --release
 cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
 ```
 
-`exportar` crea también `target/hola.oxido-map.json`. `compilar` usa Cargo para comprobar el Rust generado; `ejecutar` es la única orden que corre el programa `.ox`. La importación conserva el archivo tal cual: solo antepone `sintaxis llaves`, porque `fn`, `let` y el resto de la sintaxis Rust ya son válidos en ese modo. La traducción a `funcion` es opcional con `--espanol`:
+`exportar` crea también `target/hola.oxido-map.json`. `check`/`verificar` usa `cargo check` para validar sin generar un ejecutable; `build`/`compilar` usa `cargo build` y conserva artefactos bajo `target/oxido/{debug,release}`; `run`/`ejecutar` compila y ejecuta el programa. Añade `--release` a `build` para generar el binario optimizado de Cargo. La importación conserva el archivo tal cual: solo antepone `sintaxis llaves`, porque `fn`, `let` y el resto de la sintaxis Rust ya son válidos en ese modo. La traducción a `funcion` es opcional con `--espanol`:
 
 ```sh
 cargo run --locked -p oxido-cli -- importar target/hola.rs --salida target/hola-vuelta.ox

@@ -25,6 +25,14 @@ pub enum CargoAction {
     CheckRelease,
     /// Compile with release optimizations after explicitly trusting dependencies.
     CheckReleaseTrusted,
+    /// Build a persistent executable without user dependencies.
+    Build,
+    /// Build after the operator explicitly trusts declared dependencies.
+    BuildTrusted,
+    /// Build a persistent release executable without user dependencies.
+    BuildRelease,
+    /// Build a persistent release executable after trusting dependencies.
+    BuildReleaseTrusted,
     /// Run without user dependencies.
     Run,
     /// Run after the operator explicitly trusts declared dependencies.
@@ -283,6 +291,8 @@ pub fn build_generated_project_with_dependencies_cancellable(
                 | CargoAction::Run
                 | CargoAction::CheckRelease
                 | CargoAction::RunRelease
+                | CargoAction::Build
+                | CargoAction::BuildRelease
                 | CargoAction::Test
         )
     {
@@ -448,6 +458,16 @@ pub fn build_generated_project_with_dependencies_cancellable(
                 "--message-format=json",
             ]
         }
+        CargoAction::Build | CargoAction::BuildTrusted => {
+            vec!["build", "--locked", "--offline", "--message-format=json"]
+        }
+        CargoAction::BuildRelease | CargoAction::BuildReleaseTrusted => vec![
+            "build",
+            "--release",
+            "--locked",
+            "--offline",
+            "--message-format=json",
+        ],
         CargoAction::Run | CargoAction::RunTrusted => vec![
             "run",
             "--locked",
@@ -482,6 +502,21 @@ pub fn build_generated_project_with_dependencies_cancellable(
     .into_iter()
     .map(OsString::from)
     .collect::<Vec<_>>();
+    let mut args = args;
+    if matches!(
+        action,
+        CargoAction::Build
+            | CargoAction::BuildTrusted
+            | CargoAction::BuildRelease
+            | CargoAction::BuildReleaseTrusted
+    ) && let Some(lockfile) = persistent_lockfile
+    {
+        let project_root = lockfile.parent().ok_or_else(|| {
+            io::Error::other("Cargo.lock no tiene una raíz de proyecto para los artefactos")
+        })?;
+        let target_dir = oxido_target_directory(project_root)?;
+        args.extend([OsString::from("--target-dir"), target_dir.into_os_string()]);
+    }
     if cancellation_requested(cancellation) {
         return Ok(canceled_build_result());
     }
@@ -504,6 +539,26 @@ pub fn build_generated_project_with_dependencies_cancellable(
         program_output: output.non_json_stdout,
         stderr: output.stderr,
     })
+}
+
+pub(super) fn oxido_target_directory(project_root: &Path) -> io::Result<PathBuf> {
+    let root = fs::canonicalize(project_root)?;
+    let target_root = root.join("target");
+    let oxido_target = target_root.join("oxido");
+    for directory in [&target_root, &oxido_target] {
+        match fs::symlink_metadata(directory) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err(io::Error::other(format!(
+                    "el directorio de artefactos no es un directorio seguro: {}",
+                    directory.display()
+                )));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(oxido_target)
 }
 
 fn cancellation_requested(cancellation: Option<&AtomicBool>) -> bool {

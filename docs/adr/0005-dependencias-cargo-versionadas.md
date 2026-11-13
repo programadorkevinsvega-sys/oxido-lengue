@@ -13,11 +13,11 @@ Los proyectos Óxido necesitan declarar crates por ruta local o por requisito de
 - Aceptar exactamente una fuente: `path` relativa al proyecto o `version`; las rutas locales siguen sujetas a canonicalización dentro del proyecto.
 - No aceptar fuentes git, URL, comandos, parches ni opciones libres en esta fase.
 - Permitir `features` y `default-features` como datos declarativos con límites de tamaño; Cargo interpreta sus nombres.
-- Versionar `Cargo.lock`; compilar y ejecutar deben consumirlo con `--locked --offline`. Si hay cualquier dependencia y falta el lockfile, fallan con `OX7001` y una instrucción clara sin crear el lockfile persistente de forma implícita.
+- Versionar `Cargo.lock`; check, build y run deben consumirlo con `--locked --offline`. Si hay cualquier dependencia y falta el lockfile, fallan con `OX7001` y una instrucción clara sin crear el lockfile persistente de forma implícita.
 - La resolución/descarga requiere el comando explícito `oxido descargar-dependencias`. Por defecto solo se admiten crates de crates.io; una fuente local `path` requiere `--permitir-rutas-locales`, y git/URL siguen rechazadas.
 - Descargar presenta primero un plan de paquetes y cambios al lockfile. Sin `--confirmar` no descarga paquetes ni escribe `Cargo.lock`; `--actualizar` muestra la nueva resolución y solo la aplica con `--confirmar`.
-- `descargar-dependencias` usa `cargo generate-lockfile` y `cargo fetch --locked`; no ejecuta `cargo check`, `build` ni `run`. La compilación y ejecución posterior requieren `--confiar-dependencias`, porque Cargo puede ejecutar `build.rs` y macros procedurales.
-- La CLI no crea automáticamente `Cargo.lock` durante `compilar`/`ejecutar`; si falta, se informa el fallo y se indica descargar/resolver dependencias explícitamente.
+- `descargar-dependencias` usa `cargo generate-lockfile` y `cargo fetch --locked`; no ejecuta `cargo check`, `build` ni `run`. Las acciones posteriores que compilan requieren `--confiar-dependencias`, porque Cargo puede ejecutar `build.rs` y macros procedurales.
+- La CLI no crea automáticamente `Cargo.lock` durante `check`/`build`/`run`; si falta, se informa el fallo y se indica descargar/resolver dependencias explícitamente.
 
 ## Consecuencias
 

@@ -11,7 +11,7 @@ El parser propio se limita a la estructura Óxido y preserva los fragmentos Rust
 | `oxido-language` | Fuente/spans UTF-8, diagnósticos, lexer, AST estructural y parser de `.ox` | Núcleo/dominio |
 | `oxido-compiler` | Casos de uso de parseo, generación, mapa, integración Cargo e importación reversible | Aplicación |
 | `oxido-rust-backend` | Emitir Rust con quote/proc_macro2; validar con Syn, formato intermedio prettyplease y formato final rustfmt 1.99.1 | Adapter de salida |
-| `oxido-cli` | `aliases`, `analizar-rust`, `auditar-proyecto`, `auditar-unsafe`, `compilar`, `descargar-dependencias`, `ejecutar`, `exportar`, `formato`, `importar`, `importar-proyecto`, `nuevo` y `probar` | Adapter de entrada |
+| `oxido-cli` | `aliases`, `analizar-rust`, `auditar-proyecto`, `auditar-unsafe`, `build`/`compilar`, `check`/`verificar`, `descargar-dependencias`, `run`/`ejecutar`, `test`/`probar`, `exportar`, `formato`, `importar`, `importar-proyecto` y `nuevo` | Adapter de entrada |
 | `oxido-cargo` | Invocar Cargo por argv, limitar tiempo y leer mensajes JSON | Adapter de proceso |
 | `oxido-lsp` | Transporte stdio, análisis compartido, diagnósticos, semantic tokens, bridge persistente a `rust-analyzer` y comprobación Cargo explícita | Servidor funcional; alcance y límites probados en la [guía de VS Code y LSP](vscode.md) |
 | `oxido-benchmark` | Harnesses de comparación de rendimiento documentados | Herramienta del workspace |

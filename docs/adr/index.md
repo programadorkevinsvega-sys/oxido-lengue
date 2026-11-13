@@ -17,3 +17,4 @@ Los ADR registran decisiones con consecuencias duraderas para el compilador, sus
 - [0011 — Cierre técnico de Fase 11 y traslado de la distribución](0011-cierre-fase-11-y-distribucion.md): alcance cerrado del editor/LSP, límites de semantic tokens y distribución en Fase 12.
 - [0012 — Ámbitos locales, renombrado e índice persistente](0012-ambitos-locales-rename-e-indice-persistente.md): extensión 11.1, delegación en `rust-analyzer`, fallback local y caché versionada fuera del workspace.
 - [0013 — Cierre de 12.11 con alcance Linux](0013-cierre-12-11-alcance-linux.md): sandbox del playground limitado a Linux; Windows/macOS y despliegue público fuera de la subfase.
+- [0014 — Contrato de comandos Cargo de la CLI](0014-contrato-comandos-cargo-cli.md): separación de verificación, generación de binarios, ejecución y pruebas.

@@ -5,7 +5,7 @@ Estos casos guían el diseño del lenguaje y el material del sitio. El estado di
 | Audiencia | Caso | Estado actual |
 |---|---|---|
 | Desarrolladores | Tokenizar y diagnosticar sintaxis `.ox` | Implementado como biblioteca; alcance descrito en la [especificación](../language-spec.md) y el [pipeline](../compiler-pipeline.md) |
-| Desarrolladores | Analizar, generar y compilar `.ox` como Rust | CLI inicial: compilar/ejecutar, exportar/importar, `nuevo`, `formato`, `probar` e importación de árboles; límites en la [matriz](../compatibility.md) |
+| Desarrolladores | Analizar, generar y compilar `.ox` como Rust | CLI: `check`/`verificar`, `build`/`compilar`, `run`/`ejecutar`, `test`/`probar`, exportar/importar, `nuevo` y `formato`; límites en la [matriz](../compatibility.md) |
 | Empresas | Evaluar límites, seguridad y reproducibilidad | Reproducibilidad y controles de CLI documentados; el producto no está listo para producción y el código de dependencias no está sandboxeado |
 | Estudiantes | Aprender sintaxis bilingüe y relacionarla con Rust | [Tutorial](../tutorial.md) y [ejercicios](../ejercicios.md) ejecutables; la cobertura sigue limitada a la matriz |
 | Docentes | Diseñar ejercicios verificables y progresivos | Material inicial con ejemplos verificados y ejercicios propuestos; sin validación en aula, ver [Educación](../education.md) |

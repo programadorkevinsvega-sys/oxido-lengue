@@ -73,9 +73,10 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
         "exportar" => export_ox(&args[1..]),
         "importar" => import_rust(&args[1..]),
         "importar-proyecto" => import_project(&args[1..]),
-        "compilar" => cargo_ox(&args[1..], CargoAction::Check),
-        "ejecutar" => cargo_ox(&args[1..], CargoAction::Run),
-        "probar" => cargo_ox(&args[1..], CargoAction::Test),
+        "check" | "verificar" => cargo_ox(&args[1..], CargoAction::Check),
+        "build" | "compilar" => cargo_ox(&args[1..], CargoAction::Build),
+        "run" | "ejecutar" => cargo_ox(&args[1..], CargoAction::Run),
+        "test" | "probar" => cargo_ox(&args[1..], CargoAction::Test),
         "nuevo" => new_project(&args[1..]),
         "formato" => format_ox(&args[1..]),
         "descargar-dependencias" => fetch_dependencies(&args[1..]),
@@ -1438,11 +1439,19 @@ fn convert_cargo_manifest_to_oxido(contents: &str, source: &Path) -> Result<Stri
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     let Some(input) = args.first() else {
         let command = if action == CargoAction::Check {
-            "compilar"
+            "check"
+        } else if matches!(
+            action,
+            CargoAction::Build
+                | CargoAction::BuildTrusted
+                | CargoAction::BuildRelease
+                | CargoAction::BuildReleaseTrusted
+        ) {
+            "build"
         } else if action == CargoAction::Test {
-            "probar"
+            "test"
         } else {
-            "ejecutar"
+            "run"
         };
         return Err(format!(
             "uso: oxido {command} <archivo.ox> [--release] [--confiar-dependencias]"
@@ -1457,7 +1466,7 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             Some("--release") if !release => release = true,
             Some("--json") if !json_output => json_output = true,
             _ => {
-                return Err("uso: oxido compilar|ejecutar <archivo.ox> [--release] [--confiar-dependencias]".into());
+                return Err("uso: oxido check|build|run|test <archivo.ox> [--release] [--confiar-dependencias]".into());
             }
         }
     }
@@ -1466,13 +1475,16 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     }
     if matches!(
         action,
-        CargoAction::Check | CargoAction::Run | CargoAction::Test
+        CargoAction::Check | CargoAction::Build | CargoAction::Run | CargoAction::Test
     ) && let Some(workspace_root) = imported_workspace_root(&PathBuf::from(input))?
         && oxido_compiler::application::workspace::is_imported_cargo_workspace(&workspace_root)?
     {
         let workspace_action = match action {
             CargoAction::Check => {
                 oxido_compiler::application::workspace::ImportedWorkspaceAction::Check
+            }
+            CargoAction::Build => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Build
             }
             CargoAction::Run => {
                 oxido_compiler::application::workspace::ImportedWorkspaceAction::Run
@@ -1503,7 +1515,11 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 println!("{line}");
             }
             if action == CargoAction::Check {
-                println!("Workspace Óxido compilado con éxito.");
+                println!("Workspace Óxido verificado correctamente.");
+            }
+            if action == CargoAction::Build {
+                let profile = if release { "release" } else { "debug" };
+                println!("Binarios generados en target/oxido/{profile}.");
             }
             return Ok(());
         }
@@ -1521,6 +1537,10 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         (CargoAction::Check, false, true) => CargoAction::CheckTrusted,
         (CargoAction::Check, true, false) => CargoAction::CheckRelease,
         (CargoAction::Check, true, true) => CargoAction::CheckReleaseTrusted,
+        (CargoAction::Build, false, false) => CargoAction::Build,
+        (CargoAction::Build, false, true) => CargoAction::BuildTrusted,
+        (CargoAction::Build, true, false) => CargoAction::BuildRelease,
+        (CargoAction::Build, true, true) => CargoAction::BuildReleaseTrusted,
         (CargoAction::Run, false, false) => CargoAction::Run,
         (CargoAction::Run, false, true) => CargoAction::RunTrusted,
         (CargoAction::Run, true, false) => CargoAction::RunRelease,
@@ -1599,7 +1619,8 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             "schemaVersion": 1,
             "success": result.success,
             "diagnostics": diagnostics,
-            "output": output
+            "output": output,
+            "artifactDirectory": build_artifact_directory(action, release)
         });
         if result.success {
             println!("{report}");
@@ -1670,9 +1691,35 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         ));
     }
     if !prints_program_output {
-        println!("El programa .ox compila correctamente.");
+        match action {
+            CargoAction::Check
+            | CargoAction::CheckTrusted
+            | CargoAction::CheckRelease
+            | CargoAction::CheckReleaseTrusted => {
+                println!("El programa .ox pasó la verificación de Cargo.");
+            }
+            CargoAction::Build
+            | CargoAction::BuildTrusted
+            | CargoAction::BuildRelease
+            | CargoAction::BuildReleaseTrusted => {
+                let profile = if release { "release" } else { "debug" };
+                println!("Binario generado en target/oxido/{profile}.");
+            }
+            _ => {}
+        }
     }
     Ok(())
+}
+
+fn build_artifact_directory(action: CargoAction, release: bool) -> Option<String> {
+    matches!(
+        action,
+        CargoAction::Build
+            | CargoAction::BuildTrusted
+            | CargoAction::BuildRelease
+            | CargoAction::BuildReleaseTrusted
+    )
+    .then(|| format!("target/oxido/{}", if release { "release" } else { "debug" }))
 }
 
 fn structured_failure(diagnostics: Vec<serde_json::Value>, output: Vec<String>) -> String {
@@ -2018,5 +2065,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|compilar|probar|ejecutar> ..."
+    "uso: oxido <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|build|check|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|run|test|verificar|compilar|ejecutar> ..."
 }

@@ -8,13 +8,14 @@ Flujo disponible desde la raíz del repositorio:
 
 ```sh
 cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
-cargo run --locked -p oxido-cli -- compilar examples/hola_mundo.ox
+cargo run --locked -p oxido-cli -- check examples/hola_mundo.ox
+cargo run --locked -p oxido-cli -- build examples/hola_mundo.ox --release
 cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/interoperabilidad.ox
 ```
 
-Si instalaste el binario, sustituye `cargo run --locked -p oxido-cli --` por `oxido`. Para generar y ejecutar con las optimizaciones del perfil release de Cargo, añade `--release` a `compilar` o `ejecutar`. Por ejemplo: `oxido ejecutar examples/hola_mundo.ox --release`.
+Si instalaste el binario, sustituye `cargo run --locked -p oxido-cli --` por `oxido`. `check`/`verificar` valida con `cargo check` sin crear un ejecutable. `build`/`compilar` compila y conserva los binarios bajo `target/oxido/debug` o `target/oxido/release`; `--release` activa las optimizaciones de Cargo para el binario destinado a despliegue. `run`/`ejecutar` compila y ejecuta el programa; `test`/`probar` ejecuta las pruebas.
 
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` conserva un único archivo tal cual por defecto; `--espanol` activa la conversión reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol e importa cada `.rs` tal cual; con `--espanol` traduce el subconjunto y mantiene los items Rust no convertidos como passthrough. `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 
@@ -31,7 +32,7 @@ edition = "2024"
 version = "1.0"
 ```
 
-Por defecto declara dependencias de crates.io con `version`. `oxido descargar-dependencias archivo.ox` muestra el diff del lockfile y las crates fijadas. Puede consultar el índice, pero no descarga paquetes ni guarda el lockfile; añade `--confirmar` después de revisar para ejecutar únicamente `cargo fetch --locked`. `--actualizar` prepara una nueva resolución y también requiere `--confirmar`. Una dependencia local `path` solo se acepta en esta acción con `--permitir-rutas-locales`; git y URL no están soportadas. `compilar`/`ejecutar` usan `--locked --offline`, requieren `Cargo.lock` para cualquier dependencia y fallan con `OX7001` si falta. Si hay dependencias, añade `--confiar-dependencias` solo después de revisar el proyecto: Cargo puede ejecutar `build.rs` y macros procedurales durante la compilación. Ese flag expresa confianza, no sandbox.
+Por defecto declara dependencias de crates.io con `version`. `oxido descargar-dependencias archivo.ox` muestra el diff del lockfile y las crates fijadas. Puede consultar el índice, pero no descarga paquetes ni guarda el lockfile; añade `--confirmar` después de revisar para ejecutar únicamente `cargo fetch --locked`. `--actualizar` prepara una nueva resolución y también requiere `--confirmar`. Una dependencia local `path` solo se acepta en esta acción con `--permitir-rutas-locales`; git y URL no están soportadas. `check`/`build`/`run` usan `--locked --offline`, requieren `Cargo.lock` para cualquier dependencia y fallan con `OX7001` si falta. Si hay dependencias, añade `--confiar-dependencias` solo después de revisar el proyecto: Cargo puede ejecutar `build.rs` y macros procedurales durante la compilación. Ese flag expresa confianza, no sandbox.
 
 `oxido auditar-unsafe archivo.ox` informa tokens `inseguro`; añade `--rechazar` para que el comando falle al encontrar alguno. El análisis es léxico, no compila ni ejecuta el proyecto y no detecta toda la superficie de riesgo.
 

@@ -112,9 +112,10 @@ These examples use Spanish keywords; each has a test that compiles and runs it i
 | `nuevo <dir>` | Create a minimal project | Fixed indentation template |
 | `formato <file.ox>` | Format and check idempotence | Only the documented subset |
 | `exportar <file.ox> --salida <file.rs>` | Generate Rust and a source map | Final Rust is formatted with `rustfmt` |
-| `compilar <file.ox>` | Check the generated Rust with Cargo | Requires `rustfmt`; dependencies need a lockfile |
-| `ejecutar <file.ox>` | Compile and run | Runs your program |
-| `probar <file.ox>` | Run `cargo test` | A file without `#[test]` reports zero tests |
+| `check <file.ox>` (`verificar`) | Validate generated Rust with `cargo check`, without leaving an executable | Requires `rustfmt`; dependencies need a lockfile |
+| `build <file.ox>` (`compilar`) | Generate a persistent binary | `--release` selects Cargo's optimized profile; output is under `target/oxido/{debug,release}` |
+| `run <file.ox>` (`ejecutar`) | Compile and run the program | `--release` selects Cargo's optimized profile |
+| `test <file.ox>` (`probar`) | Run `cargo test` | A file without `#[test]` reports zero tests |
 
 See the [Spanish installation guide](../instalacion.md) for dependencies, troubleshooting and uninstall steps.
 

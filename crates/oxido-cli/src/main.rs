@@ -1461,18 +1461,33 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             }
         }
     }
+    if release && action == CargoAction::Test {
+        return Err("probar no admite --release todavía".into());
+    }
     if matches!(
         action,
-        CargoAction::Check
-            | CargoAction::CheckTrusted
-            | CargoAction::CheckRelease
-            | CargoAction::CheckReleaseTrusted
+        CargoAction::Check | CargoAction::Run | CargoAction::Test
     ) && let Some(workspace_root) = imported_workspace_root(&PathBuf::from(input))?
+        && oxido_compiler::application::workspace::is_imported_cargo_workspace(&workspace_root)?
     {
-        let result = oxido_compiler::application::workspace::check_imported_workspace(
+        let workspace_action = match action {
+            CargoAction::Check => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Check
+            }
+            CargoAction::Run => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Run
+            }
+            CargoAction::Test => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Test
+            }
+            _ => return Err("acción de workspace importado no válida".into()),
+        };
+        let result = oxido_compiler::application::workspace::run_imported_workspace(
             &workspace_root,
+            &PathBuf::from(input),
             trusted,
             release,
+            workspace_action,
         )?;
         for diagnostic in &result.diagnostics {
             eprint!("{diagnostic}");
@@ -1484,7 +1499,12 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             );
         }
         if result.success {
-            println!("Workspace Óxido compilado con éxito.");
+            for line in &result.program_output {
+                println!("{line}");
+            }
+            if action == CargoAction::Check {
+                println!("Workspace Óxido compilado con éxito.");
+            }
             return Ok(());
         }
         return Err(format!(

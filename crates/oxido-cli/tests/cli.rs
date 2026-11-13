@@ -459,15 +459,19 @@ fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
     let rust_source = temp.0.join("rust");
     let ox_source = temp.0.join("oxido");
     fs::create_dir_all(rust_source.join("apps/app/src")).unwrap();
+    fs::create_dir_all(rust_source.join("apps/app/tools")).unwrap();
+    fs::create_dir_all(rust_source.join("apps/app/examples")).unwrap();
+    fs::create_dir_all(rust_source.join("apps/app/checks")).unwrap();
+    fs::create_dir_all(rust_source.join("apps/app/performance")).unwrap();
     fs::create_dir_all(rust_source.join("modules/support/src")).unwrap();
     fs::write(
         rust_source.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"apps/app\", \"modules/support\"]\nresolver = \"3\"\n",
+        "[workspace]\nmembers = [\"apps/*\", \"modules/*\"]\nresolver = \"3\"\n",
     )
     .unwrap();
     fs::write(
         rust_source.join("apps/app/Cargo.toml"),
-        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nsupport = { path = \"../../modules/support\" }\n",
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nsupport = { path = \"../../modules/support\" }\n\n[[bin]]\nname = \"utility\"\npath = \"tools/utility.rs\"\n\n[[example]]\nname = \"custom-example\"\npath = \"examples/custom.rs\"\n\n[[test]]\nname = \"custom-integration\"\npath = \"checks/integration.rs\"\n\n[[bench]]\nname = \"custom-bench\"\npath = \"performance/bench.rs\"\n",
     )
     .unwrap();
     fs::write(
@@ -483,6 +487,22 @@ fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
     fs::write(
         rust_source.join("modules/support/src/lib.rs"),
         "pub fn value() -> &'static str { \"workspace\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("apps/app/tools/utility.rs"),
+        "fn main() { println!(\"utility\"); }\n",
+    )
+    .unwrap();
+    fs::write(
+        rust_source.join("apps/app/examples/custom.rs"),
+        "fn main() { println!(\"example\"); }\n",
+    )
+    .unwrap();
+    fs::write(rust_source.join("apps/app/checks/integration.rs"), "#[test]\nfn imported_workspace_test_runs() { assert_eq!(support::value(), \"workspace\"); }\n").unwrap();
+    fs::write(
+        rust_source.join("apps/app/performance/bench.rs"),
+        "fn main() { assert_eq!(support::value(), \"workspace\"); }\n",
     )
     .unwrap();
     let lockfile = Command::new("cargo")
@@ -529,6 +549,95 @@ fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
     );
     assert!(
         String::from_utf8_lossy(&compiled.stdout).contains("Workspace Óxido compilado con éxito")
+    );
+
+    let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "ejecutar",
+            "oxido/apps/app/src/main.ox",
+            "--confiar-dependencias",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        executed.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&executed.stdout),
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("workspace"));
+
+    let custom_binary = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "ejecutar",
+            "oxido/apps/app/tools/utility.ox",
+            "--confiar-dependencias",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        custom_binary.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&custom_binary.stdout),
+        String::from_utf8_lossy(&custom_binary.stderr)
+    );
+    assert!(String::from_utf8_lossy(&custom_binary.stdout).contains("utility"));
+
+    let custom_example = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "ejecutar",
+            "oxido/apps/app/examples/custom.ox",
+            "--confiar-dependencias",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        custom_example.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&custom_example.stdout),
+        String::from_utf8_lossy(&custom_example.stderr)
+    );
+    assert!(String::from_utf8_lossy(&custom_example.stdout).contains("example"));
+
+    let tested = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "probar",
+            "oxido/apps/app/src/main.ox",
+            "--confiar-dependencias",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        tested.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&tested.stdout),
+        String::from_utf8_lossy(&tested.stderr)
+    );
+    assert!(String::from_utf8_lossy(&tested.stdout).contains("imported_workspace_test_runs"));
+
+    fs::write(
+        ox_source.join("modules/support/src/lib.ox"),
+        "pub fn value() -> u32 { \"wrong type\" }\n",
+    )
+    .unwrap();
+    let failed = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args([
+            "compilar",
+            "oxido/apps/app/src/main.ox",
+            "--confiar-dependencias",
+        ])
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    let diagnostic = String::from_utf8_lossy(&failed.stderr);
+    assert!(
+        diagnostic.contains("modules/support/src/lib.ox:1:"),
+        "{diagnostic}"
     );
 }
 

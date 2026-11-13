@@ -797,7 +797,7 @@ fn parse_cargo_diagnostics(
     parse_cargo_diagnostics_with_maps(messages, &SourceMapSet::new(vec![source_map.clone()]))
 }
 
-fn parse_cargo_diagnostics_with_maps(
+pub(crate) fn parse_cargo_diagnostics_with_maps(
     messages: &[Value],
     source_maps: &SourceMapSet,
 ) -> Vec<MappedCargoDiagnostic> {

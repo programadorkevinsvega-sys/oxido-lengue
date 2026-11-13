@@ -1,0 +1,61 @@
+[package]
+name = "xovyra-module-runtime"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-nats.workspace = true
+base64 = "0.22.1"
+aws-credential-types.workspace = true
+aws-sdk-s3.workspace = true
+futures-util = "0.3.31"
+hmac.workspace = true
+opentelemetry.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+tonic-health.workspace = true
+redis.workspace = true
+reqwest.workspace = true
+sqlx.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tracing.workspace = true
+tracing-opentelemetry.workspace = true
+tower.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+xovyra-platform = { path = "../../platform" }
+xovyra-shared-kernel.workspace = true
+xovyra-identity = { path = "../../modules/identity" }
+xovyra-tenancy-access = { path = "../../modules/tenancy-access" }
+xovyra-commercial-billing = { path = "../../modules/commercial-billing" }
+xovyra-usage-ledger = { path = "../../modules/usage-ledger" }
+xovyra-provider-catalog = { path = "../../modules/provider-catalog" }
+xovyra-integrations = { path = "../../modules/integrations" }
+xovyra-projects = { path = "../../modules/projects" }
+xovyra-financial-research = { path = "../../modules/financial-research" }
+xovyra-generation = { path = "../../modules/generation" }
+xovyra-asset-storage = { path = "../../modules/asset-storage" }
+xovyra-jobs = { path = "../../modules/jobs" }
+xovyra-media-pipeline = { path = "../../modules/media-pipeline" }
+xovyra-approvals = { path = "../../modules/approvals" }
+xovyra-publishing = { path = "../../modules/publishing" }
+xovyra-analytics = { path = "../../modules/analytics" }
+xovyra-notifications = { path = "../../modules/notifications" }
+xovyra-realtime = { path = "../../modules/realtime" }
+xovyra-audit = { path = "../../modules/audit" }
+xovyra-platform-control = { path = "../../modules/platform-control" }
+
+[features]
+real-r2-tests = []
+real-resend-tests = []
+
+[dev-dependencies]
+uuid.workspace = true
+reqwest.workspace = true
+
+[lints]
+workspace = true

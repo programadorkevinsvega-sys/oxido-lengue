@@ -1,0 +1,94 @@
+[cargo.manifest.dependencies.sqlx]
+workspace = true
+
+[cargo.manifest.dependencies.thiserror]
+workspace = true
+
+[cargo.manifest.dependencies.tokio]
+workspace = true
+
+[cargo.manifest.dependencies.tracing]
+workspace = true
+
+[cargo.manifest.dependencies.xovyra-analytics]
+path = "../../modules/analytics"
+
+[cargo.manifest.dependencies.xovyra-approvals]
+path = "../../modules/approvals"
+
+[cargo.manifest.dependencies.xovyra-asset-storage]
+path = "../../modules/asset-storage"
+
+[cargo.manifest.dependencies.xovyra-audit]
+path = "../../modules/audit"
+
+[cargo.manifest.dependencies.xovyra-commercial-billing]
+path = "../../modules/commercial-billing"
+
+[cargo.manifest.dependencies.xovyra-financial-research]
+path = "../../modules/financial-research"
+
+[cargo.manifest.dependencies.xovyra-generation]
+path = "../../modules/generation"
+
+[cargo.manifest.dependencies.xovyra-identity]
+path = "../../modules/identity"
+
+[cargo.manifest.dependencies.xovyra-integrations]
+path = "../../modules/integrations"
+
+[cargo.manifest.dependencies.xovyra-jobs]
+path = "../../modules/jobs"
+
+[cargo.manifest.dependencies.xovyra-media-pipeline]
+path = "../../modules/media-pipeline"
+
+[cargo.manifest.dependencies.xovyra-notifications]
+path = "../../modules/notifications"
+
+[cargo.manifest.dependencies.xovyra-platform]
+path = "../../platform"
+
+[cargo.manifest.dependencies.xovyra-platform-control]
+path = "../../modules/platform-control"
+
+[cargo.manifest.dependencies.xovyra-projects]
+path = "../../modules/projects"
+
+[cargo.manifest.dependencies.xovyra-provider-catalog]
+path = "../../modules/provider-catalog"
+
+[cargo.manifest.dependencies.xovyra-publishing]
+path = "../../modules/publishing"
+
+[cargo.manifest.dependencies.xovyra-realtime]
+path = "../../modules/realtime"
+
+[cargo.manifest.dependencies.xovyra-shared-kernel]
+workspace = true
+
+[cargo.manifest.dependencies.xovyra-tenancy-access]
+path = "../../modules/tenancy-access"
+
+[cargo.manifest.dependencies.xovyra-usage-ledger]
+path = "../../modules/usage-ledger"
+
+[cargo.manifest.lints]
+workspace = true
+
+[cargo.manifest.package]
+name = "xovyra-migrator"
+version = "0.1.0"
+
+[cargo.manifest.package.edition]
+workspace = true
+
+[cargo.manifest.package.license]
+workspace = true
+
+[cargo.manifest.package.rust-version]
+workspace = true
+
+[language]
+edition = "2024"
+syntax = "braces"

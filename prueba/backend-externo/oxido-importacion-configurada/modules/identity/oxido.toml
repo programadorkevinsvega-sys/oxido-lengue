@@ -1,0 +1,73 @@
+[cargo.manifest.dependencies.argon2]
+workspace = true
+
+[cargo.manifest.dependencies.getrandom]
+workspace = true
+
+[cargo.manifest.dependencies.hmac]
+workspace = true
+
+[cargo.manifest.dependencies.redis]
+workspace = true
+
+[cargo.manifest.dependencies.serde_json]
+workspace = true
+
+[cargo.manifest.dependencies.sha2]
+workspace = true
+
+[cargo.manifest.dependencies.sqlx]
+workspace = true
+
+[cargo.manifest.dependencies.thiserror]
+workspace = true
+
+[cargo.manifest.dependencies.tokio]
+workspace = true
+
+[cargo.manifest.dependencies.tracing]
+workspace = true
+
+[cargo.manifest.dependencies.uuid]
+workspace = true
+
+[cargo.manifest.dependencies.xovyra-shared-kernel]
+path = "../../shared-kernel"
+
+[cargo.manifest.dev-dependencies]
+futures-util = "0.3.31"
+
+[cargo.manifest.dev-dependencies.async-nats]
+workspace = true
+
+[cargo.manifest.dev-dependencies.reqwest]
+workspace = true
+
+[cargo.manifest.dev-dependencies.xovyra-asset-storage]
+path = "../asset-storage"
+
+[cargo.manifest.dev-dependencies.xovyra-platform]
+path = "../../platform"
+
+[cargo.manifest.dev-dependencies.xovyra-tenancy-access]
+path = "../tenancy-access"
+
+[cargo.manifest.lints]
+workspace = true
+
+[cargo.manifest.package]
+name = "xovyra-identity"
+version = "0.1.0"
+
+[cargo.manifest.package.edition]
+workspace = true
+
+[cargo.manifest.package.license]
+workspace = true
+
+[cargo.manifest.package.rust-version]
+workspace = true
+
+[language]
+edition = "2024"
+syntax = "braces"

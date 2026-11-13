@@ -353,6 +353,37 @@ fn fetch_dependencies(args: &[OsString]) -> Result<(), String> {
     Ok(())
 }
 
+fn imported_workspace_root(source: &Path) -> Result<Option<PathBuf>, String> {
+    let source = fs::canonicalize(source)
+        .map_err(|error| format!("no se pudo resolver {}: {error}", source.display()))?;
+    for ancestor in source.parent().into_iter().flat_map(Path::ancestors) {
+        let marker = ancestor.join(".oxido/import-manifest.json");
+        let metadata = match fs::symlink_metadata(&marker) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "no se pudo inspeccionar el manifiesto importado: {error}"
+                ));
+            }
+        };
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.len() > 16 * 1024 * 1024
+        {
+            return Err("el manifiesto de importación no es un archivo regular válido".into());
+        }
+        let bytes = fs::read(&marker)
+            .map_err(|error| format!("no se pudo leer el manifiesto de importación: {error}"))?;
+        let manifest: serde_json::Value = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("manifiesto de importación inválido: {error}"))?;
+        if manifest["kind"] == "oxido-lossless-workspace-import" {
+            return Ok(Some(ancestor.to_path_buf()));
+        }
+    }
+    Ok(None)
+}
+
 fn print_fetch_result(
     result: &oxido_compiler::application::cargo::CargoBuildResult,
 ) -> Result<(), String> {
@@ -850,6 +881,53 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
                 ));
             }
         };
+        if file.relative.file_name() == Some(OsStr::new("Cargo.toml")) {
+            let cargo_text = match std::str::from_utf8(&contents) {
+                Ok(text) => text,
+                Err(error) => {
+                    cleanup_import_project(&staging, &created_files, &created_directories)?;
+                    return Err(format!(
+                        "{} no es UTF-8 válido: {error}",
+                        file.relative.display()
+                    ));
+                }
+            };
+            let converted = match convert_cargo_manifest_to_oxido(cargo_text, &file.relative) {
+                Ok(converted) => converted,
+                Err(error) => {
+                    cleanup_import_project(&staging, &created_files, &created_directories)?;
+                    return Err(error);
+                }
+            };
+            let oxido_manifest_path = file.relative.with_file_name("oxido.toml");
+            if original_paths.contains(&oxido_manifest_path) {
+                cleanup_import_project(&staging, &created_files, &created_directories)?;
+                return Err(format!(
+                    "no se puede convertir {}: ya existe {} en el árbol de entrada",
+                    file.relative.display(),
+                    oxido_manifest_path.display()
+                ));
+            }
+            if let Err(error) = write_import_file(
+                &staging,
+                &oxido_manifest_path,
+                converted.as_bytes(),
+                &mut created_directories,
+                &mut created_files,
+            ) {
+                cleanup_import_project(&staging, &created_files, &created_directories)?;
+                return Err(error);
+            }
+            manifest_files.push(serde_json::json!({
+                "source": &file.relative,
+                "preservedPath": &oxido_manifest_path,
+                "sha256": sha256_hex(&contents),
+                "strategy": "cargo-manifest-to-oxido-toml",
+                "oxidoPath": null,
+                "diagnostic": null,
+            }));
+            continue;
+        }
         let oxido_relative = file.relative.with_extension("ox");
         let conversion = rust_imports.get(&file.relative);
         // Si se genera un `.ox`, el `.rs` original se conserva fuera de la
@@ -926,6 +1004,22 @@ fn import_project(args: &[OsString]) -> Result<(), String> {
             entry["diagnostic"] = serde_json::json!(diagnostic);
         }
         manifest_files.push(entry);
+    }
+    // Los archivos producidos por la importación Rust usan `sintaxis llaves`.
+    // Fijar el modo a nivel de proyecto evita que los comandos posteriores
+    // elijan el valor predeterminado indentado y rechacen esos `.ox`.
+    if !original_paths.contains(Path::new("oxido.toml"))
+        && !original_paths.contains(Path::new("Cargo.toml"))
+        && let Err(error) = write_import_file(
+            &staging,
+            Path::new("oxido.toml"),
+            b"[language]\nsyntax = \"braces\"\nedition = \"2024\"\n",
+            &mut created_directories,
+            &mut created_files,
+        )
+    {
+        cleanup_import_project(&staging, &created_files, &created_directories)?;
+        return Err(error);
     }
     let manifest = serde_json::json!({
         "schemaVersion": 1,
@@ -1202,7 +1296,7 @@ fn rewrite_project_module_path(
 ) -> Result<String, String> {
     let path = Path::new(path);
     let relative = normalize_project_relative_path(source_parent, path)?;
-    match relative.extension() {
+    let target = match relative.extension() {
         Some(extension) if extension == "rs" => {
             if !rust_sources.contains(&relative) {
                 return Err(format!(
@@ -1210,7 +1304,7 @@ fn rewrite_project_module_path(
                     relative.display()
                 ));
             }
-            Ok(relative.with_extension("ox").to_string_lossy().into_owned())
+            relative.with_extension("ox")
         }
         Some(extension) if extension == "ox" => {
             if !ox_sources.contains(&relative) {
@@ -1219,13 +1313,51 @@ fn rewrite_project_module_path(
                     relative.display()
                 ));
             }
-            Ok(relative.to_string_lossy().into_owned())
+            relative
         }
-        _ => Err(format!(
-            "el atributo `#[path]` no apunta a una fuente .rs o .ox del árbol: {}",
-            relative.display()
-        )),
+        _ => {
+            return Err(format!(
+                "el atributo `#[path]` no apunta a una fuente .rs o .ox del árbol: {}",
+                relative.display()
+            ));
+        }
+    };
+    // `#[path]` se resuelve desde el directorio del archivo que declara el
+    // módulo, no desde la raíz del workspace. Devolver la ruta normalizada
+    // relativa al workspace rompía cualquier archivo dentro de un
+    // subdirectorio.
+    Ok(relative_path_from(source_parent, &target)
+        .to_string_lossy()
+        .into_owned())
+}
+
+/// Construye una ruta relativa desde `base` hasta `target`, ambos normalizados
+/// y relativos al workspace. Incluye `..` cuando el destino queda fuera del
+/// directorio de origen.
+fn relative_path_from(base: &Path, target: &Path) -> PathBuf {
+    fn components(path: &Path) -> Vec<&OsStr> {
+        path.components()
+            .filter_map(|component| match component {
+                std::path::Component::Normal(value) => Some(value),
+                _ => None,
+            })
+            .collect()
     }
+    let base = components(base);
+    let target = components(target);
+    let common = base
+        .iter()
+        .zip(&target)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut relative = PathBuf::new();
+    for _ in common..base.len() {
+        relative.push("..");
+    }
+    for component in &target[common..] {
+        relative.push(component);
+    }
+    relative
 }
 
 fn normalize_project_relative_path(base: &Path, path: &Path) -> Result<PathBuf, String> {
@@ -1270,6 +1402,39 @@ fn cleanup_import_project(
     }
 }
 
+fn convert_cargo_manifest_to_oxido(contents: &str, source: &Path) -> Result<String, String> {
+    let cargo_manifest = toml::from_str::<toml::Value>(contents)
+        .map_err(|error| format!("Cargo.toml inválido en {}: {error}", source.display()))?;
+    let manifest_table = cargo_manifest
+        .as_table()
+        .ok_or_else(|| format!("Cargo.toml debe ser una tabla: {}", source.display()))?;
+    let package_edition = manifest_table
+        .get("package")
+        .and_then(|package| package.get("edition"))
+        .and_then(toml::Value::as_str);
+    let workspace_edition = manifest_table
+        .get("workspace")
+        .and_then(|workspace| workspace.get("package"))
+        .and_then(|package| package.get("edition"))
+        .and_then(toml::Value::as_str);
+    let edition = package_edition.or(workspace_edition).unwrap_or("2024");
+
+    let mut language = toml::map::Map::new();
+    language.insert("syntax".into(), toml::Value::String("braces".into()));
+    language.insert("edition".into(), toml::Value::String(edition.to_owned()));
+    let mut cargo = toml::map::Map::new();
+    cargo.insert("manifest".into(), cargo_manifest);
+    let mut oxido_manifest = toml::map::Map::new();
+    oxido_manifest.insert("language".into(), toml::Value::Table(language));
+    oxido_manifest.insert("cargo".into(), toml::Value::Table(cargo));
+    toml::to_string_pretty(&toml::Value::Table(oxido_manifest)).map_err(|error| {
+        format!(
+            "no se pudo convertir {} a oxido.toml: {error}",
+            source.display()
+        )
+    })
+}
+
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     let Some(input) = args.first() else {
         let command = if action == CargoAction::Check {
@@ -1295,6 +1460,59 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 return Err("uso: oxido compilar|ejecutar <archivo.ox> [--release] [--confiar-dependencias]".into());
             }
         }
+    }
+    if release && action == CargoAction::Test {
+        return Err("probar no admite --release todavía".into());
+    }
+    if matches!(
+        action,
+        CargoAction::Check | CargoAction::Run | CargoAction::Test
+    ) && let Some(workspace_root) = imported_workspace_root(&PathBuf::from(input))?
+        && oxido_compiler::application::workspace::is_imported_cargo_workspace(&workspace_root)?
+    {
+        let workspace_action = match action {
+            CargoAction::Check => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Check
+            }
+            CargoAction::Run => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Run
+            }
+            CargoAction::Test => {
+                oxido_compiler::application::workspace::ImportedWorkspaceAction::Test
+            }
+            _ => return Err("acción de workspace importado no válida".into()),
+        };
+        let result = oxido_compiler::application::workspace::run_imported_workspace(
+            &workspace_root,
+            &PathBuf::from(input),
+            trusted,
+            release,
+            workspace_action,
+        )?;
+        for diagnostic in &result.diagnostics {
+            eprint!("{diagnostic}");
+        }
+        if !result.stderr.trim().is_empty() {
+            eprint!(
+                "{}",
+                sanitize_report_text(&result.stderr, Some(&workspace_root))
+            );
+        }
+        if result.success {
+            for line in &result.program_output {
+                println!("{line}");
+            }
+            if action == CargoAction::Check {
+                println!("Workspace Óxido compilado con éxito.");
+            }
+            return Ok(());
+        }
+        return Err(format!(
+            "Cargo terminó con estado {}; el workspace importado no compiló.",
+            result
+                .exit_code
+                .map_or_else(|| "desconocido".to_owned(), |code| code.to_string())
+        ));
     }
     let (source, display_path) = load_ox(input)?;
     let settings = project_settings(&display_path)?;

@@ -50,7 +50,7 @@ jobs:
           - runner: windows-latest
             target: win32-x64
             server: oxido-lsp.exe
-          - runner: macos-14
+          - runner: macos-15
             target: darwin-arm64
             server: oxido-lsp
     defaults:

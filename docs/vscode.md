@@ -1,6 +1,6 @@
 # VS Code y servidor LSP
 
-El editor se compone de una extensión de VS Code (`editors/vscode-oxido`) y el servidor `oxido-lsp`. La extensión asocia archivos `.ox`, inicia el servidor y añade tres comandos. El análisis al editar es local y no ejecuta Cargo ni `rust-analyzer`; la comprobación con Cargo es una acción separada que exige Workspace Trust.
+El editor se compone de una extensión de VS Code (`editors/vscode-oxido`) y el servidor `oxido-lsp`. La extensión asocia archivos `.ox`, inicia el servidor y añade tres comandos. El análisis local al abrir/editar no ejecuta Cargo ni inicia `rust-analyzer`; las consultas semánticas delegadas a un bridge persistente de `rust-analyzer` y la comprobación Cargo son acciones separadas, y las operaciones que pueden ejecutar código exigen Workspace Trust.
 
 El estado técnico y la evidencia están descritos en esta guía y en la [preparación empresarial](enterprise-readiness.md). La extensión no está publicada en un marketplace, el VSIX no está firmado y solo el paquete Linux x64 con servidor incluido se ha ejecutado de extremo a extremo.
 
@@ -62,14 +62,14 @@ La extensión declara `untrustedWorkspaces.supported = "limited"` y restringe `o
 - Diagnósticos léxicos y estructurales con spans convertidos a UTF-16.
 - Semantic tokens para declaraciones, referencias y ámbitos locales de documentos abiertos.
 - Símbolos de archivos cerrados desde una caché versionada fuera del workspace.
-- En workspace confiable, hover, completado, inlay hints, definición, referencias, semantic tokens y renombrado mediante `rust-analyzer`, con correspondencia exacta de ubicaciones.
+- En workspace confiable, un bridge persistente delega hover, completado, inlay hints, definición, referencias, semantic tokens y renombrado en `rust-analyzer`, con correspondencia exacta de ubicaciones para las regiones verificadas.
 - En Restricted Mode, navegación y renombrado local con el índice y los ámbitos locales, sin iniciar `rust-analyzer`.
 
 No se afirma mapeo semántico completo entre módulos ni resolución de tipos universal. Las ediciones sin correspondencia exacta se rechazan.
 
 ## Límites y seguridad
 
-- El LSP no inicia Cargo ni `rust-analyzer` al abrir o editar.
+- El LSP no inicia Cargo ni `rust-analyzer` automáticamente al abrir o editar; las solicitudes semánticas explícitas pueden iniciar y mantener el bridge de `rust-analyzer` en workspace confiable.
 - El comando Cargo puede ejecutar `build.rs` y macros procedurales de dependencias. El Workspace Trust expresa confianza; no es un sandbox.
 - La compilación autorizada no está aislada del sistema operativo. El sandbox Linux del playground es un producto aparte y no cubre la CLI ni el LSP.
 - El framing admite 4 MiB; la cabecera, 8 KiB; 64 documentos y 16 MiB en total.

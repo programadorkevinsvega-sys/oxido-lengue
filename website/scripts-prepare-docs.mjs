@@ -72,9 +72,14 @@ async function addFrontmatter(source, destination, fallbackTitle) {
 
 for (const entry of await readdir(sourceDocs, { withFileTypes: true })) {
   if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name === 'index.md') continue
-  // Internal project artefacts (phase reports, roadmap and the initial audit)
-  // stay in the repository but are not published on the public site.
-  if (entry.name.startsWith('fase-') || entry.name === 'roadmap.md' || entry.name === 'auditoria-fase-0.md') {
+  // Internal project artefacts (phase reports, approval-pending roadmaps and
+  // the initial audit) stay in the repository but are not published publicly.
+  if (
+    entry.name.startsWith('fase-') ||
+    entry.name === 'roadmap.md' ||
+    entry.name === 'roadmap-brechas.md' ||
+    entry.name === 'auditoria-fase-0.md'
+  ) {
     continue
   }
   const source = join(sourceDocs, entry.name)

@@ -2,6 +2,9 @@
 
 //! Adaptador que valida y formatea archivos Rust mediante AST.
 
+mod reversible_import;
+pub use reversible_import::import_reversible;
+
 use oxido_language::{
     SourceFile,
     domain::{
@@ -543,110 +546,6 @@ pub fn import_literal(source: &SourceFile) -> String {
     let mut output = String::from("sintaxis llaves\n");
     output.push_str(source.text());
     output
-}
-
-/// Importa a sintaxis de Óxido el subconjunto reversible de funciones libres.
-///
-/// Esta es la variante `--espanol`: sustituye `fn` por `funcion` para que las
-/// funciones entren en el AST estructural. La importación por defecto es
-/// [`import_literal`].
-pub fn import_reversible(source: &SourceFile) -> Result<String, SynError> {
-    let file = syn::parse_file(source.text())?;
-    let lexed = lex(
-        source,
-        LexOptions {
-            project_mode: Some(SyntaxMode::Braces),
-        },
-    );
-    let mut replacements = Vec::new();
-    for item in &file.items {
-        let syn::Item::Fn(function) = item else {
-            // Items Rust que no contienen una función se conservan como
-            // passthrough; esto permite importar la raíz de un árbol con
-            // declaraciones `mod` y archivos mixtos.
-            continue;
-        };
-        let requires_attribute_passthrough = function.attrs.iter().any(|attribute| {
-            !attribute.path().is_ident("doc")
-                && (attribute.path().segments.len() > 1
-                    || !matches!(attribute.meta, syn::Meta::Path(_)))
-        });
-        if function.sig.constness.is_some()
-            || function.sig.unsafety.is_some()
-            || function.sig.abi.is_some()
-            || function.sig.variadic.is_some()
-            || requires_attribute_passthrough
-            || function_requires_lossless_passthrough(function)
-        {
-            // El frontend todavía no modela estos modificadores en `Function`,
-            // pero el modo llaves puede conservar un item Rust completo. No
-            // sustituimos `fn` por `funcion`: así `const fn`, `extern fn`, una
-            // firma ABI, un `let` con patrón slice o un atributo con ruta o
-            // argumentos no pierden semántica durante una importación gradual.
-            // Los atributos simples (`#[inline]`, `#[test]`) sí siguen el AST
-            // estructural y se traducen a `funcion`.
-            continue;
-        }
-        let expected = function.sig.fn_token.span().start();
-        let keyword = lexed.tokens.iter().find(|token| {
-            if source.slice(token.span) != "fn" {
-                return false;
-            }
-            source.position(token.span.start()).is_some_and(|position| {
-                position.line == expected.line
-                    && position.column.saturating_sub(1) == expected.column
-            })
-        });
-        let Some(keyword) = keyword else {
-            return Err(SynError::new(
-                function.sig.fn_token.span(),
-                "no se pudo localizar la palabra `fn` en el archivo fuente para importar sin perder trivia",
-            ));
-        };
-        replacements.push((keyword.span.start(), keyword.span.end()));
-    }
-
-    replacements.sort_unstable_by_key(|(start, _)| *start);
-    let mut output = String::from("sintaxis llaves\n");
-    let mut cursor = 0;
-    for (start, end) in replacements {
-        output.push_str(&source.text()[cursor..start]);
-        output.push_str("funcion");
-        cursor = end;
-    }
-    output.push_str(&source.text()[cursor..]);
-    Ok(output)
-}
-
-fn function_requires_lossless_passthrough(function: &syn::ItemFn) -> bool {
-    // Las macros con ruta (`tracing::info!`) y los patrones slice de
-    // `let-else` conservan DSLs que el AST estructural no modela. Las macros
-    // del prelude (`println!`, `matches!`, `write!`) sí son estructurales y
-    // deben traducirse a `funcion`; de lo contrario el formateador convertiría
-    // código Óxido válido en Rust opaco.
-    let body = function.block.to_token_stream();
-    contains_path_macro(body.clone()) || body.to_string().contains("let [")
-}
-
-fn contains_path_macro(tokens: TokenStream) -> bool {
-    let trees: Vec<TokenTree> = tokens.into_iter().collect();
-    for (index, tree) in trees.iter().enumerate() {
-        if let TokenTree::Punct(punct) = tree
-            && punct.as_char() == '!'
-            && index >= 3
-            && matches!(trees[index - 1], TokenTree::Ident(_))
-            && matches!(&trees[index - 2], TokenTree::Punct(punct) if punct.as_char() == ':')
-            && matches!(&trees[index - 3], TokenTree::Punct(punct) if punct.as_char() == ':')
-        {
-            return true;
-        }
-        if let TokenTree::Group(group) = tree
-            && contains_path_macro(group.stream())
-        {
-            return true;
-        }
-    }
-    false
 }
 
 /// Reescribe únicamente los valores de atributos `#[path = "..."]`, conservando el resto del archivo.

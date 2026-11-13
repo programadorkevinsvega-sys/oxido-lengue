@@ -64,7 +64,7 @@ Fijar la versión de `cargo-audit` evita que un cambio de formato o de base de d
 
 - **Cada push y pull request:** `cargo deny check` y `cargo audit` en CI.
 - **Semanal:** el workflow programado ejecuta el recolector con 10 000 iteraciones de fuzzing y conserva el informe como artefacto.
-- **Antes de publicar:** revisar avisos nuevos, licencias y `Cargo.lock`; la firma y el SBOM siguen pendientes.
+- **Antes de publicar:** revisar avisos nuevos, licencias y `Cargo.lock`; la firma de binarios sigue pendiente. El SBOM CycloneDX ya se genera para los paquetes configurados, con los límites descritos en [`reproducibilidad.md`](reproducibilidad.md).
 - **Al añadir o actualizar una dependencia:** ejecutar ambas auditorías y las pruebas del workspace en la misma revisión.
 
 ## 6. Límites

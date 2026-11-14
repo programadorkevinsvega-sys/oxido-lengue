@@ -1,80 +1,52 @@
 # Instalación y primeros pasos
 
-Óxido 0.1.0 está publicado en [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0), con paquetes Debian para la CLI y el editor, y VSIX por plataforma. Los paquetes no están firmados; descarga `SHA256SUMS` de la misma Release y verifica cada archivo antes de instalarlo. La extensión todavía no está publicada en Marketplace. Las instrucciones de compilación se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
+Óxido 0.1.0 está publicado en [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). Si vas a usar la CLI en Debian o Ubuntu, instala el `.deb` siguiendo esta página: **no necesitas clonar el repositorio ni compilar Óxido**. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La extensión se descarga por separado; su publicación en Marketplace sigue pendiente.
 
-## Requisitos
+## Instalar la CLI en Debian o Ubuntu
 
-- Rust 1.99.1 o posterior y Cargo. La edición objetivo del workspace es Rust 2024.
-- `rustfmt` del mismo toolchain. Sin él, la generación devuelve `OX4001`.
-- Opcional para el editor: `rust-analyzer` y la extensión de VS Code. Consulta la [guía del editor](vscode.md).
-
-Comprueba el toolchain:
-
-```sh
-rustc --version
-cargo --version
-rustfmt --version
-```
-
-## Compilar desde el código fuente
-
-Desde la raíz del repositorio:
-
-```sh
-cargo build --release --locked -p oxido-cli
-./target/release/oxido --version
-```
-
-El binario se llama `oxido`. Para instalarlo en el `PATH` del usuario:
-
-```sh
-cargo install --path crates/oxido-cli --locked
-oxido --version
-```
-
-`cargo install` compila en modo release y no publica nada. El crate tiene `publish = false`.
-
-Comprueba la versión instalada con `oxido --version` (o `oxido -V`). La salida tiene el formato `oxido <versión>` y corresponde a la versión del paquete de la CLI.
-
-## Instalar desde un paquete Debian
-
-Descarga el paquete para tu arquitectura y `SHA256SUMS` de la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). En una terminal, desde el directorio donde guardaste ambos archivos, verifica e instala:
+Descarga el paquete de tu arquitectura y el archivo de sumas desde la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0):
 
 - [Óxido CLI para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_amd64.deb)
 - [Óxido CLI para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_arm64.deb)
 - [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS)
 
+En la terminal, entra al directorio donde guardaste ambos archivos, verifica el paquete e instálalo. Para amd64:
+
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-sudo apt install ./oxido_*_amd64.deb
+sudo apt install ./oxido_0.1.0-1_amd64.deb
 oxido --version
 ```
 
-La opción `--ignore-missing` permite verificar el paquete descargado aunque `SHA256SUMS` también enumere la otra arquitectura. Para arm64, cambia el patrón por `./oxido_*_arm64.deb`. Después de instalar el paquete, provisiona Rust en el prefijo aislado de Óxido:
+Para arm64, usa `./oxido_0.1.0-1_arm64.deb` en el comando de instalación. `--ignore-missing` permite verificar el paquete descargado aunque el archivo de sumas también enumere la otra arquitectura.
+
+La CLI necesita Rust 1.99.1 o posterior y `rustfmt` para compilar programas. Si no tienes un toolchain compatible, instálalo en el prefijo aislado de Óxido:
 
 ```sh
 sudo oxido-instalar-toolchain
 ```
 
-La instalación de Rust es explícita; `apt` no descarga toolchains desde scripts mantenedores. El Rust del sistema y del usuario no se modifica. `sudo apt remove oxido` elimina la CLI y conserva `/opt/oxido`.
+Esto no reemplaza ni desinstala el Rust del sistema o del usuario. La instalación del toolchain es explícita; `apt` no descarga Rust automáticamente. El paquete CLI se puede usar para comandos que no compilan sin instalar Rust.
 
-## Crear y ejecutar un proyecto
+## Crear, compilar y ejecutar un proyecto
 
 ```sh
 oxido nuevo demo
-oxido build demo/src/main.ox
-oxido ejecutar demo/src/main.ox
+cd demo
+oxido ejecutar src/main.ox
 ```
 
-`oxido nuevo` crea `oxido.toml` y `src/main.ox` con un programa mínimo. `oxido build` genera el binario en `demo/target/oxido/debug/oxido_generated`; `oxido ejecutar` compila y lo ejecuta. La salida esperada es `Hola, Óxido.`. El workflow de paquetes Debian también prueba este ciclo desde el `.deb` instalado y tras instalar la toolchain aislada.
-
-También puedes ejecutar los ejemplos del repositorio:
+`oxido nuevo` crea `oxido.toml` y `src/main.ox`. El último comando compila y ejecuta el programa de ejemplo, que imprime `Hola, Óxido.`. Para generar un binario optimizado de release:
 
 ```sh
-oxido ejecutar examples/hola_mundo.ox
-oxido ejecutar examples/estructuras.ox
-oxido ejecutar examples/interoperabilidad.ox
+oxido build src/main.ox --release
 ```
+
+El binario queda en `target/oxido/release/oxido_generated`. `oxido ejecutar` es práctico para desarrollar; `oxido build --release` deja el artefacto compilado para ejecutarlo directamente.
+
+## ¿Quieres contribuir?
+
+La instalación Debian ya contiene la CLI y basta para crear y compilar proyectos. Clonar el repositorio y compilar Óxido desde fuente son tareas para contribuir al compilador; están en la guía aparte [Clonar, compilar y contribuir](contribuir.md). La versión instalada se consulta con `oxido --version` o `oxido -V`.
 
 ## Comandos disponibles
 
@@ -131,10 +103,10 @@ Los códigos y mensajes están en la [referencia de diagnósticos](diagnostics.m
 
 ## Desinstalar
 
-Si instalaste con Cargo:
+Si instalaste la CLI con Debian o Ubuntu:
 
 ```sh
-cargo uninstall oxido-cli
+sudo apt remove oxido
 ```
 
-Si usaste el binario de `target/`, elimínalo junto con el directorio del proyecto. Los proyectos generados no escriben fuera de su directorio salvo la caché del editor, que se guarda fuera del workspace y se describe en la [guía del editor](vscode.md).
+Esto retira la CLI, pero conserva los datos del toolchain aislado en `/opt/oxido`. Si instalaste con Cargo, consulta los pasos de desinstalación en la [guía para contribuidores](contribuir.md).

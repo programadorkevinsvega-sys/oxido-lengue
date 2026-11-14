@@ -20,21 +20,21 @@ Consulta la [especificación del lenguaje](language-spec.md), los [modos de sint
 
 ## Ejemplos verificados
 
-Desde la raíz del repositorio:
+Los archivos de ejemplo son fixtures del repositorio y no se incluyen dentro del `.deb`. Para ejecutarlos con la CLI instalada, crea un proyecto con `oxido nuevo clase`, copia el contenido del archivo enlazado en `clase/src/main.ox` y ejecuta `oxido ejecutar src/main.ox` desde esa carpeta. No hace falta clonar el repositorio para trabajar con el código mostrado.
 
 | Ejemplo | Concepto | Comando | Salida esperada |
 |---|---|---|---|
-| `examples/hola_mundo.ox` | Programa mínimo | `cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox` | `Hola, mundo.` |
-| `examples/estructuras.ox` | Estructuras, enumeraciones y colecciones | `cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox` | `5:1` |
-| `examples/interoperabilidad.ox` | Métodos, referencias y `?` | `cargo run --locked -p oxido-cli -- ejecutar examples/interoperabilidad.ox` | `5:1:3:5` |
-| `examples/estructura_indentada.ox` | Rasgos y `coincidir` | `cargo run --locked -p oxido-cli -- ejecutar examples/estructura_indentada.ox` | `valor 4: cuatro` |
+| [`examples/hola_mundo.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/hola_mundo.ox) | Programa mínimo | `oxido ejecutar src/main.ox` | `Hola, mundo.` |
+| [`examples/estructuras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/estructuras.ox) | Estructuras, enumeraciones y colecciones | `oxido ejecutar src/main.ox` | `5:1` |
+| [`examples/interoperabilidad.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/interoperabilidad.ox) | Métodos, referencias y `?` | `oxido ejecutar src/main.ox` | `5:1:3:5` |
+| [`examples/estructura_indentada.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/estructura_indentada.ox) | Rasgos y `coincidir` | `oxido ejecutar src/main.ox` | `valor 4: cuatro` |
 
-El ejemplo de estructura indentada puede emitir además un aviso `dead_code` de Rust; no impide la ejecución.
+El ejemplo de estructura indentada puede emitir además un aviso `dead_code` de Rust; no impide la ejecución. Los comandos de mantenedor para clonar el repositorio y ejecutar los fixtures desde su ruta original están en [Clonar, compilar y contribuir](contribuir.md).
 
-Para exportar y leer el Rust generado:
+Para exportar el proyecto que creaste y leer el Rust generado:
 
 ```sh
-cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
+oxido exportar src/main.ox --salida target/hola.rs
 ```
 
 `exportar` crea `target/hola.oxido-map.json` con el mapa de origen. El Rust final se formatea con `rustfmt` 1.99.1.

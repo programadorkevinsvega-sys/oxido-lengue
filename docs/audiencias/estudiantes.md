@@ -6,13 +6,14 @@ El material disponible es un subconjunto del lenguaje. Cada ejemplo enseña una 
 
 ## Empieza aquí
 
-1. Sigue la [guía de instalación](../instalacion.md).
-2. Ejecuta el [tutorial progresivo](../tutorial.md): tres lecciones con código y salida esperada.
-3. Practica con el [libro de ejercicios](../ejercicios.md): los tres primeros incluyen archivo de inicio, solución y prueba automática.
+1. Instala el paquete Debian desde la [guía de instalación](../instalacion.md); no tienes que clonar el repositorio.
+2. Crea un proyecto con `oxido nuevo curso-oxido` y entra en su carpeta. Si no tienes Rust 1.99.1 o posterior, instala la toolchain aislada con `sudo oxido-instalar-toolchain`.
+3. Copia una lección del [tutorial progresivo](../tutorial.md) a `src/main.ox` y ejecútala con `oxido ejecutar src/main.ox`.
+4. Practica con el [libro de ejercicios](../ejercicios.md). Sus enunciados se resuelven en tu proyecto local.
 
 ## Programa indentado ejecutable
 
-Óxido puede declarar estructuras y enumeraciones con indentación:
+Óxido puede declarar estructuras y enumeraciones con indentación. Para probar este ejemplo con la CLI instalada, crea el proyecto y pega el código completo en `curso-oxido/src/main.ox`:
 
 ```ox
 sintaxis indentacion
@@ -23,21 +24,28 @@ estructura Punto:
 
 enumeracion Estado:
     Listo(i32)
+
+usar std::collections::VecDeque
+
+funcion main():
+    dejar punto = Punto { x: 2, y: 3 }
+    dejar estado = Estado::Listo(punto.x + punto.y)
+    dejar valor = coincidir estado { Estado::Listo(numero) => numero, }
+    dejar mut cola = VecDeque::from([1, 2, 3])
+    cola.push_back(4)
+    println!("{}:{}", valor, cola.pop_front().unwrap());
 ```
 
-El programa completo está en [`examples/estructuras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/estructuras.ox). Sus bloques usan indentación; tipos, expresiones y macros siguen las reglas Rust. `coincidir` conserva los brazos con llaves Rust.
+El programa es el fixture [`examples/estructuras.ox`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/examples/estructuras.ox), con su contenido completo; ese archivo no viene dentro del `.deb`. Sus bloques usan indentación; tipos, expresiones y macros siguen las reglas Rust. `coincidir` conserva los brazos con llaves Rust. La salida es `5:1`.
 
-Puedes ejecutarlo desde la raíz del repositorio:
+Ejecuta tu copia local del proyecto:
 
 ```sh
-cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox
+cd curso-oxido
+oxido ejecutar src/main.ox
 ```
 
-O, si instalaste el binario:
-
-```sh
-oxido ejecutar examples/estructuras.ox
-```
+Los comandos para clonar el repositorio y ejecutar directamente sus fixtures están en [Clonar, compilar y contribuir](../contribuir.md).
 
 ## Ruta de aprendizaje
 

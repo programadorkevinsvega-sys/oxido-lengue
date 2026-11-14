@@ -10,6 +10,6 @@ Estos casos guían el diseño del lenguaje y el material del sitio. El estado di
 | Estudiantes | Aprender sintaxis bilingüe y relacionarla con Rust | [Tutorial](../tutorial.md) y [ejercicios](../ejercicios.md) ejecutables; la cobertura sigue limitada a la matriz |
 | Docentes | Diseñar ejercicios verificables y progresivos | Material inicial con ejemplos verificados y ejercicios propuestos; sin validación en aula, ver [Educación](../education.md) |
 | Empresas | Evaluar controles antes de un piloto | Lista de evaluación y riesgos residuales en [Preparación empresarial](../enterprise-readiness.md) |
-| Mantenedores | Contribuir lexer, parser, CLI y documentación | Guía en [`CONTRIBUTING.md`](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/CONTRIBUTING.md) y [arquitectura](../architecture.md) |
+| Mantenedores | Contribuir lexer, parser, CLI y documentación | [Guía para clonar, compilar y contribuir](../contribuir.md) y [arquitectura](../architecture.md) |
 
 Los casos se actualizarán cuando cambie el estado demostrado por pruebas.

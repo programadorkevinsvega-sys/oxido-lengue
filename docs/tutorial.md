@@ -1,20 +1,21 @@
 # Tutorial progresivo
 
-Tres lecciones cortas para pasar de un programa mínimo a estructuras con métodos. Cada ejemplo está en `examples/tutorial/`, se ejecuta con la CLI actual y tiene una prueba automática que comprueba su salida. Son un subconjunto del lenguaje: no enseñan todo Rust ni sustituyen la [especificación](language-spec.md) ni la [matriz de compatibilidad](compatibility.md).
+Tres lecciones cortas para pasar de un programa mínimo a estructuras con métodos. Cada ejemplo está en `examples/tutorial/` como fixture del repositorio, se ejecuta con la CLI actual y tiene una prueba automática que comprueba su salida. Los fixtures no vienen dentro del `.deb`: al seguir el tutorial, crea un proyecto con `oxido nuevo curso-oxido`, pega cada listado en `src/main.ox` y ejecútalo con `oxido ejecutar src/main.ox`. No tienes que clonar el repositorio. Son un subconjunto del lenguaje: no enseñan todo Rust ni sustituyen la [especificación](language-spec.md) ni la [matriz de compatibilidad](compatibility.md).
 
 ## Antes de empezar
 
-Instala la CLI siguiendo la [guía de instalación](instalacion.md) o ejecuta desde la raíz del repositorio:
+Instala la CLI siguiendo la [guía de instalación](instalacion.md). Si no hay Rust 1.99.1 o posterior instalado, configura el toolchain aislado una vez con `sudo oxido-instalar-toolchain` (omite ese paso si ya tienes un toolchain compatible). Después crea tu proyecto de práctica:
 
 ```sh
-cargo run --locked -p oxido-cli -- ejecutar examples/tutorial/01_saludo.ox
+oxido nuevo curso-oxido
+cd curso-oxido
 ```
 
-Todos los comandos usan la misma forma. Si instalaste el binario, cambia `cargo run --locked -p oxido-cli --` por `oxido`.
+En cada lección, copia el código del bloque a `src/main.ox` y ejecuta `oxido ejecutar src/main.ox`. La ruta de desarrollo para clonar y ejecutar los archivos de ejemplo directamente está en [Clonar, compilar y contribuir](contribuir.md).
 
 ## Lección 1: variables, funciones y salida
 
-Archivo: `examples/tutorial/01_saludo.ox`
+Fixture de regresión del repositorio: `examples/tutorial/01_saludo.ox`.
 
 ```ox
 sintaxis indentacion
@@ -48,7 +49,7 @@ Qué observar:
 
 ## Lección 2: condiciones, bucles y patrones
 
-Archivo: `examples/tutorial/02_condiciones.ox`
+Fixture de regresión del repositorio: `examples/tutorial/02_condiciones.ox`.
 
 ```ox
 sintaxis indentacion
@@ -90,7 +91,7 @@ Qué observar:
 
 ## Lección 3: estructuras y métodos
 
-Archivo: `examples/tutorial/03_punto.ox`
+Fixture de regresión del repositorio: `examples/tutorial/03_punto.ox`.
 
 ```ox
 sintaxis indentacion

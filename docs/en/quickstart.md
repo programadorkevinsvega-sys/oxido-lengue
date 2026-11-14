@@ -4,32 +4,38 @@ This is the maintained English quickstart for Óxido. The canonical technical do
 
 > **Language status:** only this quickstart is maintained in English. The rest of the site is Spanish. The mode header is Spanish-only today: `sintaxis indentacion` or `sintaxis llaves`. Rust keywords such as `fn`, `let`, `struct`, `impl`, `self` and `Self` work unchanged inside that mode.
 
-## Requirements
+## Install the CLI
 
-- Rust 1.99.1 or newer and Cargo.
-- `rustfmt` from the same toolchain. Without it, generation fails with `OX4001`.
-- Optional: VS Code and `oxido-lsp`. See the [Spanish editor guide](../vscode.md).
+On Debian or Ubuntu, download the CLI package for your architecture and `SHA256SUMS` from [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0): [amd64 `.deb`](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_amd64.deb) or [arm64 `.deb`](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_arm64.deb), plus [checksums](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS). The packages are unsigned.
 
 ```sh
-rustc --version
-cargo --version
-rustfmt --version
+sha256sum --check --ignore-missing SHA256SUMS
+sudo apt install ./oxido_0.1.0-1_amd64.deb
+oxido --version
 ```
 
-## Install from source
-
-From the repository root:
+Use the arm64 filename instead on arm64. Óxido needs Rust 1.99.1 or newer and `rustfmt` to compile programs. If no compatible toolchain is installed, set up Óxido's isolated toolchain once:
 
 ```sh
-cargo install --path crates/oxido-cli --locked
-oxido --help
+sudo oxido-instalar-toolchain
 ```
 
-`cargo install` builds in release mode and publishes nothing. The crate has `publish = false`.
+This does not replace or uninstall your system or user Rust installation.
+
+## Source build for contributors
+
+The Debian package is the normal installation route on Debian/Ubuntu. Source setup is only for contributors or people building the CLI manually; the separate [contributor guide](../contribuir.md) is currently in Spanish. The CLI package is not currently published for Windows or macOS.
 
 ## First program
 
-Create `hello.ox`:
+Create a project using the installed CLI:
+
+```sh
+oxido nuevo hello-project
+cd hello-project
+```
+
+Replace `src/main.ox` with:
 
 ```ox
 sintaxis indentacion
@@ -39,10 +45,10 @@ fn main():
     println!("Hello, {}!", name);
 ```
 
-Run it:
+Run it with the CLI installed from the package:
 
 ```sh
-oxido ejecutar hello.ox
+oxido ejecutar src/main.ox
 ```
 
 Expected output:
@@ -95,12 +101,10 @@ Expected output:
 
 ## Progressive tutorial
 
-The [Spanish tutorial](../tutorial.md) has three runnable lessons. The examples live in `examples/tutorial/`:
+The [Spanish tutorial](../tutorial.md) has three runnable lessons. Its example files are repository fixtures, not part of the Debian package. Copy a lesson into `src/main.ox` in the project you created above. Cloning/building from source is covered by the contributor guide.
 
 ```sh
-oxido ejecutar examples/tutorial/01_saludo.ox
-oxido ejecutar examples/tutorial/02_condiciones.ox
-oxido ejecutar examples/tutorial/03_punto.ox
+oxido ejecutar src/main.ox
 ```
 
 These examples use Spanish keywords; each has a test that compiles and runs it in CI.

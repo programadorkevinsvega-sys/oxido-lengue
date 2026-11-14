@@ -25,7 +25,7 @@ La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe d
 
    ```sh
    npm run package:vsix
-   code --install-extension dist/oxido-language-support-0.1.0.vsix
+   code --install-extension dist/oxido-language-support-0.1.1.vsix
    ```
 
    El VSIX estándar no incluye `oxido-lsp`; el paso 1 sigue siendo necesario. Para incluir el servidor de la plataforma actual:
@@ -34,7 +34,7 @@ La extensión asocia `.ox` con el lenguaje Óxido, inicia `oxido-lsp` y recibe d
    OXIDO_SERVER_BINARY=../../target/release/oxido-lsp \
    OXIDO_VSIX_TARGET=linux-x64 \
    npm run package:vsix:server
-   code --install-extension dist/oxido-language-support-0.1.0-linux-x64.vsix
+   code --install-extension dist/oxido-language-support-0.1.1-linux-x64.vsix
    ```
 
    El binario incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp`; una ruta configurada explícitamente tiene prioridad. `vsce` es una dependencia de desarrollo y no se incluye en el VSIX. `.github/workflows/debian-release.yml` construye VSIX para Linux x64/arm64, Windows x64 y macOS arm64, y paquetes Debian `oxido-vscode` para Linux. Marketplace se prepara en `.github/workflows/marketplace-publish.yml`, pero no se publica automáticamente: requiere disparo manual explícito, publisher y `VSCE_PAT`. La prueba host instalada completa solo está demostrada en Linux x64; la firma, la notarización y la prueba host Windows/macOS siguen pendientes.

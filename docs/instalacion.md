@@ -1,24 +1,24 @@
 # Instalación y primeros pasos
 
-Óxido 0.1.0 está publicado en [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). Si vas a usar la CLI en Debian o Ubuntu, instala el `.deb` siguiendo esta página: **no necesitas clonar el repositorio ni compilar Óxido**. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La extensión se descarga por separado; su publicación en Marketplace sigue pendiente.
+Óxido 0.1.1 está publicado en [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.1). Si vas a usar la CLI en Debian o Ubuntu, instala el `.deb` siguiendo esta página: **no necesitas clonar el repositorio ni compilar Óxido**. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La extensión se descarga por separado; su publicación en Marketplace sigue pendiente.
 
 ## Instalar la CLI en Debian o Ubuntu
 
-Descarga el paquete de tu arquitectura y el archivo de sumas desde la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0):
+Descarga el paquete de tu arquitectura y el archivo de sumas desde la [Release v0.1.1](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.1):
 
-- [Óxido CLI para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_amd64.deb)
-- [Óxido CLI para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_arm64.deb)
-- [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS)
+- [Óxido CLI para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido_0.1.1-1_amd64.deb)
+- [Óxido CLI para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido_0.1.1-1_arm64.deb)
+- [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/SHA256SUMS)
 
 En la terminal, entra al directorio donde guardaste ambos archivos, verifica el paquete e instálalo. Para amd64:
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-sudo apt install ./oxido_0.1.0-1_amd64.deb
+sudo apt install ./oxido_0.1.1-1_amd64.deb
 oxido --version
 ```
 
-Para arm64, usa `./oxido_0.1.0-1_arm64.deb` en el comando de instalación. `--ignore-missing` permite verificar el paquete descargado aunque el archivo de sumas también enumere la otra arquitectura.
+Para arm64, usa `./oxido_0.1.1-1_arm64.deb` en el comando de instalación. `--ignore-missing` permite verificar el paquete descargado aunque el archivo de sumas también enumere la otra arquitectura.
 
 La CLI necesita Rust 1.99.1 o posterior y `rustfmt` para compilar programas. Si no tienes un toolchain compatible, instálalo en el prefijo aislado de Óxido:
 
@@ -31,8 +31,8 @@ Esto no reemplaza ni desinstala el Rust del sistema o del usuario. La instalaci�
 Si guardaste el `.deb` dentro de `~/Descargas` y `apt` avisa que `_apt` no puede acceder al archivo, la instalación puede continuar con una descarga sin aislamiento como root. Es un aviso de permisos del directorio local, no un fallo del paquete. Para evitarlo, copia el paquete a una ruta legible por `_apt` y usa esa copia:
 
 ```sh
-cp ./oxido_0.1.0-1_amd64.deb /tmp/
-sudo apt install /tmp/oxido_0.1.0-1_amd64.deb
+cp ./oxido_0.1.1-1_amd64.deb /tmp/
+sudo apt install /tmp/oxido_0.1.1-1_amd64.deb
 ```
 
 ## Crear, compilar y ejecutar un proyecto

@@ -22,7 +22,13 @@ En un host Debian amd64/arm64 con Rust 1.99.1 o posterior:
 OXIDO_DEB_MAINTAINER="Nombre <correo>" packaging/debian/build-deb.sh
 ```
 
-El script construye con `cargo build --locked --release -p oxido-cli` y deja el `.deb` en `target/debian/`. Para pruebas solamente admite `--binary`, `--version` y `--output-dir`; todavía no permite compilación cruzada ni publica paquetes.
+El script construye con `cargo build --locked --release -p oxido-cli` y deja el `.deb` en `target/debian/`. Para pruebas solamente admite `--binary`, `--version` y `--output-dir`; todavía no permite compilación cruzada.
+
+## Releases descargables
+
+`.github/workflows/debian-release.yml` construye el paquete en runners Linux nativos amd64 y arm64 en pull requests, ejecuciones manuales y etiquetas `v*`. En PR/manual instala, ejecuta y elimina el `.deb` en cada arquitectura. Solo una etiqueta cuya versión coincida exactamente con `crates/oxido-cli/Cargo.toml` crea o actualiza una GitHub Release con ambos paquetes y `SHA256SUMS`. Pull requests y ejecuciones manuales no publican Releases.
+
+Para instalar una publicación, descarga el `.deb` de tu arquitectura y `SHA256SUMS` de la misma Release, ejecuta `sha256sum --check --ignore-missing SHA256SUMS` e instala con `sudo apt install ./oxido_*_amd64.deb` (o `*_arm64.deb`). Los hashes verifican integridad frente a alteraciones; no son una firma de identidad. Los paquetes no están firmados.
 
 ## Regresiones
 

@@ -1,13 +1,13 @@
 # Roadmap de brechas verificadas
 
-**Estado: propuesta pendiente de aprobación del autor.** Este documento planifica trabajo; no afirma que sus entregables estén implementados ni autoriza iniciar código, releases o despliegues. Cada subfase se implementaría en un PR independiente y pasaría las pruebas de esta fase y de todas las anteriores antes de fusionarse.
+**Estado: propuesta parcialmente aprobada.** R1.6 está aprobada para preparar la publicación automática de paquetes Debian en GitHub Releases al crear una etiqueta de versión; el resto de esta propuesta no autoriza iniciar código, releases ni despliegues. Cada subfase se implementa en un PR independiente y pasa las pruebas de esta fase y de todas las anteriores antes de fusionarse.
 
 ## Auditoría de las brechas recibidas
 
 | ID | Estado comprobado en el repositorio | Evidencia y decisión |
 |---|---|---|
 | B1 — Playground | Parcial: sandbox Linux local; servicio público no desplegado | `tools/playground` usa `bwrap`/`prlimit`, desactiva red y limita recursos. El README y [preparación empresarial](enterprise-readiness.md) dicen que no hay autenticación, cuotas ni despliegue. Planificar preparación, sin desplegar. |
-| B2 — Binarios CLI publicados | Abierta | La instalación documentada compila desde fuente. `release.yml` prepara VSIX y binarios `oxido-lsp` como artefactos de Actions; no empaqueta/publica el CLI ni crea una release de binarios. |
+| B2 — Binarios CLI publicados | Parcial | `debian-release.yml` prepara paquetes nativos amd64/arm64 y los adjunta a una GitHub Release al crear una etiqueta `v` coincidente con `oxido-cli`; la primera publicación depende de crear esa etiqueta. No cubre aún binarios CLI para Windows/macOS ni firma. |
 | B3 — VSIX multiplataforma | Parcial | El workflow de release declara Linux x64, Windows x64 y macOS arm64; la evidencia publicada solo confirma ejecución host instalada en Linux x64. La matriz Windows/macOS no está demostrada. |
 | B4 — Reproducibilidad entre sistemas | Abierta | El doble build con SHA-256 está verificado en Linux x86_64/Rust 1.99.1. No se ha archivado evidencia equivalente de Windows y macOS. La comparación debe ser entre builds del mismo target y entorno; binarios de sistemas distintos no deben tener el mismo hash. |
 | B5 — Firma, notarización y Marketplace | Abierta; preparación solamente | El workflow excluye firma, notarización y publicación. Guías/scripts se pueden preparar después de aprobar; usar credenciales o publicar exige autorización separada. |
@@ -58,6 +58,13 @@ Cada PR de implementación debe incluir, según corresponda:
 - **PR:** documentar descarga, verificación SHA-256, instalación, actualización y desinstalación para los targets probados.
 - **Aceptación:** instrucciones reproducidas desde un runner limpio y limitaciones por arquitectura indicadas; sin prometer firma mientras no exista.
 - **Pruebas:** enlaces/build del sitio y smoke de los comandos de instalación; revisión de cada URL/asset contra los nombres del workflow.
+
+### R1.6 — Publicación directa de paquetes Debian
+
+- **Estado:** aprobada; implementada en el PR de esta subfase y pendiente de CI/fusión.
+- **PR:** construir `.deb` en runners nativos amd64 y arm64; instalarlos y ejecutar la CLI; agregar `SHA256SUMS`; adjuntar paquetes y checksums a una GitHub Release únicamente al empujar una etiqueta `v` igual a la versión de `oxido-cli`.
+- **Aceptación:** CI valida ambos paquetes y la integridad de checksums; etiquetas de versión no coincidentes fallan; las ejecuciones de PR/manual no publican Releases; la publicación usa permisos `contents: write` limitados al job de release.
+- **Pruebas:** smoke de checksum correcto/alterado; instalación/ejecución/eliminación del paquete real en cada arquitectura; workflow de PR exitoso; revisión de assets contra `SHA256SUMS`. La publicación real se activa solo con una etiqueta aprobada por el autor.
 
 ## Fase R2 — Diagnósticos de `rustc`
 

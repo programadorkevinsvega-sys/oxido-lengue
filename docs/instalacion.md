@@ -1,6 +1,6 @@
 # Instalación y primeros pasos
 
-Óxido se distribuye hoy como código fuente en este repositorio. No hay paquetes publicados, instaladores firmados ni binarios en un marketplace. Las instrucciones siguientes se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
+Óxido se puede compilar desde el código fuente. El workflow de release construye paquetes Debian para amd64 y arm64, y los adjunta a una GitHub Release cuando se publica una etiqueta `v` que coincide con la versión de `oxido-cli`. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La disponibilidad depende de que exista una Release con esos artefactos. Las instrucciones de compilación se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
 
 ## Requisitos
 
@@ -35,6 +35,24 @@ oxido --version
 `cargo install` compila en modo release y no publica nada. El crate tiene `publish = false`.
 
 Comprueba la versión instalada con `oxido --version` (o `oxido -V`). La salida tiene el formato `oxido <versión>` y corresponde a la versión del paquete de la CLI.
+
+## Instalar desde un paquete Debian
+
+Cuando haya una [GitHub Release](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases) con los paquetes adjuntos, descarga `SHA256SUMS` y el archivo `.deb` de tu arquitectura en el mismo directorio. Verifica el paquete descargado e instala:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+sudo apt install ./oxido_*_amd64.deb
+oxido --version
+```
+
+La opción `--ignore-missing` permite verificar el paquete descargado aunque `SHA256SUMS` también enumere la otra arquitectura. Para arm64, cambia el patrón por `./oxido_*_arm64.deb`. Después de instalar el paquete, provisiona Rust en el prefijo aislado de Óxido:
+
+```sh
+sudo oxido-instalar-toolchain
+```
+
+La instalación de Rust es explícita; `apt` no descarga toolchains desde scripts mantenedores. El Rust del sistema y del usuario no se modifica. `sudo apt remove oxido` elimina la CLI y conserva `/opt/oxido`.
 
 ## Crear y ejecutar un proyecto
 

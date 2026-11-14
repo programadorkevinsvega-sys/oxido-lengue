@@ -24,6 +24,15 @@ pub struct GeneratedProgram {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+pub struct ProjectBuildOptions<'a> {
+    pub dependencies: &'a [config::ResolvedDependency],
+    pub lockfile: Option<&'a Path>,
+    pub action: application::cargo::CargoAction,
+    pub project_root: &'a Path,
+    pub cancellation: Option<&'a AtomicBool>,
+    pub package: Option<&'a application::cargo::GeneratedPackage>,
+}
+
 /// Parse and emit Rust for the currently supported `.ox` subset.
 pub fn generate_ox(
     source: &SourceFile,
@@ -177,6 +186,34 @@ pub fn build_ox_project_in_project_cancellable(
     project_root: &Path,
     cancellation: Option<&AtomicBool>,
 ) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    build_ox_project_in_project_with_options(
+        source,
+        options,
+        ProjectBuildOptions {
+            dependencies,
+            lockfile,
+            action,
+            project_root,
+            cancellation,
+            package: None,
+        },
+    )
+}
+
+/// Variante de compilación que aplica los metadatos opcionales de `[package]` y `[[bin]]`.
+pub fn build_ox_project_in_project_with_options(
+    source: &SourceFile,
+    options: oxido_language::domain::syntax::LexOptions,
+    build: ProjectBuildOptions<'_>,
+) -> Result<application::cargo::CargoBuildResult, Vec<Diagnostic>> {
+    let ProjectBuildOptions {
+        dependencies,
+        lockfile,
+        action,
+        project_root,
+        cancellation,
+        package,
+    } = build;
     let generated = generate_ox(source, options)?;
     let resolved = application::modules::resolve_project_modules(
         source,
@@ -204,14 +241,33 @@ pub fn build_ox_project_in_project_cancellable(
     if let Some(relative_source) = relative_source {
         source_map.set_source_relative_path(relative_source);
     }
-    let mut result = application::cargo::build_generated_project_with_dependencies_cancellable(
+    let mut ox_sources = vec![application::cargo::GeneratedOxSource {
+        path: Path::new("main.ox").to_path_buf(),
+        contents: source.text().to_owned(),
+    }];
+    for module in &resolved.modules {
+        if let Some(contents) = &module.source_ox {
+            let mut path = module.path.clone();
+            path.set_extension("ox");
+            ox_sources.push(application::cargo::GeneratedOxSource {
+                path,
+                contents: contents.clone(),
+            });
+        }
+    }
+    let mut result = application::cargo::build_generated_project_with_options(
         &generated.rust,
         &source_map,
         &resolved.modules,
         dependencies,
-        lockfile,
-        action,
-        cancellation,
+        application::cargo::GeneratedProjectOptions {
+            persistent_lockfile: lockfile,
+            project_root: Some(project_root),
+            action,
+            cancellation,
+            package,
+            ox_sources: &ox_sources,
+        },
     )
     .map_err(|error| {
         let span = source

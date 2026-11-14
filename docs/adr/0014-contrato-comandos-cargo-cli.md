@@ -11,7 +11,7 @@ La CLI usaba `compilar` para validar con `cargo check`. Eso no dejaba un ejecuta
 ## Decisión
 
 - `check`/`verificar` ejecuta `cargo check` y valida sin prometer un binario.
-- `build`/`compilar` ejecuta `cargo build`; `--release` selecciona el perfil optimizado de Cargo. Los artefactos persisten bajo `target/oxido/debug` o `target/oxido/release`.
+- `build`/`compilar` genera el proyecto Cargo en `target/oxido/` y ejecuta `cargo build`; `--release` selecciona el perfil optimizado de Cargo. Para proyectos `.ox`, los artefactos persisten bajo `target/oxido/target/debug` o `target/oxido/target/release`.
 - `run`/`ejecutar` compila y ejecuta el programa.
 - `test`/`probar` ejecuta `cargo test`; no admite `--release` en el contrato actual.
 - En workspaces importados, `check` valida los targets del workspace y `build` construye los paquetes del workspace. Los binarios quedan en el `target/oxido` del proyecto importado, no en el staging temporal.

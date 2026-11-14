@@ -15,11 +15,32 @@ const MAX_CONFIG_BYTES: usize = 64 * 1024;
 pub struct ProjectConfig {
     pub language: LanguageConfig,
     #[serde(default)]
+    pub package: Option<PackageConfig>,
+    #[serde(default, rename = "bin")]
+    pub bins: Vec<BinaryConfig>,
+    #[serde(default)]
     pub dependencies: BTreeMap<String, PathDependency>,
     /// Manifiesto Cargo convertido por `oxido importar-proyecto`.
     /// Se mantiene como datos TOML; la configuración nunca admite comandos.
     #[serde(default)]
     pub cargo: Option<toml::Value>,
+}
+
+/// Metadatos opcionales del paquete que acompañan a los manifiestos Óxido.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PackageConfig {
+    pub name: String,
+    pub version: String,
+}
+
+/// Binario de proyecto seleccionable por su ruta fuente `.ox`.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BinaryConfig {
+    #[serde(default)]
+    pub name: Option<String>,
+    pub path: PathBuf,
 }
 
 /// Dependencia Cargo local declarada sin comandos ni opciones ejecutables.
@@ -79,6 +100,45 @@ impl ProjectConfig {
                 "edición Rust no soportada: {}; la edición inicial es 2024",
                 config.language.edition
             ));
+        }
+        if let Some(package) = &config.package {
+            if !valid_cargo_name(&package.name) {
+                return Err(format!("nombre de paquete no válido: `{}`", package.name));
+            }
+            semver::Version::parse(&package.version)
+                .map_err(|error| format!("versión de paquete no válida: {error}"))?;
+        }
+        if config.bins.len() > 128 {
+            return Err("oxido.toml supera el límite de 128 binarios".into());
+        }
+        let mut bin_names = std::collections::BTreeSet::new();
+        let mut bin_paths = std::collections::BTreeSet::new();
+        for bin in &config.bins {
+            if bin.path.is_absolute()
+                || bin.path.components().any(|component| {
+                    matches!(
+                        component,
+                        std::path::Component::ParentDir | std::path::Component::Prefix(_)
+                    )
+                })
+                || bin.path.extension() != Some(std::ffi::OsStr::new("ox"))
+            {
+                return Err(
+                    "la ruta de [[bin]] debe ser relativa, confinada al proyecto y terminar en .ox"
+                        .into(),
+                );
+            }
+            if let Some(name) = &bin.name
+                && (!valid_cargo_name(name) || !bin_names.insert(name))
+            {
+                return Err(format!("nombre de [[bin]] no válido o duplicado: `{name}`"));
+            }
+            if !bin_paths.insert(&bin.path) {
+                return Err(format!(
+                    "ruta de [[bin]] duplicada: `{}`",
+                    bin.path.display()
+                ));
+            }
         }
         for (name, dependency) in &config.dependencies {
             validate_dependency(name, dependency)?;

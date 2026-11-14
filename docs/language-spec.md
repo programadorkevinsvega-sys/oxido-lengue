@@ -46,6 +46,8 @@ edition = "2024"
 
 `oxido.toml` contiene datos declarativos; no admite código, comandos ni scripts.
 
+Los manifiestos antiguos que solo contienen `[language]` siguen siendo válidos. De forma opcional, `[package]` acepta `name` y `version`; `[[bin]]` acepta `name` opcional y una `path` relativa a un archivo `.ox` dentro del proyecto. Las tablas rechazan campos desconocidos. Al compilar un target declarado, Óxido usa su nombre para el ejecutable; para elegir el archivo por defecto, usa `src/main.ox` si existe, o el único target `[[bin]]` declarado.
+
 ## 5. Principios semánticos
 
 1. Los alias son tokens de keyword, no reemplazos de texto.

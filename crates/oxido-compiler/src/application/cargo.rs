@@ -704,7 +704,6 @@ fn persist_lockfile(generated: &Path, destination: &Path, replace: bool) -> io::
 struct Workspace {
     root: PathBuf,
     remove_on_drop: bool,
-    _build_lock: Option<ProjectBuildLock>,
 }
 
 impl Workspace {
@@ -746,12 +745,13 @@ fn create_workspace(
         let root = oxido_target_directory(project_root)?;
         fs::create_dir_all(&root)?;
         let canonical_root = fs::canonicalize(&root)?;
+        let project_build_lock = acquire_project_build_lock(&canonical_root)?;
         let project = Workspace {
             root: canonical_root,
             remove_on_drop: false,
-            _build_lock: Some(acquire_project_build_lock(&root)?),
         };
         prepare_persistent_project(&project, generated, persistent_lockfile, read_lockfile)?;
+        drop(project_build_lock);
         return Ok(project);
     }
 
@@ -785,7 +785,6 @@ fn create_workspace(
     let workspace = Workspace {
         root,
         remove_on_drop: true,
-        _build_lock: None,
     };
     populate_generated_project(workspace.path(), generated)?;
     copy_project_lockfile(persistent_lockfile, workspace.path(), read_lockfile)?;
@@ -1249,6 +1248,48 @@ fn translate_rustc_message(code: Option<&str>, message: &str) -> String {
 mod tests {
     use super::*;
     use oxido_rust_backend::SpanMapping;
+
+    struct TemporaryProject(PathBuf);
+
+    impl TemporaryProject {
+        fn new() -> Self {
+            let sequence = NEXT_WORKSPACE.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "oxido-cargo-lock-test-{}-{sequence}",
+                std::process::id()
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TemporaryProject {
+        fn drop(&mut self) {
+            if let Err(error) = fs::remove_dir_all(&self.0) {
+                eprintln!("no se pudo limpiar proyecto temporal de Cargo: {error}");
+            }
+        }
+    }
+
+    #[test]
+    fn persistent_generation_lock_is_released_before_cargo_runs() {
+        let project_root = TemporaryProject::new();
+        let source_map = SourceMap::new(Vec::new());
+        let generated = GeneratedProject {
+            rust: "fn main() {}",
+            source_map: &source_map,
+            dependencies: &[],
+            additional_sources: &[],
+            package: None,
+            ox_sources: &[],
+        };
+
+        let workspace = create_workspace(&generated, None, Some(&project_root.0), true).unwrap();
+        assert!(workspace.path().join("Cargo.toml").is_file());
+        assert!(!workspace.path().join(".oxido-build.lock").exists());
+        let second_build_lock = acquire_project_build_lock(workspace.path());
+        assert!(second_build_lock.is_ok());
+    }
 
     #[test]
     fn maps_cargo_json_spans_and_preserves_unmapped_diagnostics() {

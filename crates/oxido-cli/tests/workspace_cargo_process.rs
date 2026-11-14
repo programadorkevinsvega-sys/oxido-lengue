@@ -37,6 +37,11 @@ struct Workspace {
     pid_file: PathBuf,
 }
 
+struct CapturedStderr {
+    lines: Vec<String>,
+    bytes: Vec<u8>,
+}
+
 fn setup(directory: &Path) -> Workspace {
     let root = directory.join("workspace");
     let member = root.join("member");
@@ -102,26 +107,35 @@ fn cli(workspace: &Workspace, args: &[&str]) -> Command {
 
 fn read_stderr_lines(
     child: &mut Child,
-) -> (mpsc::Receiver<String>, thread::JoinHandle<Vec<String>>) {
+) -> (mpsc::Receiver<String>, thread::JoinHandle<CapturedStderr>) {
     let stderr = child.stderr.take().expect("stderr debe estar capturado");
     let (sender, receiver) = mpsc::channel();
     let reader = thread::spawn(move || {
         let mut lines = Vec::new();
-        for line in BufReader::new(stderr).lines() {
-            match line {
-                Ok(line) => {
-                    if sender.send(line.clone()).is_err() {
-                        break;
-                    }
-                    lines.push(line);
-                }
-                Err(error) => {
-                    lines.push(format!("error al leer stderr: {error}"));
-                    break;
-                }
+        let mut bytes = Vec::new();
+        let mut reader = BufReader::new(stderr);
+        loop {
+            let mut line = Vec::new();
+            let read = reader
+                .read_until(b'\n', &mut line)
+                .expect("stderr debe poder leerse");
+            if read == 0 {
+                break;
             }
+            bytes.extend_from_slice(&line);
+            if line.last() == Some(&b'\n') {
+                line.pop();
+            }
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+            let line = String::from_utf8_lossy(&line).into_owned();
+            if sender.send(line.clone()).is_err() {
+                break;
+            }
+            lines.push(line);
         }
-        lines
+        CapturedStderr { lines, bytes }
     });
     (receiver, reader)
 }
@@ -159,22 +173,27 @@ fn streams_cargo_progress_before_finish_and_keeps_json_stdout_valid() {
         output.status.success(),
         "stdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
-        stderr.join("\n")
+        stderr.lines.join("\n")
     );
     assert!(workspace.finished_file.is_file());
     let report: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("stdout debe ser JSON válido");
     assert_eq!(report["schemaVersion"], 1);
     assert_eq!(report["success"], true);
-    assert!(contains_line(
-        &stderr,
-        "Finished Cargo workspace successfully"
-    ));
+    assert_eq!(
+        String::from_utf8_lossy(&stderr.bytes),
+        "Checking fixture_crate\nChecking member_crate\nFinished Cargo workspace successfully.\n"
+    );
     assert!(
         !stderr
+            .lines
             .iter()
             .any(|line| line.contains(r#"{"reason":"compiler-artifact""#)),
         "el JSON crudo de Cargo no debe aparecer en stderr"
+    );
+    assert!(
+        !String::from_utf8_lossy(&stderr.bytes).contains("/private/oxido-workspaces/"),
+        "el progreso no debe revelar rutas temporales"
     );
 
     let built = cli(
@@ -192,8 +211,15 @@ fn streams_cargo_progress_before_finish_and_keeps_json_stdout_valid() {
     let build_report: serde_json::Value =
         serde_json::from_slice(&built.stdout).expect("stdout de compilar debe ser JSON válido");
     assert_eq!(build_report["success"], true);
-    assert!(String::from_utf8_lossy(&built.stderr).contains("Compiling fixture_crate"));
+    assert_eq!(
+        String::from_utf8_lossy(&built.stderr),
+        "Compiling fixture_crate\nCompiling member_crate\nFinished Cargo workspace successfully.\nBinarios generados en target/oxido/debug.\n"
+    );
     assert!(!String::from_utf8_lossy(&built.stderr).contains(r#"{"reason":"compiler-artifact""#));
+    assert!(
+        !String::from_utf8_lossy(&built.stderr).contains("/private/oxido-workspaces/"),
+        "la salida no debe revelar rutas temporales"
+    );
 }
 
 #[test]
@@ -260,9 +286,9 @@ fn ctrl_c_reports_cancellation_and_terminates_the_cargo_process() {
     );
     assert!(!workspace.finished_file.exists());
     assert!(
-        !contains_line(&stderr, "Finished Cargo workspace successfully"),
+        !contains_line(&stderr.lines, "Finished Cargo workspace successfully"),
         "{}",
-        stderr.join("\n")
+        stderr.lines.join("\n")
     );
 
     let process_gone = Command::new("kill")

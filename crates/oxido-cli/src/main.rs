@@ -1619,6 +1619,12 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 "output": output
             });
             if action == CargoAction::Build {
+                if result.success {
+                    write_workspace_status(&format!(
+                        "Binarios generados en target/oxido/{}.",
+                        if release { "release" } else { "debug" }
+                    ))?;
+                }
                 report["artifactDirectory"] = serde_json::Value::String(format!(
                     "target/oxido/{}",
                     if release { "release" } else { "debug" }
@@ -1631,24 +1637,25 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             return Err(format!("{STRUCTURED_ERROR_PREFIX}{report}"));
         }
         for diagnostic in &result.diagnostics {
-            eprint!("{diagnostic}");
+            write_workspace_text(diagnostic)?;
         }
         if !result.stderr.trim().is_empty() {
-            eprint!(
-                "{}",
-                sanitize_report_text(&result.stderr, Some(&workspace_root))
-            );
+            write_workspace_text(&sanitize_report_text(&result.stderr, Some(&workspace_root)))?;
         }
         if result.success {
             for line in &result.program_output {
                 println!("{line}");
             }
             if action == CargoAction::Check {
-                println!("Workspace Óxido verificado correctamente.");
+                write_workspace_stdout_status("Workspace Óxido verificado correctamente.")?;
             }
             if action == CargoAction::Build {
                 let profile = if release { "release" } else { "debug" };
-                println!("Binarios generados en target/oxido/{profile}.");
+                if !json_output {
+                    write_workspace_status(&format!(
+                        "Binarios generados en target/oxido/{profile}."
+                    ))?;
+                }
             }
             return Ok(());
         }
@@ -1853,6 +1860,42 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn write_workspace_status(message: &str) -> Result<(), String> {
+    let stderr = std::io::stderr();
+    let mut stderr = stderr.lock();
+    writeln!(stderr, "{message}")
+        .map_err(|error| format!("no se pudo escribir el resumen de Cargo en stderr: {error}"))?;
+    stderr
+        .flush()
+        .map_err(|error| format!("no se pudo vaciar el resumen de Cargo en stderr: {error}"))
+}
+
+fn write_workspace_stdout_status(message: &str) -> Result<(), String> {
+    let stdout = std::io::stdout();
+    let mut stdout = stdout.lock();
+    writeln!(stdout, "{message}")
+        .map_err(|error| format!("no se pudo escribir el resumen de Cargo en stdout: {error}"))?;
+    stdout
+        .flush()
+        .map_err(|error| format!("no se pudo vaciar el resumen de Cargo en stdout: {error}"))
+}
+
+fn write_workspace_text(message: &str) -> Result<(), String> {
+    let stderr = std::io::stderr();
+    let mut stderr = stderr.lock();
+    stderr
+        .write_all(message.as_bytes())
+        .map_err(|error| format!("no se pudo escribir la salida de Cargo en stderr: {error}"))?;
+    if !message.ends_with('\n') {
+        stderr
+            .write_all(b"\n")
+            .map_err(|error| format!("no se pudo separar la salida de Cargo: {error}"))?;
+    }
+    stderr
+        .flush()
+        .map_err(|error| format!("no se pudo vaciar la salida de Cargo en stderr: {error}"))
 }
 
 fn cargo_usage(action: CargoAction) -> &'static str {

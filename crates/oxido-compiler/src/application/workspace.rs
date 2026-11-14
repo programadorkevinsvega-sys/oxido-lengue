@@ -16,6 +16,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::{OsStr, OsString},
     fs, io,
+    io::Write,
     path::{Component, Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -242,40 +243,51 @@ pub fn run_imported_workspace(
     if release && action != ImportedWorkspaceAction::Test {
         arguments.push(OsString::from("--release"));
     }
+    let mut progress_error = None;
     let cargo = if action == ImportedWorkspaceAction::Run {
         run_cancellable(&staged_root, &arguments, cancellation)
     } else {
         let mut displayed_targets = BTreeSet::new();
+        let mut finished_reported = false;
         run_without_timeout_cancellable_with_progress(
             &staged_root,
             &arguments,
             None,
             cancellation,
-            |event| match event["reason"].as_str() {
-                Some("compiler-artifact") => {
+            |event| {
+                if event["reason"] == "compiler-artifact" {
                     if let Some(target) = event["target"]["name"].as_str() {
-                        let label = if action == ImportedWorkspaceAction::Check {
-                            "Checking"
-                        } else {
-                            "Compiling"
-                        };
-                        if displayed_targets.insert((label, target.to_owned())) {
-                            eprintln!("{label} {target}");
+                        let package_id = event["package_id"].as_str().unwrap_or(target);
+                        if displayed_targets.insert((package_id.to_owned(), target.to_owned())) {
+                            let label = if action == ImportedWorkspaceAction::Check {
+                                "Checking"
+                            } else {
+                                "Compiling"
+                            };
+                            if progress_error.is_none() {
+                                progress_error =
+                                    write_workspace_progress(&format!("{label} {target}")).err();
+                            }
                         }
                     }
-                }
-                Some("build-finished") => {
-                    if event["success"].as_bool() == Some(true) {
-                        eprintln!("Finished Cargo workspace successfully");
+                } else if event["reason"] == "build-finished" && !finished_reported {
+                    finished_reported = true;
+                    let result = if event["success"].as_bool() == Some(true) {
+                        "Finished Cargo workspace successfully."
                     } else {
-                        eprintln!("Finished Cargo workspace with errors");
+                        "Finished Cargo workspace with errors."
+                    };
+                    if progress_error.is_none() {
+                        progress_error = write_workspace_progress(result).err();
                     }
                 }
-                _ => {}
             },
         )
     }
     .map_err(|error| format!("no se pudo iniciar Cargo para el workspace temporal: {error}"))?;
+    if let Some(error) = progress_error {
+        return Err(format!("no se pudo mostrar el progreso de Cargo: {error}"));
+    }
     let (diagnostics, mapped_diagnostics) = render_workspace_messages(
         &cargo.messages,
         &staging.0,
@@ -292,6 +304,13 @@ pub fn run_imported_workspace(
         program_output: cargo.non_json_stdout,
         stderr: cargo.stderr,
     })
+}
+
+fn write_workspace_progress(message: &str) -> io::Result<()> {
+    let stderr = io::stderr();
+    let mut stderr = stderr.lock();
+    writeln!(stderr, "{message}")?;
+    stderr.flush()
 }
 
 fn create_staging_workspace() -> Result<StagingWorkspace, String> {

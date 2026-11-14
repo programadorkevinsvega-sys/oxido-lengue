@@ -6,13 +6,30 @@ use std::{
     time::Duration,
 };
 
+fn emit_event(event: &str) -> io::Result<()> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    writeln!(stdout, "{event}")?;
+    stdout.flush()
+}
+
 fn main() -> io::Result<()> {
     if let Some(pid_file) = env::var_os("OXIDO_FAKE_CARGO_PID_FILE") {
         fs::write(pid_file, process::id().to_string())?;
     }
 
-    println!(r#"{{"reason":"compiler-artifact","target":{{"name":"fixture_crate"}}}}"#);
-    io::stdout().flush()?;
+    emit_event(
+        r#"{"reason":"compiler-artifact","package_id":"path+file:///private/oxido-workspaces/build-123/fixture#fixture_package@0.1.0","target":{"name":"fixture_crate","kind":["bin"]}}"#,
+    )?;
+    emit_event(
+        r#"{"reason":"compiler-artifact","package_id":"path+file:///private/oxido-workspaces/build-123/fixture#fixture_package@0.1.0","target":{"name":"fixture_crate","kind":["bin"]}}"#,
+    )?;
+    emit_event(
+        r#"{"reason":"compiler-artifact","package_id":"path+file:///private/oxido-workspaces/build-123/member#member_package@0.1.0","target":{"name":"member_crate","kind":["bin"]}}"#,
+    )?;
+    emit_event(
+        r#"{"reason":"build-script-executed","out_dir":"/private/oxido-workspaces/build-123/target"}"#,
+    )?;
 
     let delay = env::var("OXIDO_FAKE_CARGO_DELAY_MS")
         .ok()
@@ -28,10 +45,13 @@ fn main() -> io::Result<()> {
         fs::write(finished_file, "finished")?;
     }
 
-    println!(
+    emit_event(&format!(
         r#"{{"reason":"build-finished","success":{}}}"#,
         exit_code == 0
-    );
-    io::stdout().flush()?;
+    ))?;
+    emit_event(&format!(
+        r#"{{"reason":"build-finished","success":{}}}"#,
+        exit_code == 0
+    ))?;
     process::exit(exit_code);
 }

@@ -9,10 +9,12 @@ version_of() {
 }
 
 commit_hash_of() {
-    "$1" --version --verbose | awk '
+    local version_output
+    version_output=$("$1" --version --verbose) || return $?
+    awk '
         $1 == "commit-hash:" { print $2; exit }
         NR == 1 && $1 == "rustfmt" { gsub(/[()]/, "", $3); print $3; exit }
-    '
+    ' <<< "$version_output"
 }
 
 at_least_minimum() {

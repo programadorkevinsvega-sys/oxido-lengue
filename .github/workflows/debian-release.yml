@@ -69,9 +69,9 @@ jobs:
           package="target/debian-release/oxido_${PACKAGE_VERSION}-1_${PACKAGE_ARCH}.deb"
           [[ "$(dpkg-deb --field "$package" Architecture)" == "$PACKAGE_ARCH" ]]
           sudo apt-get install -y "./$package"
-          output=$(oxido aliases --markdown)
-          [[ "$output" == *'BEGIN GENERATED ALIASES'* ]]
-          printf 'CLI instalada y ejecutada: %s\n' "$(dpkg-deb --field "$package" Version)"
+          output=$(oxido --version)
+          [[ "$output" == "oxido $PACKAGE_VERSION" ]]
+          printf 'CLI instalada y versión verificada: %s\n' "$(dpkg-deb --field "$package" Version)"
           sudo apt-get remove -y oxido
           ! command -v oxido >/dev/null 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

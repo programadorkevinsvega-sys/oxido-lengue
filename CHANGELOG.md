@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## [0.1.1] - 2026-11-14
+
+- La CLI permite ejecutar `verificar`, `compilar`, `ejecutar`, `probar` y `formato` sin ruta desde un proyecto; localiza `oxido.toml` y usa `src/main.ox`.
+- `compilar` genera y mantiene el proyecto Cargo en `target/oxido/`, incluidos módulos y fuentes `.ox`, y delega la compilación en Cargo.
+- Se retiraron conversiones y artefactos temporales obsoletos del backend externo; se conserva la fuente original del backend.
+
 ## [Unreleased]
 
 - `importar` e `importar-proyecto` conservan por defecto el código Rust tal cual: solo anteponen la cabecera `sintaxis llaves`, sin cambiar `fn`, el formato ni los comentarios. La traducción a `funcion` queda detrás de `--espanol`, que mantiene la validación reversible. Los originales se guardan en `.oxido/original/` para no crear módulos ambiguos; el manifiesto distingue `verbatim-rust`, `translated-oxido` y `passthrough-rust` con su diagnóstico.

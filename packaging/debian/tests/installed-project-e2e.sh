@@ -32,7 +32,11 @@ project=$temp_dir/demo
 env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido nuevo "$project"
 source=$project/src/main.ox
 [[ -f "$project/oxido.toml" && -f "$source" ]]
-env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido build "$source"
+(
+    cd "$project"
+    env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido verificar
+    env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido compilar
+)
 generated_project=$project/target/oxido
 [[ -f "$generated_project/Cargo.toml" \
     && -f "$generated_project/src/main.ox" \
@@ -52,7 +56,7 @@ binary_output=$("$binary")
     printf 'ERROR: salida del binario inesperada: %s.\n' "$binary_output" >&2
     exit 1
 }
-cli_output=$(env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido ejecutar "$source")
+cli_output=$(cd "$project" && env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido ejecutar)
 [[ "$cli_output" == 'Hola, Óxido.' ]] || {
     printf 'ERROR: `oxido ejecutar` produjo una salida inesperada: %s.\n' "$cli_output" >&2
     exit 1

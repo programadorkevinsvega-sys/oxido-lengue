@@ -2,7 +2,7 @@
   "name": "oxido-language-support",
   "displayName": "Óxido Language Support",
   "description": "Language support for .ox files using the Óxido compiler frontend.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "oxido-language",
   "repository": {
     "type": "git",
@@ -74,7 +74,7 @@
     "test:vsix": "node test/run-host.js installed",
     "test:vsix:server": "node test/run-host.js bundled",
     "prepackage:vsix": "node scripts/prepare-package.js",
-    "package:vsix": "vsce package --skip-license --out dist/oxido-language-support-0.1.0.vsix",
+    "package:vsix": "vsce package --skip-license --out dist/oxido-language-support-0.1.1.vsix",
     "package:vsix:server": "node scripts/package-vsix-server.js",
     "checksum": "node scripts/write-sha256.js"
   },

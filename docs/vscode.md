@@ -2,7 +2,7 @@
 
 El editor se compone de una extensión de VS Code (`editors/vscode-oxido`) y el servidor `oxido-lsp`. La extensión asocia archivos `.ox`, inicia el servidor y añade tres comandos. El análisis local al abrir/editar no ejecuta Cargo ni inicia `rust-analyzer`; las consultas semánticas delegadas a un bridge persistente de `rust-analyzer` y la comprobación Cargo son acciones separadas, y las operaciones que pueden ejecutar código exigen Workspace Trust.
 
-El estado técnico y la evidencia están descritos en esta guía, la [preparación empresarial](enterprise-readiness.md) y el [ADR 0016](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/adr/0016-distribucion-extension-vscode.md). La [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0) ya ofrece los paquetes `.deb` y VSIX que se enlazan abajo. La extensión todavía no está publicada en Visual Studio Marketplace; su publicación requiere configurar publisher y `VSCE_PAT` y ejecutar el workflow manual. Solo Linux x64 con servidor incluido tiene prueba host de extremo a extremo.
+El estado técnico y la evidencia están descritos en esta guía, la [preparación empresarial](enterprise-readiness.md) y el [ADR 0016](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/adr/0016-distribucion-extension-vscode.md). La [Release v0.1.1](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.1) ofrece los paquetes `.deb` y VSIX que se enlazan abajo. La extensión todavía no está publicada en Visual Studio Marketplace; su publicación requiere configurar publisher y `VSCE_PAT` y ejecutar el workflow manual. Solo Linux x64 con servidor incluido tiene prueba host de extremo a extremo.
 
 ## Requisitos
 
@@ -14,34 +14,34 @@ El estado técnico y la evidencia están descritos en esta guía, la [preparaci�
 
 ## Instalar desde la Release
 
-Descarga el VSIX correspondiente a tu plataforma desde la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). Cada paquete incluye el servidor `oxido-lsp`; no tienes que clonar el repositorio, compilar la extensión ni instalar la CLI de Óxido. Descarga también [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS) para verificar el archivo; los paquetes no están firmados.
+Descarga el VSIX correspondiente a tu plataforma desde la [Release v0.1.1](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.1). Cada paquete incluye el servidor `oxido-lsp`; no tienes que clonar el repositorio, compilar la extensión ni instalar la CLI de Óxido. Descarga también [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/SHA256SUMS) para verificar el archivo; los paquetes no están firmados.
 
 | Plataforma | Descarga |
 |---|---|
-| Linux x64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-linux-x64.vsix) |
-| Linux arm64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-linux-arm64.vsix) |
-| Windows x64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-win32-x64.vsix) |
-| macOS arm64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-darwin-arm64.vsix) |
+| Linux x64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido-language-support-0.1.1-linux-x64.vsix) |
+| Linux arm64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido-language-support-0.1.1-linux-arm64.vsix) |
+| Windows x64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido-language-support-0.1.1-win32-x64.vsix) |
+| macOS arm64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido-language-support-0.1.1-darwin-arm64.vsix) |
 
 Descarga el archivo y después instálalo desde la terminal:
 
 ```sh
-code --install-extension oxido-language-support-0.1.0-linux-x64.vsix
+code --install-extension oxido-language-support-0.1.1-linux-x64.vsix
 ```
 
 También puedes elegir **Install from VSIX...** en la vista Extensions y seleccionar el archivo descargado. Las instalaciones manuales desde VSIX no reciben actualizaciones automáticas por defecto; para actualizar, descarga e instala la nueva versión desde una Release posterior.
 
 ## Distribución opcional en Debian/Ubuntu
 
-El paquete `oxido-vscode` es opcional y separado del paquete de la CLI. Incluye el VSIX Linux correspondiente, no instala `oxido`, no crea servicios ni toca perfiles de usuario durante las operaciones de `apt`. Descarga la versión adecuada de la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0):
+El paquete `oxido-vscode` es opcional y separado del paquete de la CLI. Incluye el VSIX Linux correspondiente, no instala `oxido`, no crea servicios ni toca perfiles de usuario durante las operaciones de `apt`. Descarga la versión adecuada de la [Release v0.1.1](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.1):
 
-- [Extensión VS Code para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-vscode_0.1.0-1_amd64.deb)
-- [Extensión VS Code para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-vscode_0.1.0-1_arm64.deb)
+- [Extensión VS Code para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido-vscode_0.1.1-1_amd64.deb)
+- [Extensión VS Code para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido-vscode_0.1.1-1_arm64.deb)
 
 Después de instalarlo, ejecuta como el usuario que utilizará VS Code:
 
 ```sh
-sudo apt install ./oxido-vscode_0.1.0-1_amd64.deb
+sudo apt install ./oxido-vscode_0.1.1-1_amd64.deb
 oxido-vscode-instalar
 ```
 

@@ -6,11 +6,11 @@ This is the maintained English quickstart for Óxido. The canonical technical do
 
 ## Install the CLI
 
-On Debian or Ubuntu, download the CLI package for your architecture and `SHA256SUMS` from [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0): [amd64 `.deb`](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_amd64.deb) or [arm64 `.deb`](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_arm64.deb), plus [checksums](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS). The packages are unsigned.
+On Debian or Ubuntu, download the CLI package for your architecture and `SHA256SUMS` from [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.1): [amd64 `.deb`](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido_0.1.1-1_amd64.deb) or [arm64 `.deb`](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/oxido_0.1.1-1_arm64.deb), plus [checksums](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.1/SHA256SUMS). The packages are unsigned.
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-sudo apt install ./oxido_0.1.0-1_amd64.deb
+sudo apt install ./oxido_0.1.1-1_amd64.deb
 oxido --version
 ```
 

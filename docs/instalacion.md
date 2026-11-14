@@ -22,17 +22,19 @@ Desde la raíz del repositorio:
 
 ```sh
 cargo build --release --locked -p oxido-cli
-./target/release/oxido --help
+./target/release/oxido --version
 ```
 
 El binario se llama `oxido`. Para instalarlo en el `PATH` del usuario:
 
 ```sh
 cargo install --path crates/oxido-cli --locked
-oxido --help
+oxido --version
 ```
 
 `cargo install` compila en modo release y no publica nada. El crate tiene `publish = false`.
+
+Comprueba la versión instalada con `oxido --version` (o `oxido -V`). La salida tiene el formato `oxido <versión>` y corresponde a la versión del paquete de la CLI.
 
 ## Instalar desde un paquete Debian
 
@@ -41,6 +43,7 @@ Cuando haya una [GitHub Release](https://github.com/programadorkevinsvega-sys/ox
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
 sudo apt install ./oxido_*_amd64.deb
+oxido --version
 ```
 
 La opción `--ignore-missing` permite verificar el paquete descargado aunque `SHA256SUMS` también enumere la otra arquitectura. Para arm64, cambia el patrón por `./oxido_*_arm64.deb`. Después de instalar el paquete, provisiona Rust en el prefijo aislado de Óxido:

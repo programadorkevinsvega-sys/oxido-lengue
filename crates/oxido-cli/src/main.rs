@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod version;
+
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     env,
@@ -65,6 +67,10 @@ fn run(args: Vec<OsString>) -> Result<(), String> {
     let Some(command) = args.first().and_then(|value| value.to_str()) else {
         return Err(usage().into());
     };
+    if args.len() == 1 && matches!(command, "--version" | "-V") {
+        println!("{}", version::version_line());
+        return Ok(());
+    }
     match command {
         "analizar-rust" => analyze_rust(&args[1..]),
         "aliases" => print_aliases(&args[1..]),
@@ -2065,5 +2071,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|build|check|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|run|test|verificar|compilar|ejecutar> ..."
+    "uso: oxido [--version|-V] <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|build|check|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|run|test|verificar|compilar|ejecutar> ..."
 }

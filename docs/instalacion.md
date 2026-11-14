@@ -58,10 +58,11 @@ La instalación de Rust es explícita; `apt` no descarga toolchains desde script
 
 ```sh
 oxido nuevo demo
+oxido build demo/src/main.ox
 oxido ejecutar demo/src/main.ox
 ```
 
-`oxido nuevo` crea `oxido.toml` y `src/main.ox` con un programa mínimo. La salida esperada es `Hola, Óxido.`.
+`oxido nuevo` crea `oxido.toml` y `src/main.ox` con un programa mínimo. `oxido build` genera el binario en `demo/target/oxido/debug/oxido_generated`; `oxido ejecutar` compila y lo ejecuta. La salida esperada es `Hola, Óxido.`. El workflow de paquetes Debian también prueba este ciclo desde el `.deb` instalado y tras instalar la toolchain aislada.
 
 También puedes ejecutar los ejemplos del repositorio:
 

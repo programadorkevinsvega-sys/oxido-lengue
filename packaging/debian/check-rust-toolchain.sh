@@ -9,10 +9,12 @@ version_of() {
 }
 
 commit_hash_of() {
-    "$1" --version --verbose | awk '
+    local version_output
+    version_output=$("$1" --version --verbose) || return $?
+    awk '
         $1 == "commit-hash:" { print $2; exit }
         NR == 1 && $1 == "rustfmt" { gsub(/[()]/, "", $3); print $3; exit }
-    '
+    ' <<< "$version_output"
 }
 
 at_least_minimum() {
@@ -63,13 +65,19 @@ if [[ -n "$cargo_path" ]]; then
 fi
 
 if [[ -n "$rustc_path" && -n "$cargo_path" ]]; then
-    rustc_commit=$(commit_hash_of rustc)
-    if [[ -z "$rustc_commit" ]]; then
+    rustc_commit=
+    if ! rustc_commit=$(commit_hash_of rustc); then
+        printf 'ERROR: no se pudo consultar `rustc --version --verbose`.\n' >&2
+        failed=1
+    elif [[ -z "$rustc_commit" ]]; then
         printf 'ERROR: no se pudo identificar el commit de rustc.\n' >&2
         failed=1
     elif command -v rustfmt >/dev/null 2>&1; then
-        rustfmt_commit=$(commit_hash_of rustfmt)
-        if [[ -z "$rustfmt_commit" || ${#rustfmt_commit} -lt 7 || "$rustc_commit" != "$rustfmt_commit"* ]]; then
+        rustfmt_commit=
+        if ! rustfmt_commit=$(commit_hash_of rustfmt); then
+            printf 'ERROR: no se pudo consultar `rustfmt --version --verbose`.\n' >&2
+            failed=1
+        elif [[ -z "$rustfmt_commit" || ${#rustfmt_commit} -lt 7 || "$rustc_commit" != "$rustfmt_commit"* ]]; then
             printf 'ERROR: rustfmt no coincide con rustc (rustc=%s, rustfmt=%s).\n' \
                 "$rustc_commit" "${rustfmt_commit:-desconocido}" >&2
             failed=1

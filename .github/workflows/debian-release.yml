@@ -72,6 +72,8 @@ jobs:
           output=$(oxido --version)
           [[ "$output" == "oxido $PACKAGE_VERSION" ]]
           printf 'CLI instalada y versión verificada: %s\n' "$(dpkg-deb --field "$package" Version)"
+          sudo oxido-instalar-toolchain
+          bash packaging/debian/tests/installed-project-e2e.sh
           sudo apt-get remove -y oxido
           ! command -v oxido >/dev/null 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

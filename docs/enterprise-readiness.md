@@ -31,7 +31,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 1. **Ejecución de código de dependencias.** `check`, `build` y `run` con dependencias pueden ejecutar `build.rs` y macros procedurales. `--confiar-dependencias` registra una decisión del operador; no aísla el proceso.
 2. **Sin sandbox general.** La CLI y el LSP no están aislados del sistema operativo. El sandbox del playground es un producto separado.
 3. **Cobertura parcial del lenguaje.** La matriz no cubre todo Rust. Un programa que compila no demuestra compatibilidad general.
-4. **Distribución incompleta.** No hay binarios firmados, instaladores, marketplace ni canal de actualizaciones.
+4. **Distribución incompleta.** Se preparan paquetes Debian sin firma para la CLI y para la extensión VS Code, además de VSIX descargables. Todavía no hay una GitHub Release ni publicación en Marketplace; los binarios no están firmados y no existe un repositorio APT.
 5. **Licencia y revisión legal.** El código usa MIT o Apache-2.0, pero cada organización debe revisar si esa licencia cubre su uso previsto. Las licencias de terceros se auditan con `cargo-deny`, no con una revisión legal completa.
 6. **Sin soporte ni SLA.** No hay compromiso de respuesta, ventanas de mantenimiento ni compatibilidad retroactiva.
 7. **Datos del entorno.** Los informes pueden contener salidas de diagnóstico; la higiene bloquea rutas absolutas y secretos conocidos, pero no todos los formatos.

@@ -30,12 +30,16 @@ El script construye con `cargo build --locked --release -p oxido-cli` y deja el 
 
 Para instalar una publicación, descarga el `.deb` de tu arquitectura y `SHA256SUMS` de la misma Release, ejecuta `sha256sum --check --ignore-missing SHA256SUMS` e instala con `sudo apt install ./oxido_*_amd64.deb` (o `*_arm64.deb`). Los hashes verifican integridad frente a alteraciones; no son una firma de identidad. Los paquetes no están firmados.
 
+La misma Release incluye los VSIX por plataforma y un paquete `oxido-vscode` Debian amd64/arm64. Este paquete es opcional y separado de la CLI: deja el VSIX en `/usr/share/oxido-vscode/extension.vsix` y el usuario lo instala en su perfil con `oxido-vscode-instalar` o desde la opción **Install from VSIX...** de VS Code. No modifica perfiles durante `apt install`/`apt remove`, no requiere `oxido.deb` y no crea procesos en segundo plano. Lee `../vscode-deb/README.Debian` para el contrato completo.
+
 ## Regresiones
 
 ```sh
 bash packaging/debian/tests/check-rust-toolchain.sh
 bash packaging/debian/tests/install-isolated-toolchain.sh
 bash packaging/debian/tests/package-lifecycle.sh
+bash packaging/vscode-deb/tests/package-lifecycle.sh
+bash packaging/debian/tests/prepare-release-assets.sh
 ```
 
 La regresión de ciclo de vida usa `dpkg` contra una raíz temporal: instala una versión, la actualiza, la elimina y comprueba que los datos bajo `/opt/oxido` sobreviven. Las pruebas del instalador simulan red/checksum. El workflow Debian también instala el paquete real, provisiona Rust 1.99.1 en el prefijo aislado, crea un proyecto con `oxido nuevo`, lo compila con `oxido build` y comprueba tanto el binario como `oxido ejecutar`.

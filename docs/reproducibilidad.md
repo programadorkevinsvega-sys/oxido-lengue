@@ -86,9 +86,10 @@ Los VSIX quedan en `editors/vscode-oxido/dist/`, que no se versiona. El workflow
   - `reproducible` en Linux;
   - `sbom` en Linux y publica el artefacto;
   - `hygiene`, que ejecuta `tools/audit-telemetry.sh` y `tools/report-hygiene.sh docs/reports`; los jobs de validación, SBOM y benchmark aplican la misma comprobación a sus artefactos antes de subirlos.
-- `.github/workflows/release.yml` añade `reproducible` y `sbom` antes de empaquetar los VSIX; el SBOM pasa por `tools/report-hygiene.sh`. Adjunta artefactos de Actions, pero no publica VSIX ni los firma.
-- `.github/workflows/debian-release.yml` construye y prueba paquetes nativos amd64/arm64 en PRs y al crear una etiqueta de versión. La prueba instala el `.deb` real, verifica la versión, instala Rust 1.99.1 en `/opt/oxido`, crea un proyecto con `oxido nuevo`, lo compila con `oxido build` y ejecuta tanto el binario generado como `oxido ejecutar`; al terminar elimina el paquete. En etiquetas `v` coincidentes con `oxido-cli`, crea o actualiza una GitHub Release con ambos `.deb` y `SHA256SUMS`; no firma paquetes ni los publica en un repositorio APT. Una ejecución manual solo deja artefactos de Actions. La política está registrada en el [ADR 0015 del repositorio](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/adr/0015-distribucion-paquetes-debian.md).
-- La matriz de release conserva Linux x64, Windows x64 y macOS arm64.
+- `.github/workflows/release.yml` comprueba reproducibilidad y genera SBOM en la ruta de release. No firma ni publica en Marketplace.
+- `.github/workflows/debian-release.yml` construye y prueba paquetes CLI nativos amd64/arm64 en PRs y al crear una etiqueta de versión. También crea los VSIX autocontenidos Linux x64/arm64, Windows x64 y macOS arm64 y los paquetes Debian independientes `oxido-vscode` amd64/arm64. Antes de publicar, el job de preparación valida los cuatro paquetes Debian, los cuatro VSIX y un `SHA256SUMS` común. La prueba de CLI instala el `.deb` real, verifica la versión, instala Rust 1.99.1 en `/opt/oxido`, crea un proyecto con `oxido nuevo`, lo compila con `oxido build` y ejecuta tanto el binario como `oxido ejecutar`; después elimina el paquete. Las pruebas del nuevo paquete de editor comprueban instalación en una raíz temporal, invocación explícita de VS Code como usuario y eliminación del `.deb` sin tocar perfiles. Una etiqueta `v` coincidente con la CLI y la extensión crea o actualiza una GitHub Release con los assets; no firma paquetes ni los publica en un repositorio APT. La política está registrada en [ADR 0015](adr/0015-distribucion-paquetes-debian.md) y [ADR 0016](adr/0016-distribucion-extension-vscode.md).
+- `.github/workflows/marketplace-publish.yml` descarga y verifica los cuatro VSIX de una Release existente. La publicación solo corre desde `main`, requiere seleccionar explícitamente `publish_to_marketplace` y tener el secreto `VSCE_PAT`. El workflow no se ha ejecutado para publicar.
+- Los VSIX se construyen en runners nativos para Linux x64/arm64, Windows x64 y macOS arm64. La prueba host instalada con VS Code sigue demostrada solo en Linux x64; los builds de los demás targets no equivalen a una prueba host.
 
 ## Pendiente para publicar
 
@@ -96,7 +97,7 @@ Los VSIX quedan en `editors/vscode-oxido/dist/`, que no se versiona. El workflow
 |---|---|
 | Firmar binarios Windows | Certificado de firma de código y secreto de CI |
 | Notarizar macOS | Cuenta Apple Developer, identidad y credenciales de notarización |
-| Publicar VSIX | Autorización de release y token del Marketplace |
+| Publicar VSIX | Publisher, secreto `VSCE_PAT` y activación manual explícita del workflow |
 | Publicar CLI fuera de Debian | Matriz de binarios Windows/macOS y destino de publicación |
 | Verificar reproducibilidad multiplataforma | Ejecutar el job en los tres sistemas y archivar hashes |
 

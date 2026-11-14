@@ -1,4 +1,4 @@
-name: Release VSIX
+name: Validar VSIX y SBOM de release
 
 on:
   workflow_dispatch:
@@ -47,6 +47,9 @@ jobs:
           - runner: ubuntu-latest
             target: linux-x64
             server: oxido-lsp
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+            server: oxido-lsp
           - runner: windows-latest
             target: win32-x64
             server: oxido-lsp.exe
@@ -61,6 +64,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
         with:
           toolchain: 1.99.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
       - run: cargo build --release -p oxido-lsp --locked
       - run: node --version
       - run: npm ci --prefix editors/vscode-oxido

@@ -7,11 +7,18 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'crates/oxido-cli/**'
+      - 'crates/oxido-compiler/**'
+      - 'crates/oxido-language/**'
+      - 'crates/oxido-lsp/**'
       - 'packaging/debian/**'
+      - 'packaging/vscode-deb/**'
+      - 'editors/vscode-oxido/**'
       - 'LICENSE-*'
       - 'docs/instalacion.md'
       - 'docs/reproducibilidad.md'
+      - 'docs/vscode.md'
       - 'docs/roadmap-brechas.md'
+      - 'docs/adr/0016-distribucion-extension-vscode.md'
   workflow_dispatch:
   push:
     tags:
@@ -46,16 +53,20 @@ jobs:
         id: version
         run: |
           version=$(awk '/^\[package\]$/ { package=1; next } /^\[/ { package=0 } package && /^version = / { gsub(/"/, "", $3); print $3; exit }' crates/oxido-cli/Cargo.toml)
+          extension_version=$(node -p "require('./editors/vscode-oxido/package.json').version")
+          [[ "$version" == "$extension_version" ]] || { printf 'La versión de la extensión debe coincidir con la CLI.\n' >&2; exit 1; }
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { printf 'La etiqueta debe apuntar a un commit integrado en main.\n' >&2; exit 1; }
             bash packaging/debian/validate-release-version.sh "$GITHUB_REF_NAME" "$version"
+            bash packaging/debian/validate-release-version.sh "$GITHUB_REF_NAME" "$extension_version"
           fi
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
       - name: Regresión de checksums de release
         run: |
-          bash -n packaging/debian/prepare-release-assets.sh packaging/debian/validate-release-version.sh packaging/debian/tests/prepare-release-assets.sh packaging/debian/tests/validate-release-version.sh
+          bash -n packaging/debian/prepare-release-assets.sh packaging/debian/validate-release-version.sh packaging/debian/tests/prepare-release-assets.sh packaging/debian/tests/validate-release-version.sh packaging/vscode-deb/build-deb.sh packaging/vscode-deb/install-extension.sh packaging/vscode-deb/tests/package-lifecycle.sh
           bash packaging/debian/tests/prepare-release-assets.sh
           bash packaging/debian/tests/validate-release-version.sh
+          bash packaging/vscode-deb/tests/package-lifecycle.sh
       - name: Construir paquete nativo
         env:
           OXIDO_DEB_MAINTAINER: Óxido Debian <oxido-lengue@users.noreply.github.com>
@@ -83,15 +94,103 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  vscode-assets:
+    name: VSIX ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: linux-x64
+            binary: oxido-lsp
+            debian_architecture: amd64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+            binary: oxido-lsp
+            debian_architecture: arm64
+          - runner: windows-latest
+            target: win32-x64
+            binary: oxido-lsp.exe
+          - runner: macos-15
+            target: darwin-arm64
+            binary: oxido-lsp
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Verificar versiones de release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TYPE: ${{ github.ref_type }}
+        run: |
+          cli_version=$(awk '/^\[package\]$/ { package=1; next } /^\[/ { package=0 } package && /^version = / { gsub(/"/, "", $3); print $3; exit }' crates/oxido-cli/Cargo.toml)
+          extension_version=$(node -p "require('./editors/vscode-oxido/package.json').version")
+          [[ "$cli_version" == "$extension_version" ]]
+          if [[ "$RELEASE_TYPE" == tag ]]; then
+            bash packaging/debian/validate-release-version.sh "$RELEASE_TAG" "$extension_version"
+          fi
+      - run: cargo build --release -p oxido-lsp --locked
+      - run: node --version
+      - run: npm ci --prefix editors/vscode-oxido
+      - run: npm test --prefix editors/vscode-oxido
+      - name: Crear VSIX con servidor de la plataforma
+        env:
+          OXIDO_SERVER_BINARY: ${{ github.workspace }}/target/release/${{ matrix.binary }}
+          OXIDO_VSIX_TARGET: ${{ matrix.target }}
+        run: npm run package:vsix:server --prefix editors/vscode-oxido
+      - name: Construir paquete Debian independiente de VS Code
+        if: startsWith(matrix.target, 'linux-')
+        env:
+          OXIDO_VSCODE_DEB_MAINTAINER: Óxido Debian <oxido-lengue@users.noreply.github.com>
+          PACKAGE_ARCH: ${{ matrix.debian_architecture }}
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: |
+          version=$(node -p "require('./editors/vscode-oxido/package.json').version")
+          vsix="editors/vscode-oxido/dist/oxido-language-support-${version}-${PACKAGE_TARGET}.vsix"
+          packaging/vscode-deb/build-deb.sh --version "$version" --architecture "$PACKAGE_ARCH" \
+            --target "$PACKAGE_TARGET" --vsix "$vsix" --output-dir target/debian-vscode
+          package="target/debian-vscode/oxido-vscode_${version}-1_${PACKAGE_ARCH}.deb"
+          bash packaging/vscode-deb/tests/package-lifecycle.sh
+          [[ "$(dpkg-deb --field "$package" Package)" == oxido-vscode ]]
+          [[ "$(dpkg-deb --field "$package" Architecture)" == "$PACKAGE_ARCH" ]]
+      - name: Preparar artefactos planos
+        run: |
+          mkdir -p target/vscode-release-assets
+          cp editors/vscode-oxido/dist/*.vsix target/vscode-release-assets/
+          shopt -s nullglob
+          debs=(target/debian-vscode/*.deb)
+          if [[ ${#debs[@]} -gt 0 ]]; then
+            cp "${debs[@]}" target/vscode-release-assets/
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oxido-vscode-release-${{ matrix.target }}
+          path: target/vscode-release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
   prepare-assets:
     name: Verificar y agrupar paquetes
-    needs: package
+    needs: [package, vscode-assets]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: oxido-deb-*
+          path: target/debian-release
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: oxido-vscode-release-*
           path: target/debian-release
           merge-multiple: true
       - name: Crear y verificar SHA256SUMS
@@ -103,6 +202,7 @@ jobs:
           name: oxido-debian-release-assets
           path: |
             target/debian-release/*.deb
+            target/debian-release/*.vsix
             target/debian-release/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
@@ -131,7 +231,7 @@ jobs:
             fi
             gh release create "$RELEASE_TAG" --draft "${release_options[@]}"
           fi
-          gh release upload "$RELEASE_TAG" target/debian-release/*.deb target/debian-release/SHA256SUMS --clobber
+          gh release upload "$RELEASE_TAG" target/debian-release/*.deb target/debian-release/*.vsix target/debian-release/SHA256SUMS --clobber
           if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease
           else

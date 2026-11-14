@@ -22,6 +22,9 @@ pub fn resolve(argument: Option<&OsStr>) -> Result<PathBuf, String> {
         return Err("la entrada debe ser un archivo .ox o un directorio de proyecto".into());
     }
     let root = find_project_root(&candidate)?;
+    if oxido_compiler::application::workspace::is_imported_cargo_workspace(&root)? {
+        return Ok(root);
+    }
     select_default_binary(&root)
 }
 

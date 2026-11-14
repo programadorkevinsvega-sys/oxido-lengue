@@ -31,6 +31,7 @@ pub struct ImportedWorkspaceCheck {
     pub success: bool,
     pub exit_code: Option<i32>,
     pub diagnostics: Vec<String>,
+    pub mapped_diagnostics: Vec<MappedCargoDiagnostic>,
     pub program_output: Vec<String>,
     pub stderr: String,
 }
@@ -56,6 +57,12 @@ pub enum ImportedWorkspaceAction {
     Build,
     Run,
     Test,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ImportedWorkspaceSelection {
+    pub package: Option<String>,
+    pub binary: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -90,6 +97,7 @@ pub fn check_imported_workspace(
         trusted,
         release,
         ImportedWorkspaceAction::Check,
+        &ImportedWorkspaceSelection::default(),
     )
 }
 
@@ -100,6 +108,7 @@ pub fn run_imported_workspace(
     trusted: bool,
     release: bool,
     action: ImportedWorkspaceAction,
+    selection: &ImportedWorkspaceSelection,
 ) -> Result<ImportedWorkspaceCheck, String> {
     if !trusted {
         return Err("compilar el workspace puede ejecutar build.rs y macros procedurales; revisa las dependencias y usa explícitamente `--confiar-dependencias`".into());
@@ -197,7 +206,8 @@ pub fn run_imported_workspace(
             OsString::from("--all-targets"),
         ],
         ImportedWorkspaceAction::Run => {
-            let (package, kind, target) = selected_cargo_target(&package_roots, selected_source)?;
+            let (package, kind, target) =
+                select_cargo_target(&package_roots, selected_source, selection)?;
             let mut arguments = vec![
                 OsString::from("run"),
                 OsString::from("--package"),
@@ -230,7 +240,7 @@ pub fn run_imported_workspace(
     }
     let cargo = run(&staged_root, &arguments)
         .map_err(|error| format!("no se pudo iniciar Cargo para el workspace temporal: {error}"))?;
-    let diagnostics = render_workspace_messages(
+    let (diagnostics, mapped_diagnostics) = render_workspace_messages(
         &cargo.messages,
         &staging.0,
         &project_root,
@@ -240,6 +250,7 @@ pub fn run_imported_workspace(
         success: cargo.success,
         exit_code: cargo.exit_code,
         diagnostics,
+        mapped_diagnostics,
         program_output: cargo.non_json_stdout,
         stderr: cargo.stderr,
     })
@@ -455,7 +466,9 @@ fn selected_cargo_target(
 ) -> Result<(String, String, String), String> {
     let selected = fs::canonicalize(selected_source)
         .map_err(|error| format!("no se pudo resolver el target seleccionado: {error}"))?;
-    for (_, package_root, manifest) in packages {
+    for package in packages {
+        let package_root = &package.1;
+        let manifest = &package.2;
         let Some(package_name) = manifest
             .get("package")
             .and_then(|package| package.get("name"))
@@ -470,7 +483,7 @@ fn selected_cargo_target(
                 "example"
             } else if default_main
                 || source.starts_with("src/bin/")
-                || manifest.get("bin").is_some()
+                || is_declared_bin(manifest, &source, package_root)
             {
                 "bin"
             } else {
@@ -518,6 +531,157 @@ fn selected_cargo_target(
         }
     }
     Err("el archivo seleccionado no es un target binario o ejemplo del workspace Cargo".into())
+}
+
+fn select_cargo_target(
+    packages: &[(PathBuf, PathBuf, toml::Value)],
+    selected_source: &Path,
+    selection: &ImportedWorkspaceSelection,
+) -> Result<(String, String, String), String> {
+    if selection.package.is_none() && selection.binary.is_none() && selected_source.is_file() {
+        return selected_cargo_target(packages, selected_source);
+    }
+
+    let mut available = Vec::new();
+    for package in packages {
+        let package_root = &package.1;
+        let manifest = &package.2;
+        let Some(package_name) = manifest
+            .get("package")
+            .and_then(|package| package.get("name"))
+            .and_then(toml::Value::as_str)
+        else {
+            continue;
+        };
+        if selection
+            .package
+            .as_deref()
+            .is_some_and(|selected| selected != package_name)
+        {
+            continue;
+        }
+        for source in cargo_target_sources(package_root, manifest)? {
+            if !is_bin_source(manifest, package_root, &source) {
+                continue;
+            }
+            let name = bin_target_name(manifest, package_name, package_root, &source);
+            if selection
+                .binary
+                .as_deref()
+                .is_none_or(|selected| selected == name)
+            {
+                available.push((package_name.to_owned(), name));
+            }
+        }
+    }
+
+    if let Some(package) = &selection.package
+        && !packages.iter().any(|candidate| {
+            let manifest = &candidate.2;
+            manifest
+                .get("package")
+                .and_then(|value| value.get("name"))
+                .and_then(toml::Value::as_str)
+                == Some(package)
+        })
+    {
+        return Err(format!("no existe el paquete `{package}` en el workspace"));
+    }
+    if let Some(binary) = &selection.binary
+        && available.is_empty()
+    {
+        return Err(format!(
+            "no existe el binario `{binary}`{}",
+            selection
+                .package
+                .as_ref()
+                .map(|package| format!(" en el paquete `{package}`"))
+                .unwrap_or_default()
+        ));
+    }
+    match available.as_slice() {
+        [(package, binary)] => Ok((package.clone(), "bin".into(), binary.clone())),
+        [] => {
+            let scope = selection
+                .package
+                .as_ref()
+                .map(|package| format!(" en el paquete `{package}`"))
+                .unwrap_or_else(|| " en el workspace".into());
+            Err(format!("no hay binarios ejecutables{scope}"))
+        }
+        _ => {
+            let choices = available
+                .iter()
+                .map(|(package, binary)| format!("`{package}` (bin `{binary}`)"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "hay varios binarios ejecutables; selecciona uno con `-p <paquete> --bin <nombre>` o `--bin <nombre>`. Opciones: {choices}"
+            ))
+        }
+    }
+}
+
+fn is_declared_bin(manifest: &toml::Value, source: &Path, package_root: &Path) -> bool {
+    manifest
+        .get("bin")
+        .and_then(toml::Value::as_array)
+        .is_some_and(|bins| {
+            bins.iter().any(|bin| {
+                let Some(path) = bin.get("path").and_then(toml::Value::as_str) else {
+                    return false;
+                };
+                let path = Path::new(path);
+                path == source
+                    || (path.with_extension("ox") == source && package_root.join(source).is_file())
+            })
+        })
+}
+
+fn is_bin_source(manifest: &toml::Value, package_root: &Path, source: &Path) -> bool {
+    let default_main = source.parent() == Some(Path::new("src"))
+        && source.file_stem().is_some_and(|stem| stem == "main");
+    default_main
+        || source.starts_with("src/bin/")
+        || is_declared_bin(manifest, source, package_root)
+}
+
+fn bin_target_name(
+    manifest: &toml::Value,
+    package_name: &str,
+    package_root: &Path,
+    source: &Path,
+) -> String {
+    let source_name = source
+        .file_stem()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default();
+    manifest
+        .get("bin")
+        .and_then(toml::Value::as_array)
+        .and_then(|bins| {
+            bins.iter().find(|bin| {
+                bin.get("path")
+                    .and_then(toml::Value::as_str)
+                    .is_some_and(|path| {
+                        let path = Path::new(path);
+                        path == source
+                            || (path.with_extension("ox") == source
+                                && package_root.join(source).is_file())
+                    })
+            })
+        })
+        .and_then(|bin| bin.get("name").and_then(toml::Value::as_str))
+        .unwrap_or_else(|| {
+            if source.parent() == Some(Path::new("src"))
+                && source.file_stem().is_some_and(|stem| stem == "main")
+            {
+                package_name
+            } else {
+                source_name
+            }
+        })
+        .to_owned()
 }
 
 fn collect_workspace_directories(
@@ -915,7 +1079,7 @@ fn render_workspace_messages(
     staging_root: &Path,
     project_root: &Path,
     generated: &BTreeMap<PathBuf, GeneratedSource>,
-) -> Vec<String> {
+) -> (Vec<String>, Vec<MappedCargoDiagnostic>) {
     let maps = generated
         .iter()
         .filter_map(|(relative, source)| {
@@ -924,12 +1088,12 @@ fn render_workspace_messages(
                 (relative.clone(), map)
             })
         })
-        .map(|(_, map)| map)
+        .map(|entry| entry.1)
         .collect::<Vec<_>>();
     let mapped = parse_cargo_diagnostics_with_maps(messages, &SourceMapSet::new(maps));
     let mut rendered = mapped
-        .into_iter()
-        .map(|diagnostic| render_mapped_diagnostic(&diagnostic))
+        .iter()
+        .map(render_mapped_diagnostic)
         .collect::<Vec<_>>();
     for event in messages
         .iter()
@@ -966,7 +1130,7 @@ fn render_workspace_messages(
             rendered.push(text);
         }
     }
-    rendered
+    (rendered, mapped)
 }
 
 fn render_mapped_diagnostic(diagnostic: &MappedCargoDiagnostic) -> String {

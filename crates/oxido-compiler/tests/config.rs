@@ -9,7 +9,48 @@ fn parses_only_declared_language_data() {
     let config = ProjectConfig::parse("[language]\nsyntax = 'indentation'\nedition = '2024'\n")
         .expect("configuración válida");
     assert_eq!(config.language.syntax, Some(SyntaxMode::Indentation));
+    assert!(config.package.is_none());
+    assert!(config.bins.is_empty());
     assert!(ProjectConfig::parse("[language]\nedition = '2024'\n").is_ok());
+}
+
+#[test]
+fn accepts_optional_package_and_binary_tables() {
+    let config = ProjectConfig::parse(
+        "[language]\nedition='2024'\n[package]\nname='demo'\nversion='1.2.3'\n[[bin]]\nname='cli'\npath='tools/cli.ox'\n",
+    )
+    .expect("manifiesto ampliado válido");
+    assert_eq!(
+        config.package.as_ref().map(|package| package.name.as_str()),
+        Some("demo")
+    );
+    assert_eq!(
+        config
+            .package
+            .as_ref()
+            .map(|package| package.version.as_str()),
+        Some("1.2.3")
+    );
+    assert_eq!(config.bins.len(), 1);
+    assert_eq!(
+        config.bins[0].path,
+        std::path::PathBuf::from("tools/cli.ox")
+    );
+}
+
+#[test]
+fn rejects_unknown_package_or_binary_fields_and_unsafe_binary_paths() {
+    for input in [
+        "[language]\nedition='2024'\n[package]\nname='demo'\nversion='1.0.0'\ncommand='sh'\n",
+        "[language]\nedition='2024'\n[[bin]]\npath='src/main.ox'\ncommand='sh'\n",
+        "[language]\nedition='2024'\n[[bin]]\npath='../outside.ox'\n",
+        "[language]\nedition='2024'\n[[bin]]\npath='src/main.rs'\n",
+    ] {
+        assert!(
+            ProjectConfig::parse(input).is_err(),
+            "accepted invalid TOML: {input}"
+        );
+    }
 }
 
 #[test]

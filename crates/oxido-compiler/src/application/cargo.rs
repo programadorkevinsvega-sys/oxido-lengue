@@ -74,6 +74,38 @@ pub struct CargoBuildResult {
     pub stderr: String,
 }
 
+/// Identidad declarativa opcional del paquete/binario generado desde un proyecto Óxido.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct GeneratedPackage {
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub binary_name: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeneratedOxSource {
+    pub path: PathBuf,
+    pub contents: String,
+}
+
+pub struct GeneratedProjectOptions<'a> {
+    pub persistent_lockfile: Option<&'a Path>,
+    pub project_root: Option<&'a Path>,
+    pub action: CargoAction,
+    pub cancellation: Option<&'a AtomicBool>,
+    pub package: Option<&'a GeneratedPackage>,
+    pub ox_sources: &'a [GeneratedOxSource],
+}
+
+struct GeneratedProject<'a> {
+    rust: &'a str,
+    source_map: &'a SourceMap,
+    dependencies: &'a [crate::config::ResolvedDependency],
+    additional_sources: &'a [GeneratedModule],
+    package: Option<&'a GeneratedPackage>,
+    ox_sources: &'a [GeneratedOxSource],
+}
+
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct LockPackage {
     name: String,
@@ -284,6 +316,37 @@ pub fn build_generated_project_with_dependencies_cancellable(
     action: CargoAction,
     cancellation: Option<&AtomicBool>,
 ) -> io::Result<CargoBuildResult> {
+    build_generated_project_with_options(
+        rust,
+        source_map,
+        additional_sources,
+        dependencies,
+        GeneratedProjectOptions {
+            persistent_lockfile,
+            project_root: None,
+            action,
+            cancellation,
+            package: None,
+            ox_sources: &[],
+        },
+    )
+}
+
+pub fn build_generated_project_with_options(
+    rust: &str,
+    source_map: &SourceMap,
+    additional_sources: &[GeneratedModule],
+    dependencies: &[crate::config::ResolvedDependency],
+    options: GeneratedProjectOptions<'_>,
+) -> io::Result<CargoBuildResult> {
+    let GeneratedProjectOptions {
+        persistent_lockfile,
+        project_root,
+        action,
+        cancellation,
+        package,
+        ox_sources,
+    } = options;
     if !dependencies.is_empty()
         && matches!(
             action,
@@ -315,13 +378,19 @@ pub fn build_generated_project_with_dependencies_cancellable(
         action,
         CargoAction::FetchUpdatePlan | CargoAction::FetchUpdate
     );
-    let workspace = create_workspace(
+    let generated_project = GeneratedProject {
         rust,
         source_map,
         dependencies,
-        persistent_lockfile,
-        !update_lock,
         additional_sources,
+        package,
+        ox_sources,
+    };
+    let workspace = create_workspace(
+        &generated_project,
+        persistent_lockfile,
+        project_root,
+        !update_lock,
     )?;
     let lock_path = workspace.path().join("Cargo.lock");
     if matches!(
@@ -402,9 +471,11 @@ pub fn build_generated_project_with_dependencies_cancellable(
             stderr: output.stderr,
         });
     }
-    if !lock_path.is_file() {
-        if persistent_lockfile.is_some() && !dependencies.is_empty() {
-            return Ok(CargoBuildResult {
+    if persistent_lockfile.is_some()
+        && !dependencies.is_empty()
+        && !persistent_lockfile.is_some_and(Path::is_file)
+    {
+        return Ok(CargoBuildResult {
                 success: false,
                 timed_out: false,
                 exit_code: None,
@@ -418,7 +489,8 @@ pub fn build_generated_project_with_dependencies_cancellable(
                 program_output: Vec::new(),
                 stderr: String::new(),
             });
-        }
+    }
+    if !lock_path.is_file() {
         if cancellation_requested(cancellation) {
             return Ok(canceled_build_result());
         }
@@ -502,21 +574,6 @@ pub fn build_generated_project_with_dependencies_cancellable(
     .into_iter()
     .map(OsString::from)
     .collect::<Vec<_>>();
-    let mut args = args;
-    if matches!(
-        action,
-        CargoAction::Build
-            | CargoAction::BuildTrusted
-            | CargoAction::BuildRelease
-            | CargoAction::BuildReleaseTrusted
-    ) && let Some(lockfile) = persistent_lockfile
-    {
-        let project_root = lockfile.parent().ok_or_else(|| {
-            io::Error::other("Cargo.lock no tiene una raíz de proyecto para los artefactos")
-        })?;
-        let target_dir = oxido_target_directory(project_root)?;
-        args.extend([OsString::from("--target-dir"), target_dir.into_os_string()]);
-    }
     if cancellation_requested(cancellation) {
         return Ok(canceled_build_result());
     }
@@ -644,33 +701,60 @@ fn persist_lockfile(generated: &Path, destination: &Path, replace: bool) -> io::
     }
 }
 
-struct Workspace(PathBuf);
+struct Workspace {
+    root: PathBuf,
+    remove_on_drop: bool,
+    _build_lock: Option<ProjectBuildLock>,
+}
 
 impl Workspace {
     fn path(&self) -> &Path {
-        &self.0
+        &self.root
     }
 }
 
 impl Drop for Workspace {
     fn drop(&mut self) {
-        if let Err(error) = fs::remove_dir_all(&self.0) {
+        if self.remove_on_drop
+            && let Err(error) = fs::remove_dir_all(&self.root)
+        {
             eprintln!(
                 "no se pudo retirar el workspace temporal `{}`: {error}",
-                self.0.display()
+                self.root.display()
             );
         }
     }
 }
 
+struct ProjectBuildLock(PathBuf);
+
+impl Drop for ProjectBuildLock {
+    fn drop(&mut self) {
+        if let Err(error) = fs::remove_file(&self.0) {
+            eprintln!("no se pudo retirar el bloqueo temporal de compilación: {error}");
+        }
+    }
+}
+
 fn create_workspace(
-    rust: &str,
-    source_map: &SourceMap,
-    dependencies: &[crate::config::ResolvedDependency],
+    generated: &GeneratedProject<'_>,
     persistent_lockfile: Option<&Path>,
+    project_root: Option<&Path>,
     read_lockfile: bool,
-    additional_sources: &[GeneratedModule],
 ) -> io::Result<Workspace> {
+    if let Some(project_root) = project_root {
+        let root = oxido_target_directory(project_root)?;
+        fs::create_dir_all(&root)?;
+        let canonical_root = fs::canonicalize(&root)?;
+        let project = Workspace {
+            root: canonical_root,
+            remove_on_drop: false,
+            _build_lock: Some(acquire_project_build_lock(&root)?),
+        };
+        prepare_persistent_project(&project, generated, persistent_lockfile, read_lockfile)?;
+        return Ok(project);
+    }
+
     let temp = fs::canonicalize(std::env::temp_dir())?;
     let root = temp.join("oxido-builds");
     if let Ok(metadata) = fs::symlink_metadata(&root)
@@ -689,52 +773,202 @@ fn create_workspace(
             "el directorio temporal de Óxido sale de la raíz temporal",
         ));
     }
-    let workspace = loop {
+    let root = loop {
         let sequence = NEXT_WORKSPACE.fetch_add(1, Ordering::Relaxed);
         let candidate = canonical_root.join(format!("build-{}-{sequence}", std::process::id()));
         match fs::create_dir(&candidate) {
-            Ok(()) => break Workspace(candidate),
+            Ok(()) => break candidate,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
         }
     };
-    let src = workspace.path().join("src");
-    fs::create_dir(&src)?;
+    let workspace = Workspace {
+        root,
+        remove_on_drop: true,
+        _build_lock: None,
+    };
+    populate_generated_project(workspace.path(), generated)?;
+    copy_project_lockfile(persistent_lockfile, workspace.path(), read_lockfile)?;
+    Ok(workspace)
+}
+
+fn acquire_project_build_lock(root: &Path) -> io::Result<ProjectBuildLock> {
+    let path = root.join(".oxido-build.lock");
+    let mut lock = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|error| {
+            if error.kind() == io::ErrorKind::AlreadyExists {
+                io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "ya hay una compilación Óxido activa para este proyecto",
+                )
+            } else {
+                error
+            }
+        })?;
+    use std::io::Write;
+    writeln!(lock, "pid={}", std::process::id())?;
+    Ok(ProjectBuildLock(path))
+}
+
+fn prepare_persistent_project(
+    workspace: &Workspace,
+    generated: &GeneratedProject<'_>,
+    persistent_lockfile: Option<&Path>,
+    read_lockfile: bool,
+) -> io::Result<()> {
+    let root = workspace.path();
+    let marker = root.join(".oxido-generated-project");
+    let manifest = root.join("Cargo.toml");
+    let source_directory = root.join("src");
+    validate_managed_target(&marker, &manifest, &source_directory)?;
+    let sequence = NEXT_WORKSPACE.fetch_add(1, Ordering::Relaxed);
+    fs::write(marker, "managed-by=oxido\nformat=1\n")?;
+    let staged_source = StagedDirectory::new(root.join(format!(
+        ".src-oxido-stage-{}-{sequence}",
+        std::process::id()
+    )))?;
+    populate_generated_sources(staged_source.path(), generated)?;
+    replace_generated_directory(staged_source.path(), &source_directory, root, sequence)?;
     fs::write(
-        workspace.path().join("Cargo.toml"),
-        generated_manifest(dependencies)?,
+        manifest,
+        generated_manifest(generated.dependencies, generated.package)?,
     )?;
-    if let Some(lockfile) = persistent_lockfile {
-        match fs::symlink_metadata(lockfile) {
-            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Cargo.lock debe ser un archivo regular, no un enlace simbólico",
-                ));
-            }
-            Ok(metadata) if metadata.len() > MAX_LOCKFILE_BYTES => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Cargo.lock supera el límite de 16 MiB",
-                ));
-            }
-            Ok(_) if read_lockfile => {
-                fs::copy(lockfile, workspace.path().join("Cargo.lock"))?;
-            }
-            Ok(_) => {}
+    copy_project_lockfile(persistent_lockfile, root, read_lockfile)?;
+    Ok(())
+}
+
+fn validate_managed_target(marker: &Path, manifest: &Path, source: &Path) -> io::Result<()> {
+    let marker_exists = validate_target_entry(marker, false)?;
+    let manifest_exists = validate_target_entry(manifest, false)?;
+    let source_exists = validate_target_entry(source, true)?;
+    if !marker_exists && (manifest_exists || source_exists) {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "target/oxido ya contiene archivos ajenos; retíralos o muévelos antes de compilar",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_target_entry(path: &Path, directory: bool) -> io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata)
+            if metadata.file_type().is_symlink()
+                || if directory {
+                    !metadata.is_dir()
+                } else {
+                    !metadata.is_file()
+                } =>
+        {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("la salida generada no es segura: {}", path.display()),
+            ))
+        }
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn replace_generated_directory(
+    staged: &Path,
+    destination: &Path,
+    root: &Path,
+    sequence: u64,
+) -> io::Result<()> {
+    let backup = root.join(format!(
+        ".src-oxido-backup-{}-{sequence}",
+        std::process::id()
+    ));
+    let had_previous = match fs::symlink_metadata(destination) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "target/oxido/src debe ser un directorio regular",
+            ));
+        }
+        Ok(_) => {
+            fs::rename(destination, &backup)?;
+            true
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
+    if let Err(error) = fs::rename(staged, destination) {
+        if had_previous && let Err(restore_error) = fs::rename(&backup, destination) {
+            return Err(io::Error::other(format!(
+                "no se pudo instalar el árbol Rust generado ({error}) ni restaurar el anterior ({restore_error}); respaldo: {}",
+                backup.display()
+            )));
+        }
+        return Err(error);
+    }
+    if had_previous {
+        fs::remove_dir_all(backup)?;
+    }
+    Ok(())
+}
+
+fn populate_generated_project(root: &Path, generated: &GeneratedProject<'_>) -> io::Result<()> {
+    let source_directory = root.join("src");
+    fs::create_dir(&source_directory)?;
+    fs::write(
+        root.join("Cargo.toml"),
+        generated_manifest(generated.dependencies, generated.package)?,
+    )?;
+    populate_generated_sources(&source_directory, generated)?;
+    Ok(())
+}
+
+struct StagedDirectory(PathBuf);
+
+impl StagedDirectory {
+    fn new(path: PathBuf) -> io::Result<Self> {
+        fs::create_dir(&path)?;
+        Ok(Self(path))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for StagedDirectory {
+    fn drop(&mut self) {
+        match fs::remove_dir_all(&self.0) {
+            Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+            Err(error) => eprintln!("no se pudo retirar el árbol intermedio de Rust: {error}"),
         }
     }
-    fs::write(src.join("main.rs"), rust)?;
-    let mut source_map = source_map.clone();
+}
+
+fn populate_generated_sources(src: &Path, generated: &GeneratedProject<'_>) -> io::Result<()> {
+    fs::write(src.join("main.rs"), generated.rust)?;
+    let mut source_map = generated.source_map.clone();
     source_map.set_generated_relative_path("src/main.rs".to_owned());
     let map = serde_json::to_vec_pretty(&source_map)
         .map_err(|error| io::Error::other(error.to_string()))?;
-    fs::write(workspace.path().join("main.oxido-map.json"), map)?;
-    for generated in additional_sources {
-        validate_generated_path(&generated.path)?;
-        let destination = src.join(&generated.path);
+    fs::write(src.join("main.rs.oxido-map.json"), map)?;
+    for source in generated.ox_sources {
+        validate_generated_ox_path(&source.path)?;
+        let destination = src.join(&source.path);
+        let parent = destination.parent().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "el archivo `.ox` no tiene padre",
+            )
+        })?;
+        fs::create_dir_all(parent)?;
+        fs::write(destination, &source.contents)?;
+    }
+    for module in generated.additional_sources {
+        validate_generated_path(&module.path)?;
+        let destination = src.join(&module.path);
         let parent = destination.parent().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -742,20 +976,69 @@ fn create_workspace(
             )
         })?;
         fs::create_dir_all(parent)?;
-        fs::write(&destination, &generated.rust)?;
-        if let Some(source_map) = &generated.source_map {
+        fs::write(&destination, &module.rust)?;
+        if let Some(source_map) = &module.source_map {
             let map_path = destination.with_extension("oxido-map.json");
             let mut source_map = source_map.clone();
             source_map.set_generated_relative_path(format!(
                 "src/{}",
-                generated.path.to_string_lossy().replace('\\', "/")
+                module.path.to_string_lossy().replace('\\', "/")
             ));
             let map = serde_json::to_vec_pretty(&source_map)
                 .map_err(|error| io::Error::other(error.to_string()))?;
             fs::write(map_path, map)?;
         }
     }
-    Ok(workspace)
+    Ok(())
+}
+
+fn copy_project_lockfile(
+    source_lockfile: Option<&Path>,
+    generated_project: &Path,
+    read_lockfile: bool,
+) -> io::Result<()> {
+    let generated_lockfile = generated_project.join("Cargo.lock");
+    match fs::symlink_metadata(&generated_lockfile) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Cargo.lock generado debe ser un archivo regular",
+            ));
+        }
+        Ok(metadata) if metadata.len() > MAX_LOCKFILE_BYTES => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Cargo.lock generado supera el límite de 16 MiB",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    let Some(source_lockfile) = source_lockfile else {
+        return Ok(());
+    };
+    match fs::symlink_metadata(source_lockfile) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Cargo.lock debe ser un archivo regular, no un enlace simbólico",
+            ));
+        }
+        Ok(metadata) if metadata.len() > MAX_LOCKFILE_BYTES => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Cargo.lock supera el límite de 16 MiB",
+            ));
+        }
+        Ok(_) if read_lockfile => {
+            fs::copy(source_lockfile, generated_lockfile)?;
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    Ok(())
 }
 
 fn validate_generated_path(path: &Path) -> io::Result<()> {
@@ -770,6 +1053,22 @@ fn validate_generated_path(path: &Path) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "ruta de módulo Rust generada no válida",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_generated_ox_path(path: &Path) -> io::Result<()> {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("ox")
+        || path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "ruta de fuente Óxido generada no válida",
         ));
     }
     Ok(())
@@ -791,10 +1090,22 @@ fn source_maps(root: &SourceMap, modules: &[GeneratedModule]) -> SourceMapSet {
     SourceMapSet::new(maps)
 }
 
-fn generated_manifest(dependencies: &[crate::config::ResolvedDependency]) -> io::Result<String> {
+fn generated_manifest(
+    dependencies: &[crate::config::ResolvedDependency],
+    generated_package: Option<&GeneratedPackage>,
+) -> io::Result<String> {
     let mut package = toml::map::Map::new();
-    package.insert("name".into(), toml::Value::String("oxido_generated".into()));
-    package.insert("version".into(), toml::Value::String("0.1.0".into()));
+    let package_name = generated_package
+        .and_then(|metadata| metadata.name.as_deref())
+        .unwrap_or("oxido_generated");
+    let package_version = generated_package
+        .and_then(|metadata| metadata.version.as_deref())
+        .unwrap_or("0.1.0");
+    package.insert("name".into(), toml::Value::String(package_name.to_owned()));
+    package.insert(
+        "version".into(),
+        toml::Value::String(package_version.to_owned()),
+    );
     package.insert("edition".into(), toml::Value::String("2024".into()));
 
     let mut dependency_table = toml::map::Map::new();
@@ -837,6 +1148,17 @@ fn generated_manifest(dependencies: &[crate::config::ResolvedDependency]) -> io:
     let mut manifest = toml::map::Map::new();
     manifest.insert("package".into(), toml::Value::Table(package));
     manifest.insert("dependencies".into(), toml::Value::Table(dependency_table));
+    if let Some(binary_name) =
+        generated_package.and_then(|metadata| metadata.binary_name.as_deref())
+    {
+        let mut binary = toml::map::Map::new();
+        binary.insert("name".into(), toml::Value::String(binary_name.to_owned()));
+        binary.insert("path".into(), toml::Value::String("src/main.rs".into()));
+        manifest.insert(
+            "bin".into(),
+            toml::Value::Array(vec![toml::Value::Table(binary)]),
+        );
+    }
     manifest.insert(
         "workspace".into(),
         toml::Value::Table(toml::map::Map::new()),

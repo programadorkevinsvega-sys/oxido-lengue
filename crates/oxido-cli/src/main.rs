@@ -23,6 +23,8 @@ use oxido_language::{
 };
 use sha2::{Digest, Sha256};
 
+mod project_input;
+
 const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_IMPORT_FILES: usize = 100_000;
 const MAX_IMPORT_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
@@ -527,15 +529,19 @@ fn new_project(args: &[OsString]) -> Result<(), String> {
 }
 
 fn format_ox(args: &[OsString]) -> Result<(), String> {
-    let [input, rest @ ..] = args else {
-        return Err("uso: oxido formato <archivo.ox> [--comprobar]".into());
-    };
-    let check = match rest {
-        [] => false,
-        [flag] if flag == "--comprobar" => true,
-        _ => return Err("uso: oxido formato <archivo.ox> [--comprobar]".into()),
-    };
-    let (source, path) = load_ox(input)?;
+    let mut input = None;
+    let mut check = false;
+    for argument in args {
+        if argument == "--comprobar" && !check {
+            check = true;
+        } else if argument.to_string_lossy().starts_with('-') || input.is_some() {
+            return Err("uso: oxido formato [<archivo.ox|directorio>] [--comprobar]".into());
+        } else {
+            input = Some(argument.as_os_str());
+        }
+    }
+    let input = project_input::resolve(input)?;
+    let (source, path) = load_ox(input.as_os_str())?;
     let settings = project_settings(&path)?;
     let lexed = oxido_language::domain::syntax::lex_with_deadline(
         &source,
@@ -1443,46 +1449,31 @@ fn convert_cargo_manifest_to_oxido(contents: &str, source: &Path) -> Result<Stri
 }
 
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
-    let Some(input) = args.first() else {
-        let command = if action == CargoAction::Check {
-            "check"
-        } else if matches!(
-            action,
-            CargoAction::Build
-                | CargoAction::BuildTrusted
-                | CargoAction::BuildRelease
-                | CargoAction::BuildReleaseTrusted
-        ) {
-            "build"
-        } else if action == CargoAction::Test {
-            "test"
-        } else {
-            "run"
-        };
-        return Err(format!(
-            "uso: oxido {command} <archivo.ox> [--release] [--confiar-dependencias]"
-        ));
-    };
+    let mut input = None;
     let mut trusted = false;
     let mut release = false;
     let mut json_output = false;
-    for argument in &args[1..] {
+    for argument in args {
         match argument.to_str() {
             Some("--confiar-dependencias") if !trusted => trusted = true,
             Some("--release") if !release => release = true,
             Some("--json") if !json_output => json_output = true,
             _ => {
-                return Err("uso: oxido check|build|run|test <archivo.ox> [--release] [--confiar-dependencias]".into());
+                if argument.to_string_lossy().starts_with('-') || input.is_some() {
+                    return Err(format!("uso: {}", cargo_usage(action)));
+                }
+                input = Some(argument.as_os_str());
             }
         }
     }
+    let input = project_input::resolve(input)?;
     if release && action == CargoAction::Test {
         return Err("probar no admite --release todavía".into());
     }
     if matches!(
         action,
         CargoAction::Check | CargoAction::Build | CargoAction::Run | CargoAction::Test
-    ) && let Some(workspace_root) = imported_workspace_root(&PathBuf::from(input))?
+    ) && let Some(workspace_root) = imported_workspace_root(&input)?
         && oxido_compiler::application::workspace::is_imported_cargo_workspace(&workspace_root)?
     {
         let workspace_action = match action {
@@ -1502,7 +1493,7 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         };
         let result = oxido_compiler::application::workspace::run_imported_workspace(
             &workspace_root,
-            &PathBuf::from(input),
+            &input,
             trusted,
             release,
             workspace_action,
@@ -1536,7 +1527,7 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                 .map_or_else(|| "desconocido".to_owned(), |code| code.to_string())
         ));
     }
-    let (source, display_path) = load_ox(input)?;
+    let (source, display_path) = load_ox(input.as_os_str())?;
     let settings = project_settings(&display_path)?;
     let action = match (action, release, trusted) {
         (CargoAction::Check, false, false) => CargoAction::Check,
@@ -1558,13 +1549,17 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
         _ => return Err("acción Cargo no válida para este comando".into()),
     };
     let lockfile = settings.root.join("Cargo.lock");
-    let result = oxido_compiler::build_ox_project_in_project(
+    let result = oxido_compiler::build_ox_project_in_project_with_options(
         &source,
         settings.options,
-        &settings.dependencies,
-        Some(&lockfile),
-        action,
-        &settings.root,
+        oxido_compiler::ProjectBuildOptions {
+            dependencies: &settings.dependencies,
+            lockfile: Some(&lockfile),
+            action,
+            project_root: &settings.root,
+            cancellation: None,
+            package: settings.package.as_ref(),
+        },
     );
     let result = match result {
         Ok(result) => result,
@@ -1709,12 +1704,33 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             | CargoAction::BuildRelease
             | CargoAction::BuildReleaseTrusted => {
                 let profile = if release { "release" } else { "debug" };
-                println!("Binario generado en target/oxido/{profile}.");
+                println!("Binario generado en target/oxido/target/{profile}.");
+                println!("Proyecto Cargo generado en target/oxido/.");
             }
             _ => {}
         }
     }
     Ok(())
+}
+
+fn cargo_usage(action: CargoAction) -> &'static str {
+    match action {
+        CargoAction::Check => {
+            "oxido verificar [<archivo.ox|directorio>] [--confiar-dependencias] [--json]"
+        }
+        CargoAction::Build => {
+            "oxido compilar [<archivo.ox|directorio>] [--release] [--confiar-dependencias] [--json]"
+        }
+        CargoAction::Run => {
+            "oxido ejecutar [<archivo.ox|directorio>] [--release] [--confiar-dependencias] [--json] (alias: run)"
+        }
+        CargoAction::Test => {
+            "oxido probar [<archivo.ox|directorio>] [--confiar-dependencias] [--json]"
+        }
+        _ => {
+            "oxido ejecutar [<archivo.ox|directorio>] [--release] [--confiar-dependencias] [--json] (alias: run)"
+        }
+    }
 }
 
 fn build_artifact_directory(action: CargoAction, release: bool) -> Option<String> {
@@ -1725,7 +1741,12 @@ fn build_artifact_directory(action: CargoAction, release: bool) -> Option<String
             | CargoAction::BuildRelease
             | CargoAction::BuildReleaseTrusted
     )
-    .then(|| format!("target/oxido/{}", if release { "release" } else { "debug" }))
+    .then(|| {
+        format!(
+            "target/oxido/target/{}",
+            if release { "release" } else { "debug" }
+        )
+    })
 }
 
 fn structured_failure(diagnostics: Vec<serde_json::Value>, output: Vec<String>) -> String {
@@ -1846,6 +1867,7 @@ struct ProjectSettings {
     options: LexOptions,
     dependencies: Vec<oxido_compiler::config::ResolvedDependency>,
     root: PathBuf,
+    package: Option<oxido_compiler::application::cargo::GeneratedPackage>,
 }
 
 fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
@@ -1869,6 +1891,47 @@ fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
                 let config = oxido_compiler::config::ProjectConfig::parse(&content)
                     .map_err(|error| format!("oxido.toml inválido: {error}"))?;
                 let dependencies = config.resolve_dependencies(directory)?;
+                let canonical_root = fs::canonicalize(directory).map_err(|error| {
+                    format!("no se pudo resolver la raíz del proyecto: {error}")
+                })?;
+                let canonical_source = fs::canonicalize(source_path)
+                    .map_err(|error| format!("no se pudo resolver el archivo fuente: {error}"))?;
+                let mut binary_name = None;
+                for binary in &config.bins {
+                    let binary_path = canonical_root.join(&binary.path);
+                    let canonical_binary = fs::canonicalize(&binary_path).map_err(|error| {
+                        format!("no se pudo resolver la ruta de [[bin]]: {error}")
+                    })?;
+                    if !canonical_binary.starts_with(&canonical_root) || !canonical_binary.is_file()
+                    {
+                        return Err(
+                            "la ruta de [[bin]] debe ser un archivo regular dentro del proyecto"
+                                .into(),
+                        );
+                    }
+                    if canonical_binary == canonical_source {
+                        binary_name = binary.name.clone();
+                    }
+                }
+                let package = config
+                    .package
+                    .as_ref()
+                    .map(
+                        |package| oxido_compiler::application::cargo::GeneratedPackage {
+                            name: Some(package.name.clone()),
+                            version: Some(package.version.clone()),
+                            binary_name: binary_name.clone(),
+                        },
+                    )
+                    .or_else(|| {
+                        binary_name.map(|name| {
+                            oxido_compiler::application::cargo::GeneratedPackage {
+                                name: None,
+                                version: None,
+                                binary_name: Some(name),
+                            }
+                        })
+                    });
                 let options = LexOptions {
                     project_mode: config.language.syntax.map(|mode| match mode {
                         oxido_compiler::config::SyntaxMode::Indentation => SyntaxMode::Indentation,
@@ -1879,6 +1942,7 @@ fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
                     options,
                     dependencies,
                     root: directory.to_path_buf(),
+                    package,
                 });
             }
             Ok(_) => return Err("oxido.toml debe ser un archivo regular".into()),
@@ -1893,6 +1957,7 @@ fn project_settings(source_path: &Path) -> Result<ProjectSettings, String> {
         options: LexOptions::default(),
         dependencies: Vec::new(),
         root: parent.to_path_buf(),
+        package: None,
     })
 }
 
@@ -2071,5 +2136,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido [--version|-V] <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|build|check|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|run|test|verificar|compilar|ejecutar> ..."
+    "uso: oxido [--version|-V] <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|verificar|compilar|ejecutar> ...; run es alias de ejecutar"
 }

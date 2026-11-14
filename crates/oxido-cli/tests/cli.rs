@@ -16,6 +16,19 @@ impl TestDirectory {
         fs::create_dir(&path).unwrap();
         Self(path)
     }
+
+    fn inside_workspace() -> Self {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let workspace = std::env::current_dir().unwrap();
+        let path = workspace
+            .join("target")
+            .join(format!("oxido-cli-parent-workspace-test-{nonce}"));
+        fs::create_dir_all(&path).unwrap();
+        Self(path)
+    }
 }
 
 impl Drop for TestDirectory {
@@ -60,6 +73,10 @@ fn new_creates_a_runnable_project_and_rejects_an_existing_directory() {
         String::from_utf8_lossy(&executed.stderr)
     );
     assert!(String::from_utf8_lossy(&executed.stdout).contains("Hola, Óxido."));
+    assert!(
+        !project.join("Cargo.lock").exists(),
+        "una ejecución sin dependencias no debe crear un Cargo.lock persistente"
+    );
 
     let rejected = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&temp.0)
@@ -69,6 +86,130 @@ fn new_creates_a_runnable_project_and_rejects_an_existing_directory() {
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("el directorio ya existe"));
     assert_eq!(fs::read_to_string(source_path).unwrap(), original_source);
+}
+
+#[test]
+fn project_commands_resolve_main_from_manifest_without_arguments_or_from_directory() {
+    let temp = TestDirectory::new();
+    let project = temp.0.join("proyecto");
+    let created = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["nuevo", "proyecto"])
+        .output()
+        .unwrap();
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    fs::write(
+        project.join("oxido.toml"),
+        "[language]\nsyntax='braces'\nedition='2024'\n[package]\nname='demo_paquete'\nversion='1.2.3'\n[[bin]]\nname='demo-bin'\npath='src/main.ox'\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("src/main.ox"),
+        "sintaxis llaves\nmod dominio;\nfn main() { dominio::saludar(); println!(\"Hola, Óxido.\"); }\n",
+    )
+    .unwrap();
+    fs::create_dir_all(project.join("src/dominio")).unwrap();
+    fs::write(
+        project.join("src/dominio/mod.ox"),
+        "sintaxis llaves\npub fn saludar() {}\n",
+    )
+    .unwrap();
+    let nested = project.join("src/nested");
+    fs::create_dir_all(&nested).unwrap();
+
+    for (directory, arguments, expected_output) in [
+        (&nested, vec!["verificar"], "pasó la verificación de Cargo."),
+        (
+            &project,
+            vec!["compilar"],
+            "Binario generado en target/oxido/target/debug.",
+        ),
+        (&project, vec!["ejecutar"], "Hola, Óxido."),
+        (&project, vec!["probar"], "0 passed"),
+        (&project, vec!["formato"], "formateado"),
+        (&nested, vec!["formato", "--comprobar"], "está formateado."),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_oxido"))
+            .current_dir(directory)
+            .args(&arguments)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "args={arguments:?}\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(expected_output),
+            "args={arguments:?}\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+    let generated_root = project.join("target/oxido");
+    let generated_manifest = fs::read_to_string(generated_root.join("Cargo.toml")).unwrap();
+    assert!(generated_manifest.contains("name = \"demo_paquete\""));
+    assert!(generated_manifest.contains("name = \"demo-bin\""));
+    assert!(generated_root.join("src/main.rs").is_file());
+    assert!(generated_root.join("src/main.ox").is_file());
+    assert!(generated_root.join("src/dominio/mod.rs").is_file());
+    assert_eq!(
+        fs::read_to_string(generated_root.join("src/dominio/mod.ox")).unwrap(),
+        "sintaxis llaves\npub fn saludar() {}\n"
+    );
+    assert!(generated_root.join("target/debug/demo-bin").is_file());
+
+    let directory_run = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["run", "proyecto"])
+        .output()
+        .unwrap();
+    assert!(
+        directory_run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&directory_run.stderr)
+    );
+    assert!(String::from_utf8_lossy(&directory_run.stdout).contains("Hola, Óxido."));
+}
+
+#[test]
+fn generated_cargo_project_is_independent_of_an_ancestor_rust_workspace() {
+    let temp = TestDirectory::inside_workspace();
+    fs::write(
+        temp.0.join("oxido.toml"),
+        "[language]\nsyntax='braces'\nedition='2024'\n",
+    )
+    .unwrap();
+    fs::create_dir(temp.0.join("src")).unwrap();
+    fs::write(
+        temp.0.join("src/main.ox"),
+        "sintaxis llaves\nfn main() { println!(\"independent-cargo-project\"); }\n",
+    )
+    .unwrap();
+
+    let built = Command::new(env!("CARGO_BIN_EXE_oxido"))
+        .current_dir(&temp.0)
+        .args(["compilar"])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&built.stdout),
+        String::from_utf8_lossy(&built.stderr)
+    );
+    assert!(temp.0.join("target/oxido/Cargo.toml").is_file());
+    assert!(temp.0.join("target/oxido/src/main.ox").is_file());
+    assert!(
+        temp.0
+            .join("target/oxido/target/debug")
+            .join(format!("oxido_generated{}", std::env::consts::EXE_SUFFIX))
+            .is_file()
+    );
 }
 
 #[test]

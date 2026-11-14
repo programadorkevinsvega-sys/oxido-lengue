@@ -16,12 +16,11 @@ oxido build src/main.ox --release
 oxido ejecutar src/main.ox
 ```
 
-`check`/`verificar` valida con `cargo check` sin crear un ejecutable. `build`/`compilar` conserva los binarios bajo `target/oxido/debug` o `target/oxido/release`; `--release` activa las optimizaciones de Cargo. `run`/`ejecutar` compila y ejecuta el programa; `test`/`probar` ejecuta las pruebas.
+`verificar` usa `cargo check` sin crear un ejecutable. Para un proyecto `.ox`, `compilar` genera un proyecto Cargo en `target/oxido/`, conserva allí el Rust generado y los fuentes `.ox` (incluidos los `mod.ox`), y deja los binarios en `target/oxido/target/debug` o `target/oxido/target/release`; `--release` selecciona las optimizaciones de Cargo. `ejecutar` compila y ejecuta mediante Cargo; `probar` ejecuta las pruebas. Los alias `check`, `build`, `run` y `test` siguen disponibles.
 
 ## Desarrollar Óxido
 
 Clonar el repositorio, compilar la CLI desde fuente, ejecutar las regresiones y enviar cambios son tareas de desarrollo del compilador. Están en la guía aparte [Clonar, compilar y contribuir](../contribuir.md); no son pasos necesarios para usar una Release instalada.
-
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` conserva un único archivo tal cual por defecto; `--espanol` activa la conversión reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol e importa cada `.rs` tal cual; con `--espanol` traduce el subconjunto y mantiene los items Rust no convertidos como passthrough. `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 
 La CLI incluye `nuevo <directorio>`, `formato <archivo.ox> [--comprobar]` y `probar <archivo.ox>`. `formato` conserva comentarios e idempotencia en ambos modos; en modo indentado aplica las convenciones de layout de Óxido cubiertas en la matriz de [pruebas](../testing.md), sin cambiar el modo. El texto `.ox` no pretende ser idéntico al Rust: al exportar, el `.rs` final pasa por `rustfmt` 1.99.1 y coincide carácter por carácter con su salida para los fixtures publicados. La matriz cubre las producciones estructurales iniciales, no todas las expresiones posibles de Rust. `probar` delega en `cargo test`, por lo que un archivo sin funciones `#[test]` puede mostrar cero pruebas.

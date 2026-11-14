@@ -1,6 +1,6 @@
 # Instalación y primeros pasos
 
-Óxido se puede compilar desde el código fuente. El workflow de release prepara paquetes Debian CLI y VS Code para amd64/arm64, además de VSIX para los targets documentados; los adjunta a una GitHub Release al publicar una etiqueta `v` que coincide con las versiones de la CLI y la extensión. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La disponibilidad depende de que exista una Release con esos artefactos. La extensión no está publicada en Marketplace. Las instrucciones de compilación se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
+Óxido 0.1.0 está publicado en [GitHub Releases](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0), con paquetes Debian para la CLI y el editor, y VSIX por plataforma. Los paquetes no están firmados; descarga `SHA256SUMS` de la misma Release y verifica cada archivo antes de instalarlo. La extensión todavía no está publicada en Marketplace. Las instrucciones de compilación se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
 
 ## Requisitos
 
@@ -38,7 +38,11 @@ Comprueba la versión instalada con `oxido --version` (o `oxido -V`). La salida 
 
 ## Instalar desde un paquete Debian
 
-Cuando haya una [GitHub Release](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases) con los paquetes adjuntos, descarga `SHA256SUMS` y el archivo `.deb` de tu arquitectura en el mismo directorio. Verifica el paquete descargado e instala:
+Descarga el paquete para tu arquitectura y `SHA256SUMS` de la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). En una terminal, desde el directorio donde guardaste ambos archivos, verifica e instala:
+
+- [Óxido CLI para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_amd64.deb)
+- [Óxido CLI para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido_0.1.0-1_arm64.deb)
+- [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS)
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
@@ -110,7 +114,7 @@ Revisa el plan con `oxido descargar-dependencias archivo.ox`, confírmalo con `-
 
 ## Editor
 
-El soporte de VS Code se distribuye aparte de la CLI: desde Marketplace cuando se publique, mediante un VSIX descargable, o mediante el paquete Debian independiente `oxido-vscode`. Los pasos de instalación y sus límites están en la [guía de VS Code y LSP](vscode.md). Instalar el paquete Debian de la CLI no instala ni ejecuta la extensión.
+El soporte de VS Code se distribuye aparte de la CLI: actualmente mediante VSIX descargable o el paquete Debian independiente `oxido-vscode`; la publicación en Marketplace sigue pendiente. Los pasos de instalación y sus límites están en la [guía de VS Code y LSP](vscode.md). Instalar el paquete Debian de la CLI no instala ni ejecuta la extensión.
 
 ## Solución de problemas
 

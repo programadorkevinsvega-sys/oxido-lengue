@@ -2,7 +2,7 @@
 
 El editor se compone de una extensión de VS Code (`editors/vscode-oxido`) y el servidor `oxido-lsp`. La extensión asocia archivos `.ox`, inicia el servidor y añade tres comandos. El análisis local al abrir/editar no ejecuta Cargo ni inicia `rust-analyzer`; las consultas semánticas delegadas a un bridge persistente de `rust-analyzer` y la comprobación Cargo son acciones separadas, y las operaciones que pueden ejecutar código exigen Workspace Trust.
 
-El estado técnico y la evidencia están descritos en esta guía, la [preparación empresarial](enterprise-readiness.md) y el [ADR 0016](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/adr/0016-distribucion-extension-vscode.md). La extensión todavía no está publicada en Visual Studio Marketplace. La publicación se prepara como ejecución manual y requiere un publisher y el secreto `VSCE_PAT`. Los VSIX descargables no están publicados hasta crear una GitHub Release; solo Linux x64 con servidor incluido tiene prueba host de extremo a extremo.
+El estado técnico y la evidencia están descritos en esta guía, la [preparación empresarial](enterprise-readiness.md) y el [ADR 0016](https://github.com/programadorkevinsvega-sys/oxido-lengue/blob/main/docs/adr/0016-distribucion-extension-vscode.md). La [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0) ya ofrece los paquetes `.deb` y VSIX que se enlazan abajo. La extensión todavía no está publicada en Visual Studio Marketplace; su publicación requiere configurar publisher y `VSCE_PAT` y ejecutar el workflow manual. Solo Linux x64 con servidor incluido tiene prueba host de extremo a extremo.
 
 ## Requisitos
 
@@ -40,17 +40,31 @@ code --install-extension editors/vscode-oxido/dist/oxido-language-support-0.1.0-
 
 El binario incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp` y el archivo existe y es ejecutable. Una ruta configurada explícitamente tiene prioridad.
 
-Desde una GitHub Release existente, descarga el VSIX cuyo sufijo corresponda a tu plataforma e instálalo manualmente:
+Descarga el VSIX correspondiente a tu plataforma desde la Release v0.1.0. Cada paquete incluye el servidor `oxido-lsp`:
+
+| Plataforma | Descarga |
+|---|---|
+| Linux x64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-linux-x64.vsix) |
+| Linux arm64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-linux-arm64.vsix) |
+| Windows x64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-win32-x64.vsix) |
+| macOS arm64 | [VSIX](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-language-support-0.1.0-darwin-arm64.vsix) |
+
+Descarga el archivo y después instálalo desde la terminal:
 
 ```sh
 code --install-extension oxido-language-support-0.1.0-linux-x64.vsix
 ```
 
-También puedes elegir **Install from VSIX...** en la vista Extensions. Las instalaciones manuales desde VSIX no reciben actualizaciones automáticas por defecto; instala la nueva versión desde Marketplace o descarga el VSIX actualizado.
+También puedes elegir **Install from VSIX...** en la vista Extensions. Las instalaciones manuales desde VSIX no reciben actualizaciones automáticas por defecto; para actualizar, descarga e instala la nueva versión desde una Release posterior.
 
 ## Distribución opcional en Debian/Ubuntu
 
-La Release prepara un paquete `oxido-vscode_<versión>-1_<arquitectura>.deb`, separado del paquete de la CLI. Incluye el VSIX Linux correspondiente y no instala `oxido`, no crea servicios y no toca perfiles de usuario. Después de instalarlo, ejecuta como el usuario que utilizará VS Code:
+El paquete `oxido-vscode` es opcional y separado del paquete de la CLI. Incluye el VSIX Linux correspondiente, no instala `oxido`, no crea servicios ni toca perfiles de usuario durante las operaciones de `apt`. Descarga la versión adecuada de la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0):
+
+- [Extensión VS Code para Debian/Ubuntu amd64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-vscode_0.1.0-1_amd64.deb)
+- [Extensión VS Code para Debian/Ubuntu arm64](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/oxido-vscode_0.1.0-1_arm64.deb)
+
+Después de instalarlo, ejecuta como el usuario que utilizará VS Code:
 
 ```sh
 sudo apt install ./oxido-vscode_0.1.0-1_amd64.deb
@@ -63,7 +77,7 @@ Los paquetes Debian no aparecen instalados automáticamente en los perfiles pers
 
 ## Marketplace
 
-El workflow `.github/workflows/marketplace-publish.yml` solo se ejecuta manualmente desde `main`. Su opción de publicación está desactivada por defecto. Para publicar debe seleccionarse explícitamente, existir una GitHub Release con los cuatro VSIX y sus checksums, y configurarse `VSCE_PAT` junto con el publisher `oxido-language`. Ninguna publicación se ejecutó al preparar este flujo. VS Code requiere que el usuario seleccione **Install** para instalar desde Marketplace y guarda las extensiones en el perfil por usuario, como describe la [documentación oficial de Marketplace](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace).
+El workflow `.github/workflows/marketplace-publish.yml` solo se ejecuta manualmente desde `main` y su opción de publicación está desactivada por defecto. Marketplace aún no está publicado: requiere configurar `VSCE_PAT` y el publisher `oxido-language`, y luego ejecutar el workflow explícitamente. Mientras tanto, instala desde uno de los VSIX enlazados arriba o desde el paquete Debian opcional. Cuando esté en Marketplace, VS Code requerirá que el usuario seleccione **Install** y guardará la extensión en su perfil, como describe la [documentación oficial de Marketplace](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace).
 
 ## Configuración
 

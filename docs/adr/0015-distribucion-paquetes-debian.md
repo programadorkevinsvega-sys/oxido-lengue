@@ -11,7 +11,7 @@
 
 - CI construye el paquete en runners nativos amd64 y arm64; no se usa compilación cruzada para formar los paquetes.
 - Pull requests y ejecuciones manuales construyen y validan artefactos, pero no crean ni publican Releases.
-- Un push de etiqueta `v` cuya versión coincida exactamente con `oxido-cli` crea o actualiza una GitHub Release con ambos paquetes y `SHA256SUMS`.
+- Un push de etiqueta `v` cuya versión coincida exactamente con `oxido-cli` crea o actualiza una GitHub Release con ambos paquetes CLI y `SHA256SUMS`. La distribución de la extensión opcional se define por separado en [ADR 0016](0016-distribucion-extension-vscode.md).
 - La publicación usa `GITHUB_TOKEN` con `contents: write` únicamente en el job que adjunta los artefactos. Los demás jobs conservan solo lectura.
 - La instalación de Rust permanece explícita mediante `oxido-instalar-toolchain`; instalar el `.deb` no descarga ni ejecuta Rustup.
 - Los checksums detectan alteraciones accidentales, pero no sustituyen una firma criptográfica. Los paquetes no se declaran firmados.

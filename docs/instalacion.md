@@ -1,6 +1,6 @@
 # Instalación y primeros pasos
 
-Óxido se puede compilar desde el código fuente. El workflow de release construye paquetes Debian para amd64 y arm64, y los adjunta a una GitHub Release cuando se publica una etiqueta `v` que coincide con la versión de `oxido-cli`. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La disponibilidad depende de que exista una Release con esos artefactos. Las instrucciones de compilación se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
+Óxido se puede compilar desde el código fuente. El workflow de release prepara paquetes Debian CLI y VS Code para amd64/arm64, además de VSIX para los targets documentados; los adjunta a una GitHub Release al publicar una etiqueta `v` que coincide con las versiones de la CLI y la extensión. Los paquetes no están firmados; verifica `SHA256SUMS` antes de instalarlos. La disponibilidad depende de que exista una Release con esos artefactos. La extensión no está publicada en Marketplace. Las instrucciones de compilación se verificaron en Linux con Rust 1.99.1; la CLI también se prueba en Windows y macOS en CI.
 
 ## Requisitos
 
@@ -110,7 +110,7 @@ Revisa el plan con `oxido descargar-dependencias archivo.ox`, confírmalo con `-
 
 ## Editor
 
-Compila `oxido-lsp`, empaqueta el VSIX e instálalo. Los pasos, comandos y límites están en la [guía de VS Code y LSP](vscode.md).
+El soporte de VS Code se distribuye aparte de la CLI: desde Marketplace cuando se publique, mediante un VSIX descargable, o mediante el paquete Debian independiente `oxido-vscode`. Los pasos de instalación y sus límites están en la [guía de VS Code y LSP](vscode.md). Instalar el paquete Debian de la CLI no instala ni ejecuta la extensión.
 
 ## Solución de problemas
 

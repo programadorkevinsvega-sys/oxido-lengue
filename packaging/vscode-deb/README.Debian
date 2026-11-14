@@ -1,0 +1,13 @@
+Paquete independiente de la CLI y de los paquetes del editor. Instala el VSIX en /usr/share/oxido-vscode,
+pero no modifica perfiles personales durante la instalación o eliminación.
+
+Ejecute oxido-vscode-instalar como el usuario que usará VS Code. También se
+puede abrir VS Code, elegir "Install from VSIX..." y seleccionar
+/usr/share/oxido-vscode/extension.vsix.
+
+El servidor LSP está incluido en el VSIX y se inicia solo cuando VS Code activa
+la extensión para un archivo .ox. El paquete no instala la CLI ni crea servicios
+en segundo plano. Al quitar el paquete, la extensión instalada en el perfil del
+usuario permanece; desinstálela desde VS Code o ejecute:
+
+  code --uninstall-extension oxido-language.oxido-language-support

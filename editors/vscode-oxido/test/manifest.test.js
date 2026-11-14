@@ -25,7 +25,7 @@ test('extension source has no shell or rust-analyzer launch path', () => {
 
 test('packaging pins vsce and excludes test-only material from the VSIX', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.equal(manifest.devDependencies['@vscode/vsce'], '3.9.2');
+  assert.equal(manifest.devDependencies['@vscode/vsce'], '4.1.0');
   assert.match(manifest.scripts['package:vsix'], /vsce package/);
   assert.equal(manifest.scripts['test:vsix'], 'node test/run-host.js installed');
   assert.equal(manifest.scripts['test:vsix:server'], 'node test/run-host.js bundled');

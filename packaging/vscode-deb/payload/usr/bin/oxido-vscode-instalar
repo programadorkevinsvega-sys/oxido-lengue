@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+prefix=${OXIDO_VSCODE_PREFIX:-}
+if [[ -n "$prefix" ]]; then
+    exec "${prefix%/}/usr/lib/oxido-vscode/install-extension.sh" "$@"
+fi
+exec /usr/lib/oxido-vscode/install-extension.sh "$@"

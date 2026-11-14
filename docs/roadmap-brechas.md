@@ -1,6 +1,6 @@
 # Roadmap de brechas verificadas
 
-**Estado: propuesta parcialmente aprobada.** R1.6 está aprobada para preparar la publicación automática de paquetes Debian en GitHub Releases al crear una etiqueta de versión; el resto de esta propuesta no autoriza iniciar código, releases ni despliegues. Cada subfase se implementa en un PR independiente y pasa las pruebas de esta fase y de todas las anteriores antes de fusionarse.
+**Estado: propuesta parcialmente aprobada.** R1.6 se implementó en el PR #60. R1.7 está aprobada para preparar la distribución de la extensión VS Code por Marketplace, VSIX y paquete Debian independiente; Marketplace no se publica en esta tarea. Las demás subfases requieren aprobación antes de iniciar código, releases o despliegues. Cada subfase se implementa en un PR independiente y pasa las pruebas pertinentes antes de fusionarse.
 
 ## Auditoría de las brechas recibidas
 
@@ -8,7 +8,7 @@
 |---|---|---|
 | B1 — Playground | Parcial: sandbox Linux local; servicio público no desplegado | `tools/playground` usa `bwrap`/`prlimit`, desactiva red y limita recursos. El README y [preparación empresarial](enterprise-readiness.md) dicen que no hay autenticación, cuotas ni despliegue. Planificar preparación, sin desplegar. |
 | B2 — Binarios CLI publicados | Parcial | `debian-release.yml` prepara paquetes nativos amd64/arm64 y los adjunta a una GitHub Release al crear una etiqueta `v` coincidente con `oxido-cli`; la primera publicación depende de crear esa etiqueta. No cubre aún binarios CLI para Windows/macOS ni firma. |
-| B3 — VSIX multiplataforma | Parcial | El workflow de release declara Linux x64, Windows x64 y macOS arm64; la evidencia publicada solo confirma ejecución host instalada en Linux x64. La matriz Windows/macOS no está demostrada. |
+| B3 — VSIX multiplataforma | Parcial | El workflow prepara Linux x64/arm64, Windows x64 y macOS arm64; la evidencia host instalada solo confirma Linux x64. La matriz Windows/macOS requiere pruebas host reales. |
 | B4 — Reproducibilidad entre sistemas | Abierta | El doble build con SHA-256 está verificado en Linux x86_64/Rust 1.99.1. No se ha archivado evidencia equivalente de Windows y macOS. La comparación debe ser entre builds del mismo target y entorno; binarios de sistemas distintos no deben tener el mismo hash. |
 | B5 — Firma, notarización y Marketplace | Abierta; preparación solamente | El workflow excluye firma, notarización y publicación. Guías/scripts se pueden preparar después de aprobar; usar credenciales o publicar exige autorización separada. |
 | B6 — Mensajes de `rustc` | Parcial | Doce códigos tienen resúmenes traducidos en CLI; el código y el detalle disponible se conservan, los desconocidos quedan originales y no existe selector de idioma. La ejecución real de E0308 y los tests golden están documentados en [diagnósticos](diagnostics.md). |
@@ -61,10 +61,18 @@ Cada PR de implementación debe incluir, según corresponda:
 
 ### R1.6 — Publicación directa de paquetes Debian
 
-- **Estado:** aprobada; implementada en el PR de esta subfase y pendiente de CI/fusión.
+- **Estado:** implementada y fusionada en el PR #60.
 - **PR:** construir `.deb` en runners nativos amd64 y arm64; instalarlos y ejecutar la CLI; agregar `SHA256SUMS`; adjuntar paquetes y checksums a una GitHub Release únicamente al empujar una etiqueta `v` igual a la versión de `oxido-cli`.
 - **Aceptación:** CI valida ambos paquetes y la integridad de checksums; etiquetas de versión no coincidentes fallan; las ejecuciones de PR/manual no publican Releases; la publicación usa permisos `contents: write` limitados al job de release.
 - **Pruebas:** smoke de checksum correcto/alterado; instalación/ejecución/eliminación del paquete real en cada arquitectura; workflow de PR exitoso; revisión de assets contra `SHA256SUMS`. La publicación real se activa solo con una etiqueta aprobada por el autor.
+
+### R1.7 — Distribución opcional de la extensión VS Code
+
+- **Estado:** aprobada; implementación en curso.
+- **PR:** construir cuatro VSIX con servidor incluido, paquetes Debian `oxido-vscode` amd64/arm64 y checksums. Adjuntar todos los assets a la misma GitHub Release que los paquetes CLI. Preparar un workflow manual de Marketplace con publicación desactivada por defecto.
+- **Aceptación:** instalar el `.deb` no modifica perfiles; `oxido-vscode-instalar` instala por usuario; retirar el paquete no borra perfiles; no existe daemon; el servidor solo arranca cuando VS Code activa `.ox`; `SHA256SUMS` valida todos los assets; las releases incompletas no se publican.
+- **Pruebas:** ciclo de paquete Debian con editor falso y raíz temporal; nombres/versiones/arquitecturas/targets validados; checksums positivos y negativos; matriz CI de build de los cuatro VSIX; Marketplace requiere `VSCE_PAT` y selección explícita del workflow. La publicación no se ejecuta en CI de PR.
+- **Límites:** publicación Marketplace, firma/notarización y prueba host instalada en Windows/macOS quedan fuera de este PR.
 
 ## Fase R2 — Diagnósticos de `rustc`
 

@@ -1,0 +1,87 @@
+name: Publicación manual de extensión VS Code
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Etiqueta de GitHub Release ya verificada, por ejemplo v0.1.0
+        required: true
+        type: string
+      publish_to_marketplace:
+        description: Publica los cuatro VSIX verificados en Visual Studio Marketplace
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_marketplace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Descargar y verificar la Release existente
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || {
+            printf 'Etiqueta de release no válida.\n' >&2
+            exit 2
+          }
+          version=$(node -p "require('./editors/vscode-oxido/package.json').version")
+          [[ "${RELEASE_TAG#v}" == "$version" ]] || {
+            printf 'La etiqueta no coincide con la versión del VSIX en main.\n' >&2
+            exit 1
+          }
+          draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')
+          [[ "$draft" == false ]] || {
+            printf 'No se publica desde una GitHub Release en borrador.\n' >&2
+            exit 1
+          }
+          mkdir -p target/marketplace
+          gh release download "$RELEASE_TAG" \
+            --pattern 'oxido-language-support-*.vsix' \
+            --pattern SHA256SUMS \
+            --dir target/marketplace
+          expected=(
+            "oxido-language-support-${version}-linux-x64.vsix"
+            "oxido-language-support-${version}-linux-arm64.vsix"
+            "oxido-language-support-${version}-win32-x64.vsix"
+            "oxido-language-support-${version}-darwin-arm64.vsix"
+          )
+          for asset in "${expected[@]}"; do
+            [[ -f "target/marketplace/$asset" && ! -L "target/marketplace/$asset" ]] || {
+              printf 'Falta un VSIX esperado: %s\n' "$asset" >&2
+              exit 1
+            }
+          done
+          expected_list=$(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          listed_vsix=$(awk '$2 ~ /\.vsix$/ { print $2 }' target/marketplace/SHA256SUMS | LC_ALL=C sort)
+          [[ "$listed_vsix" == "$expected_list" ]] || {
+            printf 'SHA256SUMS no enumera exactamente los cuatro VSIX esperados.\n' >&2
+            exit 1
+          }
+          (cd target/marketplace && sha256sum --check --ignore-missing --strict SHA256SUMS)
+      - run: npm ci --prefix editors/vscode-oxido
+      - name: Publicar versiones específicas por plataforma
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          [[ -n "$VSCE_PAT" ]] || {
+            printf 'Configure el secreto VSCE_PAT y el publisher antes de publicar.\n' >&2
+            exit 1
+          }
+          packages=(target/marketplace/*.vsix)
+          [[ ${#packages[@]} -eq 4 ]] || {
+            printf 'Se esperaban exactamente cuatro VSIX.\n' >&2
+            exit 1
+          }
+          editors/vscode-oxido/node_modules/.bin/vsce publish --packagePath "${packages[@]}"

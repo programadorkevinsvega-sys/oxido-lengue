@@ -148,12 +148,16 @@ jobs:
         with:
           toolchain: 1.99.1
           components: rustfmt, rust-analyzer
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
       - run: cargo build --release -p oxido-lsp --locked
       - run: rust-analyzer --version
       - run: rustfmt --version
       - run: echo "$GITHUB_WORKSPACE/target/release" >> "$GITHUB_PATH"
       - run: node --version
       - run: npm ci --prefix editors/vscode-oxido
+      - run: npm audit --audit-level=moderate --prefix editors/vscode-oxido
       - run: npm test --prefix editors/vscode-oxido
       - run: xvfb-run -a npm run test:host --prefix editors/vscode-oxido
   fuzz-smoke:

@@ -1,0 +1,137 @@
+name: Paquetes Debian
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/debian-release.yml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/oxido-cli/**'
+      - 'packaging/debian/**'
+      - 'LICENSE-*'
+      - 'docs/instalacion.md'
+      - 'docs/reproducibilidad.md'
+      - 'docs/roadmap-brechas.md'
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: .deb ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action commit
+        with:
+          toolchain: 1.99.1
+      - name: Validar versión de paquete y etiqueta
+        id: version
+        run: |
+          version=$(awk '/^\[package\]$/ { package=1; next } /^\[/ { package=0 } package && /^version = / { gsub(/"/, "", $3); print $3; exit }' crates/oxido-cli/Cargo.toml)
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { printf 'La etiqueta debe apuntar a un commit integrado en main.\n' >&2; exit 1; }
+            bash packaging/debian/validate-release-version.sh "$GITHUB_REF_NAME" "$version"
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Regresión de checksums de release
+        run: |
+          bash -n packaging/debian/prepare-release-assets.sh packaging/debian/validate-release-version.sh packaging/debian/tests/prepare-release-assets.sh packaging/debian/tests/validate-release-version.sh
+          bash packaging/debian/tests/prepare-release-assets.sh
+          bash packaging/debian/tests/validate-release-version.sh
+      - name: Construir paquete nativo
+        env:
+          OXIDO_DEB_MAINTAINER: Óxido Debian <oxido-lengue@users.noreply.github.com>
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: packaging/debian/build-deb.sh --version "$PACKAGE_VERSION" --output-dir target/debian-release
+      - name: Instalar y ejecutar el paquete real
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          PACKAGE_ARCH: ${{ matrix.architecture }}
+        run: |
+          package="target/debian-release/oxido_${PACKAGE_VERSION}-1_${PACKAGE_ARCH}.deb"
+          [[ "$(dpkg-deb --field "$package" Architecture)" == "$PACKAGE_ARCH" ]]
+          sudo apt-get install -y "./$package"
+          output=$(oxido aliases --markdown)
+          [[ "$output" == *'BEGIN GENERATED ALIASES'* ]]
+          printf 'CLI instalada y ejecutada: %s\n' "$(dpkg-deb --field "$package" Version)"
+          sudo apt-get remove -y oxido
+          ! command -v oxido >/dev/null 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oxido-deb-${{ matrix.architecture }}
+          path: target/debian-release/*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+  prepare-assets:
+    name: Verificar y agrupar paquetes
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: oxido-deb-*
+          path: target/debian-release
+          merge-multiple: true
+      - name: Crear y verificar SHA256SUMS
+        run: |
+          bash packaging/debian/prepare-release-assets.sh create target/debian-release
+          bash packaging/debian/prepare-release-assets.sh verify target/debian-release
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oxido-debian-release-assets
+          path: |
+            target/debian-release/*.deb
+            target/debian-release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Adjuntar paquetes a GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: prepare-assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: oxido-debian-release-assets
+          path: target/debian-release
+      - name: Publicar artefactos de la etiqueta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            release_options=(--verify-tag --generate-notes --title "Óxido $RELEASE_TAG")
+            if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+              release_options+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" --draft "${release_options[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" target/debian-release/*.deb target/debian-release/SHA256SUMS --clobber
+          if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease
+          else
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease=false
+          fi

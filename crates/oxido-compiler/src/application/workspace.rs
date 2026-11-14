@@ -6,7 +6,7 @@ use super::{
     source_map::{SourceMap, SourceMapSet},
 };
 use crate::{config::ProjectConfig, generate_ox};
-use oxido_cargo::run;
+use oxido_cargo::{run_cancellable, run_without_timeout_cancellable_with_progress};
 use oxido_language::{
     SourceFile,
     domain::syntax::{LexOptions, SyntaxMode as LexerSyntaxMode},
@@ -29,6 +29,8 @@ const MAX_TOTAL_SOURCE_BYTES: u64 = 1024 * 1024 * 1024;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportedWorkspaceCheck {
     pub success: bool,
+    pub canceled: bool,
+    pub timed_out: bool,
     pub exit_code: Option<i32>,
     pub diagnostics: Vec<String>,
     pub mapped_diagnostics: Vec<MappedCargoDiagnostic>,
@@ -98,6 +100,7 @@ pub fn check_imported_workspace(
         release,
         ImportedWorkspaceAction::Check,
         &ImportedWorkspaceSelection::default(),
+        None,
     )
 }
 
@@ -109,6 +112,7 @@ pub fn run_imported_workspace(
     release: bool,
     action: ImportedWorkspaceAction,
     selection: &ImportedWorkspaceSelection,
+    cancellation: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<ImportedWorkspaceCheck, String> {
     if !trusted {
         return Err("compilar el workspace puede ejecutar build.rs y macros procedurales; revisa las dependencias y usa explícitamente `--confiar-dependencias`".into());
@@ -238,8 +242,40 @@ pub fn run_imported_workspace(
     if release && action != ImportedWorkspaceAction::Test {
         arguments.push(OsString::from("--release"));
     }
-    let cargo = run(&staged_root, &arguments)
-        .map_err(|error| format!("no se pudo iniciar Cargo para el workspace temporal: {error}"))?;
+    let cargo = if action == ImportedWorkspaceAction::Run {
+        run_cancellable(&staged_root, &arguments, cancellation)
+    } else {
+        let mut displayed_targets = BTreeSet::new();
+        run_without_timeout_cancellable_with_progress(
+            &staged_root,
+            &arguments,
+            None,
+            cancellation,
+            |event| match event["reason"].as_str() {
+                Some("compiler-artifact") => {
+                    if let Some(target) = event["target"]["name"].as_str() {
+                        let label = if action == ImportedWorkspaceAction::Check {
+                            "Checking"
+                        } else {
+                            "Compiling"
+                        };
+                        if displayed_targets.insert((label, target.to_owned())) {
+                            eprintln!("{label} {target}");
+                        }
+                    }
+                }
+                Some("build-finished") => {
+                    if event["success"].as_bool() == Some(true) {
+                        eprintln!("Finished Cargo workspace successfully");
+                    } else {
+                        eprintln!("Finished Cargo workspace with errors");
+                    }
+                }
+                _ => {}
+            },
+        )
+    }
+    .map_err(|error| format!("no se pudo iniciar Cargo para el workspace temporal: {error}"))?;
     let (diagnostics, mapped_diagnostics) = render_workspace_messages(
         &cargo.messages,
         &staging.0,
@@ -248,6 +284,8 @@ pub fn run_imported_workspace(
     );
     Ok(ImportedWorkspaceCheck {
         success: cargo.success,
+        canceled: cargo.canceled,
+        timed_out: cargo.timed_out,
         exit_code: cargo.exit_code,
         diagnostics,
         mapped_diagnostics,

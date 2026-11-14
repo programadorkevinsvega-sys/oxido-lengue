@@ -692,6 +692,11 @@ fn imported_workspace_compiles_through_oxido_with_local_member_dependencies() {
         String::from_utf8_lossy(&compiled.stdout)
             .contains("Workspace Óxido verificado correctamente")
     );
+    let progress = String::from_utf8_lossy(&compiled.stderr);
+    assert!(
+        progress.contains("Checking app") || progress.contains("Checking support"),
+        "Cargo debe mostrar el progreso del workspace en stderr: {progress}"
+    );
 
     let executed = Command::new(env!("CARGO_BIN_EXE_oxido"))
         .current_dir(&temp.0)

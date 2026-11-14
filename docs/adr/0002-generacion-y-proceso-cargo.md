@@ -13,6 +13,8 @@ La Fase 4 produce un AST estructural y fragmentos Rust validados, pero todavía 
 - El backend convierte el AST con `proc_macro2`/`quote`, valida el archivo con Syn y usa `prettyplease` como formateador intermedio.
 - El mapa lateral registra spans de AST y fragmentos de origen contra ubicaciones del `.rs` formateado. Se versiona para que CLI, Cargo y el editor compartan el contrato.
 - El adaptador Cargo vive en el límite de infraestructura `oxido-cargo`; invoca `Command` con argumentos separados, directorio de trabajo explícito y mensajes JSON. El dominio del lenguaje no depende del proceso Cargo.
+- Las acciones `verificar`, `compilar` y `probar` de un workspace importado no tienen un timeout fijo; el adaptador consume eventos JSON de Cargo conforme llegan y la CLI presenta el progreso en `stderr`. Con `--json`, el esquema en `stdout` no se mezcla con ese progreso.
+- Ctrl+C se convierte en cancelación explícita: se termina y espera el árbol de procesos Cargo antes de informar que la operación fue cancelada. El timeout por defecto de 120 segundos se conserva para Cargo de proyectos de paquete, ejecución de workspaces importados, LSP y descarga de dependencias.
 - Exportar escribe Rust y mapa inspeccionables. Compilar y ejecutar son acciones explícitas; los errores de Cargo que no se puedan mapear se conservan como errores externos.
 - Importar acepta únicamente el subconjunto que pueda reconstruir sin descartar semántica; todo lo demás se rechaza con diagnóstico.
 

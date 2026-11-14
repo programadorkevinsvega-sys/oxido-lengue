@@ -10,6 +10,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::ExitCode,
+    sync::atomic::{AtomicBool, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -29,6 +30,7 @@ const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_IMPORT_FILES: usize = 100_000;
 const MAX_IMPORT_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
 const STRUCTURED_ERROR_PREFIX: &str = "\u{1e}oxido-json:";
+static WORKSPACE_CANCELLATION: AtomicBool = AtomicBool::new(false);
 
 fn main() -> ExitCode {
     let args = env::args_os().skip(1).collect::<Vec<_>>();
@@ -1530,6 +1532,11 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             }
             _ => return Err("acción de workspace importado no válida".into()),
         };
+        WORKSPACE_CANCELLATION.store(false, Ordering::SeqCst);
+        ctrlc::set_handler(|| {
+            WORKSPACE_CANCELLATION.store(true, Ordering::SeqCst);
+        })
+        .map_err(|error| format!("no se pudo instalar el manejador de Ctrl+C: {error}"))?;
         let result = oxido_compiler::application::workspace::run_imported_workspace(
             &workspace_root,
             &input,
@@ -1537,6 +1544,7 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             release,
             workspace_action,
             &selection,
+            Some(&WORKSPACE_CANCELLATION),
         )?;
         if json_output {
             let mut diagnostics = result
@@ -1562,6 +1570,26 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
                     "code": "OX5001",
                     "severity": "error",
                     "message": sanitize_report_text(&result.stderr, Some(&workspace_root)),
+                    "file": null,
+                    "line": null,
+                    "column": null
+                }));
+            }
+            if result.canceled {
+                diagnostics.push(serde_json::json!({
+                    "code": "OX5001",
+                    "severity": "error",
+                    "message": "Cargo fue cancelado por el usuario (Ctrl+C)",
+                    "file": null,
+                    "line": null,
+                    "column": null
+                }));
+            }
+            if result.timed_out {
+                diagnostics.push(serde_json::json!({
+                    "code": "OX5001",
+                    "severity": "error",
+                    "message": "Cargo superó el límite de ejecución de 120 segundos",
                     "file": null,
                     "line": null,
                     "column": null
@@ -1624,11 +1652,18 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             }
             return Ok(());
         }
+        if result.canceled {
+            return Err("Cargo fue cancelado por el usuario (Ctrl+C).".into());
+        }
+        if result.timed_out {
+            return Err("Cargo superó el límite de ejecución de 120 segundos".into());
+        }
         return Err(format!(
             "Cargo terminó con estado {}; el workspace importado no compiló.",
-            result
-                .exit_code
-                .map_or_else(|| "desconocido".to_owned(), |code| code.to_string())
+            result.exit_code.map_or_else(
+                || "sin código de salida (terminó por señal)".to_owned(),
+                |code| code.to_string()
+            )
         ));
     }
     if package.is_some() || binary.is_some() {

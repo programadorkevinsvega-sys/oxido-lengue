@@ -55,6 +55,20 @@ make_tool "$valid" cargo 1.99.1 cargo123
 make_tool "$valid" rustfmt 1.10.0-stable abc1234567
 run_case 'toolchain compatible y rustfmt alineado' 0 'Preflight de toolchain correcto' "$valid"
 
+version_failure="$temp_root/version-failure"
+make_tool "$version_failure" rustc 1.99.1 abc1234567
+make_tool "$version_failure" cargo 1.99.1 cargo123
+make_tool "$version_failure" rustfmt 1.10.0-stable abc1234567
+cat > "$version_failure/rustc" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$*" == "--version --verbose" ]]; then
+    exit 9
+fi
+printf 'rustc 1.99.1\n'
+EOF
+chmod +x "$version_failure/rustc"
+run_case 'fallo al consultar el commit se informa' 1 'no se pudo consultar `rustc --version --verbose`' "$version_failure"
+
 old="$temp_root/old"
 make_tool "$old" rustc 1.85.0 old1234567
 make_tool "$old" cargo 1.99.1 cargo123

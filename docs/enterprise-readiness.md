@@ -5,7 +5,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 ## Estado de evaluación
 
 - El compilador, la CLI y el LSP están en etapa temprana. La compatibilidad se limita a la [matriz publicada](compatibility.md).
-- No hay firma, notarización, publicación en marketplaces ni binarios distribuidos oficialmente.
+- Hay paquetes Debian y VSIX sin firmar en [GitHub Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). No hay firma ni notarización, la extensión no está publicada en Marketplace y no existe un repositorio APT.
 - El sandbox del playground está verificado solo en Linux y no cubre la CLI ni el LSP. No está desplegado.
 - El código del repositorio se ofrece con doble licencia **MIT o Apache-2.0** (`LICENSE-MIT` y `LICENSE-APACHE`). Cada crate declara `license = "MIT OR Apache-2.0"`. El titular puede cambiar esta decisión, y la revisión legal del uso previsto sigue siendo responsabilidad de cada organización.
 - La documentación distingue entre lo implementado, lo especificado y lo propuesto. Los casos de uso no son compromisos de producto.
@@ -31,7 +31,7 @@ Esta página describe lo que una organización puede verificar hoy y lo que toda
 1. **Ejecución de código de dependencias.** `check`, `build` y `run` con dependencias pueden ejecutar `build.rs` y macros procedurales. `--confiar-dependencias` registra una decisión del operador; no aísla el proceso.
 2. **Sin sandbox general.** La CLI y el LSP no están aislados del sistema operativo. El sandbox del playground es un producto separado.
 3. **Cobertura parcial del lenguaje.** La matriz no cubre todo Rust. Un programa que compila no demuestra compatibilidad general.
-4. **Distribución incompleta.** Se preparan paquetes Debian sin firma para la CLI y para la extensión VS Code, además de VSIX descargables. Todavía no hay una GitHub Release ni publicación en Marketplace; los binarios no están firmados y no existe un repositorio APT.
+4. **Distribución incompleta.** La Release v0.1.0 ofrece paquetes Debian sin firma para la CLI y VS Code, además de VSIX descargables. La extensión aún no está publicada en Marketplace, los binarios no están firmados y no existe un repositorio APT.
 5. **Licencia y revisión legal.** El código usa MIT o Apache-2.0, pero cada organización debe revisar si esa licencia cubre su uso previsto. Las licencias de terceros se auditan con `cargo-deny`, no con una revisión legal completa.
 6. **Sin soporte ni SLA.** No hay compromiso de respuesta, ventanas de mantenimiento ni compatibilidad retroactiva.
 7. **Datos del entorno.** Los informes pueden contener salidas de diagnóstico; la higiene bloquea rutas absolutas y secretos conocidos, pero no todos los formatos.

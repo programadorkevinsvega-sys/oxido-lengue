@@ -1,16 +1,16 @@
 # Roadmap de brechas verificadas
 
-**Estado: propuesta parcialmente aprobada.** R1.6 se implementó en el PR #60. R1.7 está aprobada para preparar la distribución de la extensión VS Code por Marketplace, VSIX y paquete Debian independiente; Marketplace no se publica en esta tarea. Las demás subfases requieren aprobación antes de iniciar código, releases o despliegues. Cada subfase se implementa en un PR independiente y pasa las pruebas pertinentes antes de fusionarse.
+**Estado: propuesta parcialmente aprobada.** R1.6 se implementó en el PR #60 y se publicó en la Release v0.1.0. R1.7 quedó implementada en el PR #61: la Release ofrece VSIX y paquetes Debian de la extensión; la publicación en Marketplace sigue pendiente de credenciales y ejecución explícita. Las demás subfases requieren aprobación antes de iniciar código, releases o despliegues. Cada subfase se implementa en un PR independiente y pasa las pruebas pertinentes antes de fusionarse.
 
 ## Auditoría de las brechas recibidas
 
 | ID | Estado comprobado en el repositorio | Evidencia y decisión |
 |---|---|---|
 | B1 — Playground | Parcial: sandbox Linux local; servicio público no desplegado | `tools/playground` usa `bwrap`/`prlimit`, desactiva red y limita recursos. El README y [preparación empresarial](enterprise-readiness.md) dicen que no hay autenticación, cuotas ni despliegue. Planificar preparación, sin desplegar. |
-| B2 — Binarios CLI publicados | Parcial | `debian-release.yml` prepara paquetes nativos amd64/arm64 y los adjunta a una GitHub Release al crear una etiqueta `v` coincidente con `oxido-cli`; la primera publicación depende de crear esa etiqueta. No cubre aún binarios CLI para Windows/macOS ni firma. |
-| B3 — VSIX multiplataforma | Parcial | El workflow prepara Linux x64/arm64, Windows x64 y macOS arm64; la evidencia host instalada solo confirma Linux x64. La matriz Windows/macOS requiere pruebas host reales. |
+| B2 — Binarios CLI publicados | Parcial; primera versión publicada | La [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0) contiene `.deb` amd64/arm64 y `SHA256SUMS`. No hay todavía binarios CLI para Windows/macOS ni firma. |
+| B3 — VSIX multiplataforma | Parcial; artefactos publicados | La Release v0.1.0 incluye VSIX para Linux x64/arm64, Windows x64 y macOS arm64. La prueba host instalada solo confirma Linux x64; Windows/macOS requieren pruebas host reales. |
 | B4 — Reproducibilidad entre sistemas | Abierta | El doble build con SHA-256 está verificado en Linux x86_64/Rust 1.99.1. No se ha archivado evidencia equivalente de Windows y macOS. La comparación debe ser entre builds del mismo target y entorno; binarios de sistemas distintos no deben tener el mismo hash. |
-| B5 — Firma, notarización y Marketplace | Abierta; preparación solamente | El workflow excluye firma, notarización y publicación. Guías/scripts se pueden preparar después de aprobar; usar credenciales o publicar exige autorización separada. |
+| B5 — Firma, notarización y Marketplace | Abierta | Los paquetes y VSIX de v0.1.0 no están firmados ni notarizados. Marketplace requiere publisher, `VSCE_PAT` y ejecución manual del workflow; no se ha publicado allí. |
 | B6 — Mensajes de `rustc` | Parcial | Doce códigos tienen resúmenes traducidos en CLI; el código y el detalle disponible se conservan, los desconocidos quedan originales y no existe selector de idioma. La ejecución real de E0308 y los tests golden están documentados en [diagnósticos](diagnostics.md). |
 | B7 — Árboles `.ox` multiarchivo | Resuelta para el alcance probado | La resolución recursiva, exportación y compilación desde raíz, módulos `.ox`/`.rs`, mapas por archivo e importación de workspaces están implementados. Evidencia: `compiles_runs_and_recursively_exports_a_hierarchical_ox_project`, `resolves_path_modules_and_exports_their_rewritten_rust_paths` e `imported_workspace_compiles_through_oxido_with_local_member_dependencies`, descritas en [trazabilidad](../tests/trazabilidad.md). No se propone repetir esta implementación; compatibilidad arbitraria sigue delimitada por la matriz. |
 | B8 — Sandbox general de dependencias | Abierta | La CLI/LSP no aíslan compilaciones con `build.rs` o macros procedurales. El sandbox del playground es independiente y no protege esos flujos. |
@@ -55,6 +55,7 @@ Cada PR de implementación debe incluir, según corresponda:
 
 ### R1.5 — Guía de instalación binaria
 
+- **Estado:** publicada para la primera versión Debian v0.1.0; la documentación enlaza los paquetes y sus checksums.
 - **PR:** documentar descarga, verificación SHA-256, instalación, actualización y desinstalación para los targets probados.
 - **Aceptación:** instrucciones reproducidas desde un runner limpio y limitaciones por arquitectura indicadas; sin prometer firma mientras no exista.
 - **Pruebas:** enlaces/build del sitio y smoke de los comandos de instalación; revisión de cada URL/asset contra los nombres del workflow.
@@ -68,7 +69,7 @@ Cada PR de implementación debe incluir, según corresponda:
 
 ### R1.7 — Distribución opcional de la extensión VS Code
 
-- **Estado:** aprobada; implementación en curso.
+- **Estado:** implementada y publicada en la Release v0.1.0 (PR #61). Marketplace continúa pendiente.
 - **PR:** construir cuatro VSIX con servidor incluido, paquetes Debian `oxido-vscode` amd64/arm64 y checksums. Adjuntar todos los assets a la misma GitHub Release que los paquetes CLI. Preparar un workflow manual de Marketplace con publicación desactivada por defecto.
 - **Aceptación:** instalar el `.deb` no modifica perfiles; `oxido-vscode-instalar` instala por usuario; retirar el paquete no borra perfiles; no existe daemon; el servidor solo arranca cuando VS Code activa `.ox`; `SHA256SUMS` valida todos los assets; las releases incompletas no se publican.
 - **Pruebas:** ciclo de paquete Debian con editor falso y raíz temporal; nombres/versiones/arquitecturas/targets validados; checksums positivos y negativos; matriz CI de build de los cuatro VSIX; Marketplace requiere `VSCE_PAT` y selección explícita del workflow. La publicación no se ejecuta en CI de PR.

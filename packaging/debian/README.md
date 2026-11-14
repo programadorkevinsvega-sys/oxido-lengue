@@ -38,4 +38,4 @@ bash packaging/debian/tests/install-isolated-toolchain.sh
 bash packaging/debian/tests/package-lifecycle.sh
 ```
 
-La regresión de ciclo de vida usa `dpkg` contra una raíz temporal: instala una versión, la actualiza, la elimina y comprueba que los datos bajo `/opt/oxido` sobreviven. Las pruebas del instalador simulan red/checksum; la instalación real aislada de Rust también fue verificada localmente.
+La regresión de ciclo de vida usa `dpkg` contra una raíz temporal: instala una versión, la actualiza, la elimina y comprueba que los datos bajo `/opt/oxido` sobreviven. Las pruebas del instalador simulan red/checksum. El workflow Debian también instala el paquete real, provisiona Rust 1.99.1 en el prefijo aislado, crea un proyecto con `oxido nuevo`, lo compila con `oxido build` y comprueba tanto el binario como `oxido ejecutar`.

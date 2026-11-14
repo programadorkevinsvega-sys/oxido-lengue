@@ -4,18 +4,23 @@
 
 Óxido es una herramienta de lenguaje en etapa temprana. `oxido-language` tokeniza y parsea un subconjunto estructural; la CLI exporta, compila y ejecuta ejemplos reales. El subconjunto documentado incluye items indentados, aliases de prelude y macros estándar, además de interoperabilidad Rust en módulos, métodos, referencias, `Result`/`Option`, `?` y colecciones. Los límites por característica están en la [matriz de compatibilidad](../compatibility.md).
 
-Flujo disponible desde la raíz del repositorio:
+## Usar la CLI instalada
+
+En Debian o Ubuntu, instala el paquete desde [Instalación y primeros pasos](../instalacion.md). No necesitas clonar el repositorio para crear ni compilar un proyecto. Si el equipo no tiene un Rust compatible, instala la toolchain aislada una vez con `sudo oxido-instalar-toolchain`.
 
 ```sh
-cargo run --locked -p oxido-cli -- exportar examples/hola_mundo.ox --salida target/hola.rs
-cargo run --locked -p oxido-cli -- check examples/hola_mundo.ox
-cargo run --locked -p oxido-cli -- build examples/hola_mundo.ox --release
-cargo run --locked -p oxido-cli -- ejecutar examples/hola_mundo.ox
-cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox
-cargo run --locked -p oxido-cli -- ejecutar examples/interoperabilidad.ox
+oxido nuevo mi-proyecto
+cd mi-proyecto
+oxido check src/main.ox
+oxido build src/main.ox --release
+oxido ejecutar src/main.ox
 ```
 
-Si instalaste el binario, sustituye `cargo run --locked -p oxido-cli --` por `oxido`. `check`/`verificar` valida con `cargo check` sin crear un ejecutable. `build`/`compilar` compila y conserva los binarios bajo `target/oxido/debug` o `target/oxido/release`; `--release` activa las optimizaciones de Cargo para el binario destinado a despliegue. `run`/`ejecutar` compila y ejecuta el programa; `test`/`probar` ejecuta las pruebas.
+`check`/`verificar` valida con `cargo check` sin crear un ejecutable. `build`/`compilar` conserva los binarios bajo `target/oxido/debug` o `target/oxido/release`; `--release` activa las optimizaciones de Cargo. `run`/`ejecutar` compila y ejecuta el programa; `test`/`probar` ejecuta las pruebas.
+
+## Desarrollar Óxido
+
+Clonar el repositorio, compilar la CLI desde fuente, ejecutar las regresiones y enviar cambios son tareas de desarrollo del compilador. Están en la guía aparte [Clonar, compilar y contribuir](../contribuir.md); no son pasos necesarios para usar una Release instalada.
 
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` conserva un único archivo tal cual por defecto; `--espanol` activa la conversión reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol e importa cada `.rs` tal cual; con `--espanol` traduce el subconjunto y mantiene los items Rust no convertidos como passthrough. `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 

@@ -28,6 +28,7 @@ export default defineConfig({
           label: 'Guías',
           items: [
             { label: 'Instalación', link: '/referencia/instalacion/' },
+            { label: 'Contribuir al proyecto', link: '/referencia/contribuir/' },
             { label: 'Tutorial progresivo', link: '/referencia/tutorial/' },
             { label: 'Ejercicios', link: '/referencia/ejercicios/' },
             { label: 'Educación', link: '/referencia/education/' },

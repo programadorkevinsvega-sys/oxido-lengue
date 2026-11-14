@@ -12,35 +12,9 @@ El estado técnico y la evidencia están descritos en esta guía, la [preparaci�
 - Opcional: `rust-analyzer` y `rustfmt` del toolchain para análisis semántico y formateo.
 - Opcional: un `oxido.toml` válido y un `Cargo.lock` para el comando de Cargo.
 
-## Instalar el servidor
+## Instalar desde la Release
 
-```sh
-cargo build --release --locked -p oxido-lsp
-./target/release/oxido-lsp --version
-```
-
-El servidor se comunica por stdio. No abre puertos ni envía telemetría.
-
-## Empaquetar e instalar la extensión
-
-```sh
-npm --prefix editors/vscode-oxido ci
-npm --prefix editors/vscode-oxido run package:vsix
-code --install-extension editors/vscode-oxido/dist/oxido-language-support-0.1.0.vsix
-```
-
-Ese VSIX no incluye `oxido-lsp`; el servidor debe estar en `PATH` o configurarse. Para producir un paquete que incluya el servidor de la plataforma actual:
-
-```sh
-OXIDO_SERVER_BINARY=target/release/oxido-lsp \
-OXIDO_VSIX_TARGET=linux-x64 \
-npm --prefix editors/vscode-oxido run package:vsix:server
-code --install-extension editors/vscode-oxido/dist/oxido-language-support-0.1.0-linux-x64.vsix
-```
-
-El binario incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp` y el archivo existe y es ejecutable. Una ruta configurada explícitamente tiene prioridad.
-
-Descarga el VSIX correspondiente a tu plataforma desde la Release v0.1.0. Cada paquete incluye el servidor `oxido-lsp`:
+Descarga el VSIX correspondiente a tu plataforma desde la [Release v0.1.0](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/tag/v0.1.0). Cada paquete incluye el servidor `oxido-lsp`; no tienes que clonar el repositorio, compilar la extensión ni instalar la CLI de Óxido. Descarga también [SHA256SUMS](https://github.com/programadorkevinsvega-sys/oxido-lengue/releases/download/v0.1.0/SHA256SUMS) para verificar el archivo; los paquetes no están firmados.
 
 | Plataforma | Descarga |
 |---|---|
@@ -55,7 +29,7 @@ Descarga el archivo y después instálalo desde la terminal:
 code --install-extension oxido-language-support-0.1.0-linux-x64.vsix
 ```
 
-También puedes elegir **Install from VSIX...** en la vista Extensions. Las instalaciones manuales desde VSIX no reciben actualizaciones automáticas por defecto; para actualizar, descarga e instala la nueva versión desde una Release posterior.
+También puedes elegir **Install from VSIX...** en la vista Extensions y seleccionar el archivo descargado. Las instalaciones manuales desde VSIX no reciben actualizaciones automáticas por defecto; para actualizar, descarga e instala la nueva versión desde una Release posterior.
 
 ## Distribución opcional en Debian/Ubuntu
 
@@ -128,7 +102,7 @@ No se afirma mapeo semántico completo entre módulos ni resolución de tipos un
 | El comando Cargo no hace nada | Restricted Mode | Concede Workspace Trust de forma explícita |
 | `OX7001` | Falta `Cargo.lock` | Descarga y confirma las dependencias antes de compilar |
 
-## Verificación
+## Pruebas de la extensión (contribuidores)
 
 ```sh
 cargo test -p oxido-lsp --locked
@@ -137,3 +111,24 @@ npm run test:host --prefix editors/vscode-oxido
 ```
 
 La suite host abre VS Code real y cubre workspace confiable, Cargo, navegación sin confianza, cancelación, VSIX instalado, VSIX con servidor incluido y Restricted Mode. Requiere `rust-analyzer` y `rustfmt`; los casos que dependen de ellos se omiten si no están disponibles.
+
+## Compilar desde fuente (contribuidores)
+
+Los comandos siguientes sirven para desarrollar la extensión y el servidor; no son necesarios para instalar el VSIX publicado. Para clonar y preparar el repositorio completo, sigue [Clonar, compilar y contribuir](contribuir.md).
+
+```sh
+cargo build --release --locked -p oxido-lsp
+./target/release/oxido-lsp --version
+npm --prefix editors/vscode-oxido ci
+npm --prefix editors/vscode-oxido run package:vsix
+```
+
+El servidor se comunica por stdio, no abre puertos ni envía telemetría. El VSIX estándar generado desde fuente no incluye `oxido-lsp`; el servidor debe estar en `PATH` o configurarse. Para generar un VSIX autocontenido de Linux x64:
+
+```sh
+OXIDO_SERVER_BINARY=target/release/oxido-lsp \
+OXIDO_VSIX_TARGET=linux-x64 \
+npm --prefix editors/vscode-oxido run package:vsix:server
+```
+
+El servidor incluido se usa solo si `oxido.serverPath` conserva el valor por defecto `oxido-lsp` y el archivo existe y es ejecutable. Una ruta configurada explícitamente tiene prioridad.

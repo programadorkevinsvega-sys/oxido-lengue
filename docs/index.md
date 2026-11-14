@@ -13,6 +13,7 @@ Una sintaxis en español e inglés que busca generar Rust estándar y conservar 
 ## Explorar
 
 - [Instalación y primeros pasos](./instalacion)
+- [Clonar, compilar y contribuir](./contribuir)
 - [Tutorial progresivo](./tutorial)
 - [Libro de ejercicios](./ejercicios)
 - [VS Code y servidor LSP](./vscode)

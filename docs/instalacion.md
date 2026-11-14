@@ -22,17 +22,19 @@ Desde la raíz del repositorio:
 
 ```sh
 cargo build --release --locked -p oxido-cli
-./target/release/oxido --help
+./target/release/oxido --version
 ```
 
 El binario se llama `oxido`. Para instalarlo en el `PATH` del usuario:
 
 ```sh
 cargo install --path crates/oxido-cli --locked
-oxido --help
+oxido --version
 ```
 
 `cargo install` compila en modo release y no publica nada. El crate tiene `publish = false`.
+
+Comprueba la versión instalada con `oxido --version` (o `oxido -V`). La salida tiene el formato `oxido <versión>` y corresponde a la versión del paquete de la CLI.
 
 ## Crear y ejecutar un proyecto
 

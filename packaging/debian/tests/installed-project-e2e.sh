@@ -33,7 +33,15 @@ env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido nuevo "$proj
 source=$project/src/main.ox
 [[ -f "$project/oxido.toml" && -f "$source" ]]
 env -u RUSTC -u RUSTUP_TOOLCHAIN -u CARGO_HOME -u RUSTUP_HOME oxido build "$source"
-binary=$project/target/oxido/debug/oxido_generated
+generated_project=$project/target/oxido
+[[ -f "$generated_project/Cargo.toml" \
+    && -f "$generated_project/src/main.ox" \
+    && -f "$generated_project/src/main.rs" ]] || {
+    printf 'ERROR: `oxido build` no generó el proyecto Cargo y sus fuentes esperados en %s.\n' \
+        "$generated_project" >&2
+    exit 1
+}
+binary=$generated_project/target/debug/oxido_generated
 [[ -x "$binary" ]] || {
     printf 'ERROR: `oxido build` no generó el binario esperado: %s.\n' "$binary" >&2
     exit 1

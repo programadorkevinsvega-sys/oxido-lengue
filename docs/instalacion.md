@@ -58,15 +58,24 @@ sudo oxido-instalar-toolchain
 
 La instalación de Rust es explícita; `apt` no descarga toolchains desde scripts mantenedores. El Rust del sistema y del usuario no se modifica. `sudo apt remove oxido` elimina la CLI y conserva `/opt/oxido`.
 
+Si guardaste el `.deb` dentro de `~/Descargas` y `apt` avisa que `_apt` no puede acceder al archivo, la instalación puede continuar con una descarga sin aislamiento como root. Es un aviso de permisos del directorio local, no un fallo del paquete. Para evitarlo, copia el paquete a una ruta legible por `_apt` y usa esa copia:
+
+```sh
+cp ./oxido_0.1.0-1_amd64.deb /tmp/
+sudo apt install /tmp/oxido_0.1.0-1_amd64.deb
+```
+
 ## Crear y ejecutar un proyecto
 
 ```sh
 oxido nuevo demo
-oxido build demo/src/main.ox
-oxido ejecutar demo/src/main.ox
+cd demo
+oxido verificar
+oxido compilar
+oxido ejecutar
 ```
 
-`oxido nuevo` crea `oxido.toml` y `src/main.ox` con un programa mínimo. `oxido build` genera el binario en `demo/target/oxido/debug/oxido_generated`; `oxido ejecutar` compila y lo ejecuta. La salida esperada es `Hola, Óxido.`. El workflow de paquetes Debian también prueba este ciclo desde el `.deb` instalado y tras instalar la toolchain aislada.
+`oxido nuevo` crea `oxido.toml` y `src/main.ox` con un programa mínimo. Los comandos sin ruta descubren ese `oxido.toml` desde el directorio actual y usan `src/main.ox`. `oxido compilar` genera un proyecto Cargo persistente en `target/oxido/` (incluye `Cargo.toml`, `src/main.rs`, los módulos Rust y sus fuentes `.ox`, como `mod.ox`) y delega la compilación en Cargo. El binario queda bajo `target/oxido/target/debug/`; `oxido ejecutar` compila y lo ejecuta mediante Cargo. La salida esperada es `Hola, Óxido.`. El workflow de paquetes Debian también prueba este ciclo desde el `.deb` instalado y tras instalar la toolchain aislada.
 
 También puedes ejecutar los ejemplos del repositorio:
 
@@ -81,21 +90,21 @@ oxido ejecutar examples/interoperabilidad.ox
 | Comando | Función | Límite actual |
 |---|---|---|
 | `nuevo <dir>` | Crea un proyecto mínimo | Plantilla fija en modo indentado |
-| `formato <archivo.ox> [--comprobar]` | Formatea y comprueba idempotencia | Solo sintaxis cubierta por la matriz |
+| `formato [<archivo.ox|directorio>] [--comprobar]` | Formatea y comprueba idempotencia | Sin ruta o con directorio usa `src/main.ox` |
 | `exportar <archivo.ox> --salida <archivo.rs>` | Genera Rust, mapa de origen y resuelve módulos | El Rust final pasa por `rustfmt` |
 | `importar <archivo.rs> --salida <archivo.ox> [--espanol]` | Importa un archivo Rust | Por defecto conserva el código tal cual; `--espanol` traduce el subconjunto de funciones libres |
 | `importar-proyecto <dir> --salida <dir> [--espanol]` | Recorre un árbol Rust | Importa cada `.rs` tal cual; `--espanol` traduce el subconjunto reversible. Los originales quedan en `.oxido/original/` |
 | `analizar-rust <archivo.rs>` | Valida sintaxis Rust | No compila |
-| `check <archivo.ox>` (`verificar`) | Valida con `cargo check`, sin dejar un ejecutable | Requiere `rustfmt` y `Cargo.lock` si hay dependencias |
-| `build <archivo.ox>` (`compilar`) | Genera un binario persistente | `--release` genera el perfil optimizado; salida en `target/oxido/{debug,release}` |
-| `run <archivo.ox>` (`ejecutar`) | Compila y ejecuta el programa | `--release` selecciona el perfil optimizado |
-| `test <archivo.ox>` (`probar`) | Ejecuta `cargo test` | Un archivo sin `#[test]` puede dar cero pruebas |
+| `verificar [<archivo.ox|directorio>]` (`check`) | Valida con `cargo check`, sin dejar un ejecutable | Sin ruta o con directorio usa `src/main.ox` |
+| `compilar [<archivo.ox|directorio>]` (`build`) | Genera un binario persistente | `--release` genera el perfil optimizado |
+| `ejecutar [<archivo.ox|directorio>]` (`run`) | Compila y ejecuta el programa | `run` es alias de `ejecutar`; `--release` selecciona el perfil optimizado |
+| `probar [<archivo.ox|directorio>]` (`test`) | Ejecuta `cargo test` | Un archivo sin `#[test]` puede dar cero pruebas |
 | `auditar-unsafe <archivo.ox> [--rechazar]` | Busca `inseguro` | Análisis léxico, no semántico |
 | `auditar-proyecto <dir>` | Inventario estático de riesgo | No sigue symlinks ni ejecuta Cargo |
 | `descargar-dependencias <archivo.ox>` | Muestra el plan de dependencias | Solo descarga con `--confirmar` |
 | `aliases` | Lista alias del prelude | No amplía la matriz de compatibilidad |
 
-La [matriz de compatibilidad](compatibility.md) delimita la sintaxis que puede usarse. `check`/`verificar` valida sin producir un ejecutable; `build`/`compilar` genera artefactos bajo `target/oxido/{debug,release}`; `run`/`ejecutar` además inicia el programa. Añade `--release` a `build` para el perfil optimizado de Cargo. La CLI no sandboxa código de dependencias: las acciones que compilan con dependencias exigen `--confiar-dependencias` y pueden ejecutar `build.rs` y macros procedurales.
+La [matriz de compatibilidad](compatibility.md) delimita la sintaxis que puede usarse. Los comandos `formato`, `verificar`, `compilar`, `ejecutar` y `probar` aceptan un archivo `.ox` o un directorio; sin ruta, buscan `oxido.toml` desde el directorio actual hacia arriba y eligen `src/main.ox`. Los mensajes de uso presentan los nombres en español; `run` sigue disponible como alias de `ejecutar`. `verificar` no produce un ejecutable; para proyectos `.ox`, `compilar` genera el proyecto Cargo en `target/oxido/` y sus binarios en `target/oxido/target/{debug,release}`; `ejecutar` además inicia el programa. Añade `--release` a `compilar` o `ejecutar` para el perfil optimizado de Cargo. La CLI no sandboxa código de dependencias: las acciones que compilan con dependencias exigen `--confiar-dependencias` y pueden ejecutar `build.rs` y macros procedurales.
 
 ## Dependencias
 
@@ -108,9 +117,18 @@ edition = "2024"
 
 [dependencies.itoa]
 version = "1.0"
+
+# Ambas secciones siguientes son opcionales.
+[package]
+name = "demo"
+version = "0.1.0"
+
+[[bin]]
+name = "demo"
+path = "src/main.ox"
 ```
 
-Revisa el plan con `oxido descargar-dependencias archivo.ox`, confírmalo con `--confirmar` y compila con `--confiar-dependencias`. La compilación usa `--locked --offline` y falla con `OX7001` si falta el lockfile. Las dependencias `path` requieren `--permitir-rutas-locales` en la descarga; git y URL no están soportadas.
+Revisa el plan con `oxido descargar-dependencias archivo.ox`, confírmalo con `--confirmar` y compila con `--confiar-dependencias`. La compilación usa `--locked --offline` y falla con `OX7001` si falta el lockfile cuando hay dependencias. Un proyecto sin dependencias no necesita un `Cargo.lock` persistente; compilar o ejecutar no lo genera en el árbol del proyecto. Las dependencias `path` requieren `--permitir-rutas-locales` en la descarga; git y URL no están soportadas.
 
 ## Editor
 

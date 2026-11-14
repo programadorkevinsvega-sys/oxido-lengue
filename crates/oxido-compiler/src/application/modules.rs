@@ -19,6 +19,7 @@ pub struct GeneratedModule {
     pub path: PathBuf,
     pub rust: String,
     pub source_map: Option<SourceMap>,
+    pub source_ox: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -230,6 +231,7 @@ impl ModuleGraph<'_> {
         let is_ox = canonical
             .extension()
             .is_some_and(|extension| extension == "ox");
+        let source_ox = is_ox.then(|| source_text.clone());
         let (rust, source_map) = if is_ox {
             let source = SourceFile::with_path(&canonical, source_text);
             let generated = generate_ox(&source, self.options).map_err(|diagnostics| {
@@ -287,6 +289,7 @@ impl ModuleGraph<'_> {
                 path: output_path,
                 rust,
                 source_map,
+                source_ox,
             },
         );
         Ok(())

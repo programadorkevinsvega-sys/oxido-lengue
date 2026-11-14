@@ -50,7 +50,7 @@ fn check_validates_without_binary_and_build_release_keeps_the_executable() {
         "{}",
         String::from_utf8_lossy(&checked.stderr)
     );
-    let release_dir = temp.0.join("target/oxido/release");
+    let release_dir = temp.0.join("target/oxido/target/release");
     assert!(
         !release_dir
             .join(format!("oxido_generated{}", std::env::consts::EXE_SUFFIX))
@@ -69,7 +69,7 @@ fn check_validates_without_binary_and_build_release_keeps_the_executable() {
     );
     assert!(
         temp.0
-            .join("target/oxido/debug")
+            .join("target/oxido/target/debug")
             .join(format!("oxido_generated{}", std::env::consts::EXE_SUFFIX))
             .is_file()
     );
@@ -87,7 +87,7 @@ fn check_validates_without_binary_and_build_release_keeps_the_executable() {
     );
     let report: serde_json::Value =
         serde_json::from_slice(&built.stdout).expect("build --json debe emitir JSON");
-    assert_eq!(report["artifactDirectory"], "target/oxido/release");
+    assert_eq!(report["artifactDirectory"], "target/oxido/target/release");
 
     let executable = release_dir.join(format!("oxido_generated{}", std::env::consts::EXE_SUFFIX));
     assert!(executable.is_file(), "falta {}", executable.display());

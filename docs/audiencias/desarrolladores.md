@@ -15,7 +15,7 @@ cargo run --locked -p oxido-cli -- ejecutar examples/estructuras.ox
 cargo run --locked -p oxido-cli -- ejecutar examples/interoperabilidad.ox
 ```
 
-Si instalaste el binario, sustituye `cargo run --locked -p oxido-cli --` por `oxido`. `check`/`verificar` valida con `cargo check` sin crear un ejecutable. `build`/`compilar` compila y conserva los binarios bajo `target/oxido/debug` o `target/oxido/release`; `--release` activa las optimizaciones de Cargo para el binario destinado a despliegue. `run`/`ejecutar` compila y ejecuta el programa; `test`/`probar` ejecuta las pruebas.
+Si instalaste el binario, sustituye `cargo run --locked -p oxido-cli --` por `oxido`. `check`/`verificar` valida con `cargo check` sin crear un ejecutable. Para un proyecto `.ox`, `build`/`compilar` genera y actualiza un proyecto Cargo bajo `target/oxido/`, conserva allí los fuentes `.ox` y el Rust generado, y deja los binarios en `target/oxido/target/debug` o `target/oxido/target/release`; `--release` activa las optimizaciones de Cargo para el binario destinado a despliegue. `run`/`ejecutar` compila y ejecuta el programa mediante Cargo; `test`/`probar` ejecuta las pruebas.
 
 `exportar` crea además el mapa `.oxido-map.json` y resuelve módulos recursivos. `importar` conserva un único archivo tal cual por defecto; `--espanol` activa la conversión reversible. `importar-proyecto <directorio-rust> --salida <directorio-oxido>` recorre el árbol e importa cada `.rs` tal cual; con `--espanol` traduce el subconjunto y mantiene los items Rust no convertidos como passthrough. `#[path]` o construcciones especiales pueden requerir ajustes y no se garantiza roundtrip universal. `analizar-rust` valida archivos `.rs` directamente.
 

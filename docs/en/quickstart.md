@@ -113,7 +113,7 @@ These examples use Spanish keywords; each has a test that compiles and runs it i
 | `formato <file.ox>` | Format and check idempotence | Only the documented subset |
 | `exportar <file.ox> --salida <file.rs>` | Generate Rust and a source map | Final Rust is formatted with `rustfmt` |
 | `check <file.ox>` (`verificar`) | Validate generated Rust with `cargo check`, without leaving an executable | Requires `rustfmt`; dependencies need a lockfile |
-| `build <file.ox>` (`compilar`) | Generate a persistent binary | `--release` selects Cargo's optimized profile; output is under `target/oxido/{debug,release}` |
+| `build <file.ox>` (`compilar`) | Generate a persistent Cargo project in `target/oxido/` and a binary | `--release` selects Cargo's optimized profile; binary output is under `target/oxido/target/{debug,release}` |
 | `run <file.ox>` (`ejecutar`) | Compile and run the program | `--release` selects Cargo's optimized profile |
 | `test <file.ox>` (`probar`) | Run `cargo test` | A file without `#[test]` reports zero tests |
 

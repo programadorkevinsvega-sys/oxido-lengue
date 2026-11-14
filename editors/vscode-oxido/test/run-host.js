@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
+const { downloadVSCodeWithRetry } = require('./vscode-download');
 
 const extensionRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(extensionRoot, '..', '..');
@@ -20,10 +21,18 @@ const HOST_PROFILES = [
 let executablePromise;
 
 function resolveExecutable() {
-  executablePromise ??= Promise.resolve(
-    process.env.VSCODE_EXECUTABLE_PATH
-      || downloadAndUnzipVSCode({ version: '1.143.1' })
-  );
+  executablePromise ??= process.env.VSCODE_EXECUTABLE_PATH
+    ? Promise.resolve(process.env.VSCODE_EXECUTABLE_PATH)
+    : downloadVSCodeWithRetry(
+      () => downloadAndUnzipVSCode({ version: '1.143.1', timeout: 60_000 }),
+      {
+        onRetry: (attempt, attempts) => {
+          process.stderr.write(
+            `La descarga de VS Code falló por un error de red; reintento ${attempt}/${attempts}.\n`
+          );
+        }
+      }
+    );
   return executablePromise;
 }
 

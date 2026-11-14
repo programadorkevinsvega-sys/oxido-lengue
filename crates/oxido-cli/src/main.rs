@@ -10,6 +10,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::ExitCode,
+    sync::atomic::{AtomicBool, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -29,6 +30,7 @@ const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_IMPORT_FILES: usize = 100_000;
 const MAX_IMPORT_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
 const STRUCTURED_ERROR_PREFIX: &str = "\u{1e}oxido-json:";
+static WORKSPACE_CANCELLATION: AtomicBool = AtomicBool::new(false);
 
 fn main() -> ExitCode {
     let args = env::args_os().skip(1).collect::<Vec<_>>();
@@ -365,7 +367,12 @@ fn fetch_dependencies(args: &[OsString]) -> Result<(), String> {
 fn imported_workspace_root(source: &Path) -> Result<Option<PathBuf>, String> {
     let source = fs::canonicalize(source)
         .map_err(|error| format!("no se pudo resolver {}: {error}", source.display()))?;
-    for ancestor in source.parent().into_iter().flat_map(Path::ancestors) {
+    let start = if source.is_dir() {
+        source.as_path()
+    } else {
+        source.parent().unwrap_or(source.as_path())
+    };
+    for ancestor in start.ancestors() {
         let marker = ancestor.join(".oxido/import-manifest.json");
         let metadata = match fs::symlink_metadata(&marker) {
             Ok(metadata) => metadata,
@@ -1449,22 +1456,49 @@ fn convert_cargo_manifest_to_oxido(contents: &str, source: &Path) -> Result<Stri
 }
 
 fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
+    if args.len() == 1 && (args[0] == OsStr::new("--help") || args[0] == OsStr::new("-h")) {
+        println!("{}", cargo_usage(action));
+        return Ok(());
+    }
     let mut input = None;
     let mut trusted = false;
     let mut release = false;
     let mut json_output = false;
-    for argument in args {
-        match argument.to_str() {
+    let mut package = None;
+    let mut binary = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].to_str() {
             Some("--confiar-dependencias") if !trusted => trusted = true,
             Some("--release") if !release => release = true,
             Some("--json") if !json_output => json_output = true,
+            Some("-p" | "--package") => {
+                if package.is_some() {
+                    return Err(format!("uso: {}", cargo_usage(action)));
+                }
+                package = Some(selection_value(args, &mut index, "-p <paquete>")?);
+            }
+            Some("--bin") => {
+                if binary.is_some() {
+                    return Err(format!("uso: {}", cargo_usage(action)));
+                }
+                binary = Some(selection_value(args, &mut index, "--bin <nombre>")?);
+            }
             _ => {
+                let argument = &args[index];
                 if argument.to_string_lossy().starts_with('-') || input.is_some() {
                     return Err(format!("uso: {}", cargo_usage(action)));
                 }
                 input = Some(argument.as_os_str());
             }
         }
+        index += 1;
+    }
+    if action != CargoAction::Run && (package.is_some() || binary.is_some()) {
+        return Err(format!(
+            "`-p`/`--package` y `--bin` solo se admiten con `oxido ejecutar`; uso: {}",
+            cargo_usage(action)
+        ));
     }
     let input = project_input::resolve(input)?;
     if release && action == CargoAction::Test {
@@ -1476,6 +1510,13 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     ) && let Some(workspace_root) = imported_workspace_root(&input)?
         && oxido_compiler::application::workspace::is_imported_cargo_workspace(&workspace_root)?
     {
+        let selection =
+            oxido_compiler::application::workspace::ImportedWorkspaceSelection { package, binary };
+        if input.is_file() && (selection.package.is_some() || selection.binary.is_some()) {
+            return Err(
+                "`-p`/`--package` y `--bin` no se combinan con un archivo `.ox` explícito".into(),
+            );
+        }
         let workspace_action = match action {
             CargoAction::Check => {
                 oxido_compiler::application::workspace::ImportedWorkspaceAction::Check
@@ -1491,41 +1532,149 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
             }
             _ => return Err("acción de workspace importado no válida".into()),
         };
+        WORKSPACE_CANCELLATION.store(false, Ordering::SeqCst);
+        ctrlc::set_handler(|| {
+            WORKSPACE_CANCELLATION.store(true, Ordering::SeqCst);
+        })
+        .map_err(|error| format!("no se pudo instalar el manejador de Ctrl+C: {error}"))?;
         let result = oxido_compiler::application::workspace::run_imported_workspace(
             &workspace_root,
             &input,
             trusted,
             release,
             workspace_action,
+            &selection,
+            Some(&WORKSPACE_CANCELLATION),
         )?;
+        if json_output {
+            let mut diagnostics = result
+                .mapped_diagnostics
+                .iter()
+                .map(|diagnostic| {
+                    let file = diagnostic
+                        .source_file
+                        .as_deref()
+                        .and_then(|path| structured_report_path(path, &workspace_root));
+                    serde_json::json!({
+                        "code": diagnostic.code.as_deref().unwrap_or("OX5001"),
+                        "severity": diagnostic.level,
+                        "message": sanitize_report_text(&diagnostic.message, Some(&workspace_root)),
+                        "file": file,
+                        "line": diagnostic.source.map(|location| location.line),
+                        "column": diagnostic.source.map(|location| location.column)
+                    })
+                })
+                .collect::<Vec<_>>();
+            if !result.stderr.trim().is_empty() {
+                diagnostics.push(serde_json::json!({
+                    "code": "OX5001",
+                    "severity": "error",
+                    "message": sanitize_report_text(&result.stderr, Some(&workspace_root)),
+                    "file": null,
+                    "line": null,
+                    "column": null
+                }));
+            }
+            if result.canceled {
+                diagnostics.push(serde_json::json!({
+                    "code": "OX5001",
+                    "severity": "error",
+                    "message": "Cargo fue cancelado por el usuario (Ctrl+C)",
+                    "file": null,
+                    "line": null,
+                    "column": null
+                }));
+            }
+            if result.timed_out {
+                diagnostics.push(serde_json::json!({
+                    "code": "OX5001",
+                    "severity": "error",
+                    "message": "Cargo superó el límite de ejecución de 120 segundos",
+                    "file": null,
+                    "line": null,
+                    "column": null
+                }));
+            }
+            if !result.success && diagnostics.is_empty() {
+                diagnostics.push(serde_json::json!({
+                    "code": "OX5001",
+                    "severity": "error",
+                    "message": format!(
+                        "Cargo terminó con estado {}",
+                        result.exit_code.map_or_else(
+                            || "sin código de salida".to_owned(),
+                            |code| code.to_string()
+                        )
+                    ),
+                    "file": null,
+                    "line": null,
+                    "column": null
+                }));
+            }
+            let output = structured_program_output(&result.program_output, &workspace_root);
+            let mut report = serde_json::json!({
+                "schemaVersion": 1,
+                "success": result.success,
+                "diagnostics": diagnostics,
+                "output": output
+            });
+            if action == CargoAction::Build {
+                if result.success {
+                    write_workspace_status(&format!(
+                        "Binarios generados en target/oxido/{}.",
+                        if release { "release" } else { "debug" }
+                    ))?;
+                }
+                report["artifactDirectory"] = serde_json::Value::String(format!(
+                    "target/oxido/{}",
+                    if release { "release" } else { "debug" }
+                ));
+            }
+            if result.success {
+                println!("{report}");
+                return Ok(());
+            }
+            return Err(format!("{STRUCTURED_ERROR_PREFIX}{report}"));
+        }
         for diagnostic in &result.diagnostics {
-            eprint!("{diagnostic}");
+            write_workspace_text(diagnostic)?;
         }
         if !result.stderr.trim().is_empty() {
-            eprint!(
-                "{}",
-                sanitize_report_text(&result.stderr, Some(&workspace_root))
-            );
+            write_workspace_text(&sanitize_report_text(&result.stderr, Some(&workspace_root)))?;
         }
         if result.success {
             for line in &result.program_output {
                 println!("{line}");
             }
             if action == CargoAction::Check {
-                println!("Workspace Óxido verificado correctamente.");
+                write_workspace_stdout_status("Workspace Óxido verificado correctamente.")?;
             }
             if action == CargoAction::Build {
                 let profile = if release { "release" } else { "debug" };
-                println!("Binarios generados en target/oxido/{profile}.");
+                if !json_output {
+                    write_workspace_status(&format!(
+                        "Binarios generados en target/oxido/{profile}."
+                    ))?;
+                }
             }
             return Ok(());
         }
+        if result.canceled {
+            return Err("Cargo fue cancelado por el usuario (Ctrl+C).".into());
+        }
+        if result.timed_out {
+            return Err("Cargo superó el límite de ejecución de 120 segundos".into());
+        }
         return Err(format!(
             "Cargo terminó con estado {}; el workspace importado no compiló.",
-            result
-                .exit_code
-                .map_or_else(|| "desconocido".to_owned(), |code| code.to_string())
+            result.exit_code.map_or_else(
+                || "sin código de salida (terminó por señal)".to_owned(),
+                |code| code.to_string()
+            )
         ));
+    }
+    if package.is_some() || binary.is_some() {
+        return Err("`-p`/`--package` y `--bin` solo se admiten en workspaces importados".into());
     }
     let (source, display_path) = load_ox(input.as_os_str())?;
     let settings = project_settings(&display_path)?;
@@ -1713,6 +1862,42 @@ fn cargo_ox(args: &[OsString], action: CargoAction) -> Result<(), String> {
     Ok(())
 }
 
+fn write_workspace_status(message: &str) -> Result<(), String> {
+    let stderr = std::io::stderr();
+    let mut stderr = stderr.lock();
+    writeln!(stderr, "{message}")
+        .map_err(|error| format!("no se pudo escribir el resumen de Cargo en stderr: {error}"))?;
+    stderr
+        .flush()
+        .map_err(|error| format!("no se pudo vaciar el resumen de Cargo en stderr: {error}"))
+}
+
+fn write_workspace_stdout_status(message: &str) -> Result<(), String> {
+    let stdout = std::io::stdout();
+    let mut stdout = stdout.lock();
+    writeln!(stdout, "{message}")
+        .map_err(|error| format!("no se pudo escribir el resumen de Cargo en stdout: {error}"))?;
+    stdout
+        .flush()
+        .map_err(|error| format!("no se pudo vaciar el resumen de Cargo en stdout: {error}"))
+}
+
+fn write_workspace_text(message: &str) -> Result<(), String> {
+    let stderr = std::io::stderr();
+    let mut stderr = stderr.lock();
+    stderr
+        .write_all(message.as_bytes())
+        .map_err(|error| format!("no se pudo escribir la salida de Cargo en stderr: {error}"))?;
+    if !message.ends_with('\n') {
+        stderr
+            .write_all(b"\n")
+            .map_err(|error| format!("no se pudo separar la salida de Cargo: {error}"))?;
+    }
+    stderr
+        .flush()
+        .map_err(|error| format!("no se pudo vaciar la salida de Cargo en stderr: {error}"))
+}
+
 fn cargo_usage(action: CargoAction) -> &'static str {
     match action {
         CargoAction::Check => {
@@ -1722,15 +1907,25 @@ fn cargo_usage(action: CargoAction) -> &'static str {
             "oxido compilar [<archivo.ox|directorio>] [--release] [--confiar-dependencias] [--json]"
         }
         CargoAction::Run => {
-            "oxido ejecutar [<archivo.ox|directorio>] [--release] [--confiar-dependencias] [--json] (alias: run)"
+            "oxido ejecutar [<archivo.ox|directorio>] [-p <paquete>] [--bin <nombre>] [--release] [--confiar-dependencias] [--json] (alias: run)"
         }
         CargoAction::Test => {
             "oxido probar [<archivo.ox|directorio>] [--confiar-dependencias] [--json]"
         }
         _ => {
-            "oxido ejecutar [<archivo.ox|directorio>] [--release] [--confiar-dependencias] [--json] (alias: run)"
+            "oxido ejecutar [<archivo.ox|directorio>] [-p <paquete>] [--bin <nombre>] [--release] [--confiar-dependencias] [--json] (alias: run)"
         }
     }
+}
+
+fn selection_value(args: &[OsString], index: &mut usize, option: &str) -> Result<String, String> {
+    let value = args
+        .get(*index + 1)
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+        .ok_or_else(|| format!("falta el valor de {option}"))?;
+    *index += 1;
+    Ok(value.to_owned())
 }
 
 fn build_artifact_directory(action: CargoAction, release: bool) -> Option<String> {
@@ -2136,5 +2331,5 @@ fn format_diagnostics(source: &SourceFile, path: &Path, diagnostics: &[Diagnosti
 }
 
 fn usage() -> &'static str {
-    "uso: oxido [--version|-V] <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|verificar|compilar|ejecutar> ...; run es alias de ejecutar"
+    "uso: oxido [--version|-V] <aliases|analizar-rust|auditar-proyecto|auditar-unsafe|descargar-dependencias|nuevo|formato|exportar|importar|importar-proyecto|probar|verificar|compilar|ejecutar> ...; ejecutar admite -p <paquete> y --bin <nombre> en workspaces importados; run es alias de ejecutar"
 }
